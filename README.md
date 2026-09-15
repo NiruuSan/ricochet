@@ -56,7 +56,7 @@ Server validation blocks direct score forgery but does not stop a client from tr
 2. **Schema.** From your machine: `TURSO_DATABASE_URL=… TURSO_AUTH_TOKEN=… pnpm db:migrate`. It applies each pending file in `drizzle/` in its own transaction and records it in `_ricochet_migrations`, so it is safe to rerun. Run it before deploying code that needs a new migration.
 3. **GitHub OAuth App.** GitHub → Settings → Developer settings → OAuth Apps → New. Homepage: your Vercel URL. Authorization callback URL: `https://<your-domain>/api/auth/callback/github`. A GitHub OAuth App allows one callback URL, so create a second app for local development (`http://localhost:3000/api/auth/callback/github`).
 4. **Environment variables** (Vercel → Project → Settings → Environment Variables, see `.env.example`): `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `AUTH_SECRET` (`npx auth secret`), `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, and optionally `RICOCHET_ADMIN_USER_ID` and the Solana settings above.
-5. **Deploy.** Vercel detects Next.js; the default build (`pnpm run build` → `next build`) needs no extra settings. Redeploy after changing environment variables.
+5. **Deploy.** Vercel detects Next.js; the default build (`pnpm run build` → `next build --webpack`) needs no extra settings. Keep webpack: see `next.config.ts`. Redeploy after changing environment variables.
 
 ## Development
 
