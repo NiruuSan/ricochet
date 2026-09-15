@@ -61,17 +61,6 @@
   opacity: 0.55;
   cursor: not-allowed;
 }
-.mode::after {
-  content: "";
-  position: absolute;
-  right: -60px;
-  bottom: -60px;
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--accent-glow, #c6f56422), transparent 70%);
-  pointer-events: none;
-}
 .modeIcon {
   width: 52px;
   height: 52px;
@@ -86,15 +75,9 @@
   width: 26px;
   height: 26px;
 }
-.modeGems {
-  --accent-glow: #7fd6ff2b;
-}
 .modeGems .modeIcon {
   background: #7fd6ff1a;
   color: #7fd6ff;
-}
-.modeSol {
-  --accent-glow: #b6a1fc2e;
 }
 .modeSol .modeIcon {
   background: #b6a1fc1c;
