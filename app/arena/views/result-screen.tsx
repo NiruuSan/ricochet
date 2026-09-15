@@ -40,7 +40,7 @@ function useCountUp(value: number, duration = 900) {
   return shown;
 }
 
-function FinalBoard({ game, label }: { game: Game; label: string }) {
+export function FinalBoard({ game, label }: { game: Game; label: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     if (ref.current) drawBoard(ref.current, null, { ...game, over: true }, 90);
@@ -196,7 +196,10 @@ export function ResultScreen({ target, onPlayAgain, onClose, onSettled }: Props)
                 <strong className={net > 0 ? styles.positive : net < 0 ? styles.negative : undefined}>
                   {signedAmount(net, asset)} {CURRENCY[asset]}
                 </strong>
-                <em>Entry {amount(recap!.stake, asset)}</em>
+                <em>
+                  Entry {amount(recap!.stake, asset)}
+                  {recap!.bonusGems > 0 && <b className={styles.gemBonus}> · +{recap!.bonusGems} gems bonus</b>}
+                </em>
               </>
             ) : (
               <>

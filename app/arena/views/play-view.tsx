@@ -1,7 +1,7 @@
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Flag, LogOut, Play } from "lucide-react";
-import type { Asset, MatchRecap } from "@/lib/api-types";
+import type { Asset, MatchRecap, Run, TournamentDetail } from "@/lib/api-types";
 import { MAX_ANGLE, MIN_ANGLE } from "@/lib/engine";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -12,6 +12,7 @@ import type { PlayerState } from "../arena";
 import { Lobby, type LobbyChoice } from "./lobby";
 import { MatchIntro, type IntroStage } from "./match-intro";
 import { ResultScreen, type ResultTarget } from "./result-screen";
+import { TournamentResult } from "./tournament-result";
 import styles from "./screens.module.css";
 
 type Props = {
@@ -21,9 +22,12 @@ type Props = {
   /** A match whose recap was opened from a notification or link. */
   recapMatchId: string | null;
   setRecapMatchId: (id: string | null) => void;
+  /** A tournament whose run should start or resume, from a `/?tournament=<id>` link. */
+  tournamentId: string | null;
+  clearTournament: () => void;
 };
 
-type Intro = { asset: Asset; stake: number; stage: IntroStage; opponent?: { name: string; avatar: string | null } | null };
+type Intro = { asset: Asset; stake: number; stage: IntroStage; opponent?: { name: string; avatar: string | null } | null; tournament?: string };
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -31,7 +35,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * The arena flow: lobby (practice or a 1v1 entry), the matchmaking intro, the
  * game itself, and the end-of-run screen.
  */
-export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMatchId }: Props) {
+export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMatchId, tournamentId, clearTournament }: Props) {
   const { data, setAsset, setError, refresh } = player;
   const { game, run, started, flying, busy, syncing, angle, clears } = session;
   const [choice, setChoice] = useState<Asset | null>(null);
@@ -39,6 +43,41 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
   const [intro, setIntro] = useState<Intro | null>(null);
 
   const currentMatch = data.matches.find((m) => m.id === run?.match_id);
+  const [tournamentName, setTournamentName] = useState("");
+
+  // Enter a tournament run: the intro shows the prize pool, then the board.
+  const { resume } = session;
+  useEffect(() => {
+    if (!tournamentId) return;
+    let active = true;
+    void (async () => {
+      try {
+        const detail = await request<TournamentDetail>(`/api/tournaments/${encodeURIComponent(tournamentId)}`);
+        if (!active) return;
+        const base: Intro = { asset: detail.asset, stake: detail.pot, stage: "searching", tournament: detail.name };
+        setTournamentName(detail.name);
+        setIntro(base);
+        const [{ run: entered }] = await Promise.all([request<{ run: Run }>("/api/tournaments", { action: "play", id: tournamentId }), wait(1500)]);
+        if (!active) return;
+        resume(entered);
+        setIntro({ ...base, stage: "ready" });
+        await wait(1100);
+        setIntro({ ...base, stage: "go" });
+        await wait(650);
+        setIntro({ ...base, stage: "leaving" });
+        await wait(420);
+        setIntro(null);
+      } catch (e) {
+        if (!active) return;
+        setIntro(null);
+        setError((e as Error).message);
+        clearTournament();
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [clearTournament, resume, setError, tournamentId]);
 
   const findMatch = async (asset: Asset, stake: number) => {
     if (!data.player) {
@@ -83,8 +122,9 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
 
   const closeResult = useCallback(() => {
     setRecapMatchId(null);
+    if (session.run?.tournamentId) clearTournament();
     if (session.game.over) session.reset();
-  }, [session, setRecapMatchId]);
+  }, [clearTournament, session, setRecapMatchId]);
 
   const playAgain = (again: { asset: Asset; stake: number } | null) => {
     setRecapMatchId(null);
@@ -97,7 +137,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
 
   const resultTarget: ResultTarget | null = recapMatchId
     ? { kind: "match", matchId: recapMatchId, ready: true }
-    : started && game.over && !intro
+    : started && game.over && !intro && !run?.tournamentId
       ? run
         ? { kind: "match", matchId: run.match_id, ready: !syncing }
         : { kind: "practice", game, clears, name: data.player?.name ?? "You", avatar: data.player?.avatar ?? null }
@@ -119,10 +159,18 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
         <section className={styles.game}>
           <div className={styles.hud}>
             <span className={styles.hudChip}>
-              {run ? `1V1 · ${currentMatch ? amount(currentMatch.stake, run.asset).toUpperCase() : run.asset === "gems" ? "GEMS" : "SOL"}` : "PRACTICE"}
+              {run?.tournamentId
+                ? "TOURNAMENT"
+                : run
+                  ? `1V1 · ${currentMatch ? amount(currentMatch.stake, run.asset).toUpperCase() : run.asset === "gems" ? "GEMS" : "SOL"}`
+                  : "PRACTICE"}
             </span>
             <span className={styles.hudVs}>
-              {run ? (
+              {run?.tournamentId ? (
+                <>
+                  <b>{tournamentName || "Tournament"}</b> · one run
+                </>
+              ) : run ? (
                 currentMatch?.opponent ? (
                   <>
                     vs <Avatar name={currentMatch.opponent} src={currentMatch.opponent_avatar} size={26} /> <b>{currentMatch.opponent}</b>
@@ -161,7 +209,10 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           <p className="round-banner">{game.bonus ? "Board cleared! +4 bonus balls +1 round ball." : ""}</p>
         </section>
       )}
-      {intro && <MatchIntro asset={intro.asset} stake={intro.stake} stage={intro.stage} opponent={intro.opponent} />}
+      {intro && <MatchIntro asset={intro.asset} stake={intro.stake} stage={intro.stage} opponent={intro.opponent} tournament={intro.tournament} />}
+      {run?.tournamentId && started && game.over && !intro && (
+        <TournamentResult tournamentId={run.tournamentId} ready={!syncing} board={game} onClose={closeResult} />
+      )}
       {resultTarget && (
         <ResultScreen
           key={resultTarget.kind === "match" ? resultTarget.matchId : "practice"}

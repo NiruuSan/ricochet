@@ -1,10 +1,12 @@
 "use client";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Gem, Target, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Gem, Medal, Target, Zap } from "lucide-react";
 import { STAKES, winnerPayout, type Asset } from "@/lib/api-types";
 import { amount, CURRENCY, units } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./screens.module.css";
+import { TournamentCard, useTournaments } from "./tournaments-view";
+import tournamentStyles from "./tournaments.module.css";
 
 export type LobbyChoice = "practice" | Asset;
 
@@ -25,6 +27,8 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
   const balance = (asset: Asset) => (asset === "gems" ? (data.player?.balance ?? 0) : (data.cashBalance ?? 0));
   const stake = choice ? STAKES[choice][stakeIndex] : 0;
   const affordable = choice ? balance(choice) >= stake : false;
+  const { tournaments, now } = useTournaments();
+  const featured = (tournaments ?? []).filter((t) => t.status === "live" || t.status === "registration").slice(0, 3);
 
   return (
     <section className={styles.lobby}>
@@ -127,6 +131,24 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
                 ? "Gems are free and have no monetary value. No house fee on gem matches."
                 : "Devnet SOL has no monetary value. The house keeps 12% of each entry when a match has a winner."}
           </p>
+        </div>
+      )}
+
+      {featured.length > 0 && (
+        <div className={tournamentStyles.section}>
+          <div className={styles.stakeTop}>
+            <h2 style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Medal size={20} className="lime" /> Tournaments
+            </h2>
+            <Link className="lime" href="/tournaments">
+              All tournaments <ArrowRight size={14} style={{ verticalAlign: -2 }} />
+            </Link>
+          </div>
+          <div className={tournamentStyles.grid} style={{ marginTop: 14 }}>
+            {featured.map((t) => (
+              <TournamentCard key={t.id} t={t} now={now} />
+            ))}
+          </div>
         </div>
       )}
     </section>

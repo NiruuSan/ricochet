@@ -294,8 +294,8 @@ export function useGameSession({ onSaved, onError }: Options) {
 
   const resume = useCallback(
     (active: Run) => {
-      // Polling must not rewind a run this tab is already playing.
-      if (runRef.current?.id === active.id) return;
+      // Polling must not rewind a run this tab is already playing, or replace another game in progress.
+      if (runRef.current?.id === active.id || (startedRef.current && !gameRef.current.over)) return;
       confirmedRef.current = active;
       setRun(active);
       setGame(active.state);

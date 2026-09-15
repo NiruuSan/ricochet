@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Equal, Gift, Trophy, X } from "lucide-react";
+import { Bell, Equal, Gift, Medal, Trophy, X } from "lucide-react";
 import type { NotificationItem } from "@/lib/api-types";
 import { request } from "./api";
 import { CURRENCY, units } from "./format";
@@ -18,20 +18,32 @@ function timeAgo(ms: number, now = Date.now()) {
   return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip"; title: string; detail: string } {
+const ordinal = (n: number) => `${n}${[, "st", "nd", "rd"][(n % 100 >> 3) ^ 1 && n % 10] || "th"}`;
+
+function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" | "tournament"; title: string; detail: string } {
   if (n.kind === "tip_received") {
     return { tone: "tip", title: `${n.data.from} tipped you`, detail: `+${units(n.data.amount, "devnet")} SOL` };
+  }
+  if (n.kind === "tournament_result") {
+    const { name, rank, players, payout, refund, asset } = n.data;
+    if (rank === null) return { tone: "tournament", title: refund ? `${name} was called off` : `${name} has ended`, detail: refund ? `Entry refunded · +${units(refund, asset)} ${CURRENCY[asset]}` : "You did not play your run" };
+    return {
+      tone: payout > 0 ? "win" : "tournament",
+      title: `${ordinal(rank)} of ${players} in ${name}`,
+      detail: payout > 0 ? `Prize +${units(payout, asset)} ${CURRENCY[asset]}` : "Outside the prize places this time",
+    };
   }
   const { result, opponent, net, asset, score, opponentScore } = n.data;
   const vs = opponent ?? "your opponent";
   const scores = `${score.toLocaleString("en")} – ${opponentScore.toLocaleString("en")}`;
-  if (result === "win") return { tone: "win", title: `You won vs ${vs}`, detail: `+${units(net, asset)} ${CURRENCY[asset]} · ${scores}` };
+  const bonus = n.data.bonusGems ? ` · +${n.data.bonusGems} gems` : "";
+  if (result === "win") return { tone: "win", title: `You won vs ${vs}`, detail: `+${units(net, asset)} ${CURRENCY[asset]}${bonus} · ${scores}` };
   if (result === "loss") return { tone: "loss", title: `You lost vs ${vs}`, detail: `${units(net, asset)} ${CURRENCY[asset]} · ${scores}` };
   return { tone: "draw", title: `Draw vs ${vs}`, detail: `Entry refunded · ${scores}` };
 }
 
 function Icon({ tone }: { tone: ReturnType<typeof describe>["tone"] }) {
-  const Glyph = tone === "tip" ? Gift : tone === "draw" ? Equal : tone === "loss" ? X : Trophy;
+  const Glyph = tone === "tip" ? Gift : tone === "tournament" ? Medal : tone === "draw" ? Equal : tone === "loss" ? X : Trophy;
   return (
     <span className={`${styles.icon} ${styles[tone]}`}>
       <Glyph size={16} />
@@ -105,6 +117,7 @@ export function Notifications({ items, unread, onOpenMatch, onRead, viewingMatch
     setToasts([]);
     if (!n.read) void request("/api/notifications", { action: "read", ids: [n.id] }).then(onRead, () => {});
     if (n.kind === "match_result") onOpenMatch(n.data.matchId);
+    else if (n.kind === "tournament_result") router.push(`/tournaments/${n.data.tournamentId}`);
     else router.push("/wallet");
   };
 

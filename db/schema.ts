@@ -187,3 +187,51 @@ export const notifications = sqliteTable(
   },
   (t) => [index("notification_owner").on(t.userId, t.created)],
 );
+
+// Score tournaments created by the administrator. Every entrant plays one run
+// on the tournament's seed between starts_at and ends_at; the pot is paid out
+// by rank when the tournament closes. See lib/tournaments.ts.
+export const tournaments = sqliteTable(
+  "tournaments",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    asset: text("asset").notNull(),
+    // Paid tournaments: the entry each player pays. 0 for a free tournament.
+    entryFee: integer("entry_fee").notNull().default(0),
+    // Free tournaments: the prize the house puts up. Paid pots are computed from entries.
+    prize: integer("prize").notNull().default(0),
+    payout: text("payout").notNull(),
+    places: integer("places").notNull(),
+    seed: integer("seed").notNull(),
+    ruleset: integer("ruleset").notNull(),
+    startsAt: integer("starts_at").notNull(),
+    endsAt: integer("ends_at").notNull(),
+    // scheduled → settled | cancelled
+    status: text("status").notNull().default("scheduled"),
+    created: integer("created").notNull(),
+  },
+  (t) => [index("tournament_schedule").on(t.status, t.endsAt)],
+);
+
+export const tournamentEntries = sqliteTable(
+  "tournament_entries",
+  {
+    id: text("id").primaryKey(),
+    tournamentId: text("tournament_id").notNull(),
+    userId: text("user_id").notNull(),
+    // Null until the entrant starts their one run.
+    state: text("state"),
+    revision: integer("revision").notNull().default(0),
+    score: integer("score").notNull().default(0),
+    clears: integer("clears").notNull().default(0),
+    done: integer("done").notNull().default(0),
+    forfeit: integer("forfeit").notNull().default(0),
+    registered: integer("registered").notNull(),
+    started: integer("started"),
+    finished: integer("finished"),
+    rank: integer("rank"),
+    payout: integer("payout").notNull().default(0),
+  },
+  (t) => [uniqueIndex("one_entry_per_player").on(t.tournamentId, t.userId), index("tournament_entry_owner").on(t.userId, t.registered)],
+);

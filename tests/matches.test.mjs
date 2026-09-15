@@ -300,6 +300,7 @@ assert.ok(!JSON.stringify(overview).includes("user-"), "The overview carries no 
   await matches.playShot(DAN, danRun.id, danRun.revision, "forfeit");
   recap = await matches.matchRecap(ALICE, aliceStart.match_id);
   assert.deepEqual([recap.status, recap.result, recap.net], ["settled", "win", recapStake]);
+  assert.equal(recap.bonusGems, 0, "Gem matches earn no gem bonus");
   assert.deepEqual([recap.opponent.stats.score, recap.opponent.stats.forfeit], [0, true]);
   await matches.settle(aliceStart.match_id);
   const aliceInbox = await notifications.listNotifications(ALICE);

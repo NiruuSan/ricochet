@@ -242,6 +242,10 @@ assert.equal(balance("a"), beforeA + 1_760_000_000);
 assert.equal(balance("b"), beforeB);
 assert.equal(balance(service.HOUSE), houseBefore + 240_000_000);
 assert.equal(balance("escrow:win"), 0);
+const gemsOf = (uid) => sqlite.prepare("SELECT balance FROM players WHERE id = ?").get(uid).balance;
+assert.deepEqual([gemsOf("a"), gemsOf("b")], [2100, 2000], "A SOL win also earns 100 gems, once");
+const { matchRecap } = await import("../lib/matches.ts");
+assert.deepEqual([(await matchRecap("a", "win")).bonusGems, (await matchRecap("b", "win")).bonusGems], [100, 0], "The recap shows the winner's gem bonus");
 await match("tie", true);
 const tieA = balance("a");
 const tieB = balance("b");
@@ -255,7 +259,7 @@ const shortA = balance("a");
 await assert.rejects(() => settle("short"), /insufficient/);
 assert.equal(balance("a"), shortA);
 assert.equal(sqlite.prepare("SELECT settled FROM matches WHERE id='short'").get().settled, 0);
-assert.equal(sqlite.prepare("SELECT balance FROM players WHERE id='a'").get().balance, 2000, "Devnet must not affect gems");
+assert.deepEqual([gemsOf("a"), gemsOf("b")], [2100, 2000], "Ties and rolled-back settlements earn no gem bonus");
 const treasury = await service.beginWithdrawal("admin", crypto.randomUUID(), destination, "0.1", true);
 assert.equal(balance(service.HOUSE), houseBefore + 240_000_000 - 100_005_000);
 assert.equal(balance("a"), shortA);
@@ -304,6 +308,6 @@ rpcFailure = false;
 assert.ok(!JSON.stringify(await service.walletSnapshot("a")).includes("encrypted_key"));
 assert.ok(!JSON.stringify(await service.walletSnapshot("a")).includes("wire"));
 console.log(
-  "PASS: decimal precision, mainnet/cluster gates, encrypted wallet integrity, finalized-only deposits, replay safety, pool serialization, expiry holds, provable-expiry refunds, abandoned-transfer unblocking, failed-transfer refunds, secret redaction, escrow conservation, 12% fees, ties, atomic settlement rollback, gem isolation, treasury isolation, minimum deposits, rent-exempt pool, treasury deposits and live snapshot.",
+  "PASS: decimal precision, mainnet/cluster gates, encrypted wallet integrity, finalized-only deposits, replay safety, pool serialization, expiry holds, provable-expiry refunds, abandoned-transfer unblocking, failed-transfer refunds, secret redaction, escrow conservation, 12% fees, ties, atomic settlement rollback, 100-gem bonus for SOL wins only, treasury isolation, minimum deposits, rent-exempt pool, treasury deposits and live snapshot.",
 );
 close();

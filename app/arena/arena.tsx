@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Gamepad2, HelpCircle, History, Landmark, Trophy, Wallet, X, Zap } from "lucide-react";
+import { ArrowUpRight, Gamepad2, HelpCircle, History, Landmark, Medal, Trophy, Wallet, X, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, GemIcon } from "./avatar";
 import { units } from "./format";
@@ -18,6 +18,8 @@ import { PlayView } from "./views/play-view";
 import { ProfileView } from "./views/profile-view";
 import { PublicProfileView } from "./views/public-profile-view";
 import { RulesView } from "./views/rules-view";
+import { TournamentDetailView } from "./views/tournament-detail-view";
+import { TournamentsView } from "./views/tournaments-view";
 import { WalletView } from "./views/wallet-view";
 import { WelcomeView } from "./views/welcome-view";
 
@@ -25,12 +27,15 @@ export type PlayerState = ReturnType<typeof usePlayerData>;
 
 const NAVIGATION = [
   { href: "/", view: "play", label: "Arena", Icon: Gamepad2 },
+  { href: "/tournaments", view: "tournaments", label: "Tournaments", Icon: Medal },
   { href: "/matches", view: "matches", label: "My matches", Icon: History },
   { href: "/leaderboard", view: "leaderboard", label: "Leaderboard", Icon: Trophy },
   { href: "/faq", view: "faq", label: "How to play", Icon: HelpCircle },
 ];
 
-export default function Arena({ view, profileName, initialMatchId }: { view: View; profileName?: string; initialMatchId?: string }) {
+type ArenaProps = { view: View; profileName?: string; initialMatchId?: string; initialTournamentId?: string; tournamentId?: string };
+
+export default function Arena({ view, profileName, initialMatchId, initialTournamentId, tournamentId }: ArenaProps) {
   const player = usePlayerData();
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
@@ -39,6 +44,12 @@ export default function Arena({ view, profileName, initialMatchId }: { view: Vie
   const router = useRouter();
   // A match recap opened from a notification or a `/?match=<id>` link.
   const [recapMatchId, setRecapState] = useState<string | null>(view === "play" ? (initialMatchId ?? null) : null);
+
+  const [playTournamentId, setPlayTournamentId] = useState<string | null>(view === "play" ? (initialTournamentId ?? null) : null);
+  const clearTournament = useCallback(() => {
+    setPlayTournamentId(null);
+    if (window.location.search.includes("tournament=")) window.history.replaceState(null, "", "/");
+  }, []);
 
   const setRecapMatchId = useCallback((id: string | null) => {
     setRecapState(id);
@@ -59,20 +70,22 @@ export default function Arena({ view, profileName, initialMatchId }: { view: Vie
   useEffect(() => {
     let current = true;
     void refresh().then((snapshot) => {
-      if (!current || !snapshot?.active || view !== "play") return;
+      // A tournament link takes over the board; a 1v1 run resumes next time.
+      if (!current || !snapshot?.active || view !== "play" || initialTournamentId) return;
       resume(snapshot.active);
       setAsset(snapshot.active.asset);
     });
     return () => {
       current = false;
     };
-  }, [refresh, resume, setAsset, view]);
+  }, [initialTournamentId, refresh, resume, setAsset, view]);
 
   const currentMatch = data.matches.find((m) => m.id === session.run?.match_id);
   const refundDescription = (session.run?.asset ?? asset) === "gems" ? "refunded in full" : "refunded minus the 12% house fee";
   // Matches created before ruleset 4 keep the forfeit rules they started with.
-  const forfeitWarning =
-    (session.run?.ruleset ?? 4) >= 4
+  const forfeitWarning = session.run?.tournamentId
+    ? `Ending your run now locks your score of ${session.game.score.toLocaleString("en")} for this tournament. You only get one run. This cannot be undone.`
+    : (session.run?.ruleset ?? 4) >= 4
       ? `Forfeiting ends your run now with your current score of ${session.game.score.toLocaleString("en")}. Your entry stays in the match: ${
           currentMatch?.joined ? "your opponent wins if they finish with a higher score" : "the seat stays open, and whoever joins wins the pot by beating your score"
         }. This cannot be undone.`
@@ -153,8 +166,11 @@ export default function Arena({ view, profileName, initialMatchId }: { view: Vie
             onForfeit={() => setConfirmForfeit(true)}
             recapMatchId={recapMatchId}
             setRecapMatchId={setRecapMatchId}
+            tournamentId={playTournamentId}
+            clearTournament={clearTournament}
           />
         )}
+        {view === "tournaments" && (tournamentId ? <TournamentDetailView key={tournamentId} id={tournamentId} player={player} /> : <TournamentsView player={player} />)}
         {view === "welcome" && <WelcomeView session={session} />}
         {view === "matches" && <MatchesView player={player} />}
         {view === "leaderboard" && <LeaderboardView player={player} />}

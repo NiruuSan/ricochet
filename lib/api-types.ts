@@ -7,6 +7,9 @@ export type Asset = "gems" | "devnet";
 
 export const STARTING_GEMS = 2000;
 
+/** Gems the winner of a devnet SOL match receives on top of the SOL payout. */
+export const SOL_WIN_GEM_BONUS = 100;
+
 /** Smallest devnet deposit swept into the pool (0.001 SOL), in lamports. */
 export const MIN_DEPOSIT = 1_000_000;
 
@@ -35,6 +38,8 @@ export type Run = {
   forfeit: number;
   /** Boards fully cleared so far. */
   clears: number;
+  /** Set when this is a tournament run rather than a 1v1 match. */
+  tournamentId?: string;
 };
 
 export type MatchResult = "win" | "loss" | "draw" | "cancelled";
@@ -99,6 +104,8 @@ export type MatchRecap = {
   result: MatchResult | null;
   /** Profit or loss once settled, in the match currency's units. */
   net: number | null;
+  /** Gems awarded for winning this devnet SOL match. */
+  bonusGems: number;
   you: RecapSide;
   /** The opponent's stats appear only once the match has settled; scores stay hidden until both finish. */
   opponent: { name: string; avatar: string | null; stats: RecapSide | null } | null;
@@ -113,12 +120,26 @@ export type MatchNotification = {
   opponent: string | null;
   score: number;
   opponentScore: number;
+  /** Gems won alongside a devnet SOL win; absent on older notifications. */
+  bonusGems?: number;
 };
 export type TipNotification = { amount: number; from: string };
+export type TournamentNotification = {
+  tournamentId: string;
+  name: string;
+  asset: Asset;
+  /** Null when the entrant did not play, or the tournament was cancelled. */
+  rank: number | null;
+  players: number;
+  payout: number;
+  /** An entry fee returned because the tournament was cancelled or nobody played. */
+  refund: number;
+};
 
 export type NotificationItem = { id: string; created: number; read: boolean } & (
   | { kind: "match_result"; data: MatchNotification }
   | { kind: "tip_received"; data: TipNotification }
+  | { kind: "tournament_result"; data: TournamentNotification }
 );
 
 export type Snapshot = {
@@ -176,3 +197,48 @@ export type TreasurySnapshot = {
   transfers: Transfer[];
   open: Transfer[];
 };
+
+/** How a tournament pot is split. Shares are percentages by rank, strictly decreasing. */
+export type PayoutPreset = "winner" | "top3" | "top10";
+export const PAYOUT_SHARES: Record<PayoutPreset, readonly number[]> = {
+  winner: [100],
+  top3: [50, 30, 20],
+  top10: [20, 17, 14, 12, 10, 8, 7, 5, 4, 3],
+};
+/** The house keeps this share of paid tournament entries, as it does for matches. */
+export const TOURNAMENT_FEE_PERCENT: Record<Asset, number> = { devnet: 12, gems: 0 };
+
+/** registration: before the start. live: runs can be played. closing: ended, not paid out yet. */
+export type TournamentStatus = "registration" | "live" | "closing" | "settled" | "cancelled";
+
+export type TournamentYou = { score: number; done: boolean; started: boolean; rank: number | null; payout: number };
+
+export type TournamentSummary = {
+  id: string;
+  name: string;
+  asset: Asset;
+  /** 0 for a free tournament. */
+  entryFee: number;
+  payout: PayoutPreset;
+  places: number;
+  entrants: number;
+  /** The pot as it stands: paid by the house, or entries after the house share. */
+  pot: number;
+  /** The pot once every place is taken. */
+  maxPot: number;
+  startsAt: number;
+  endsAt: number;
+  status: TournamentStatus;
+  /** The signed-in player's entry, if registered. */
+  you: TournamentYou | null;
+};
+
+export type TournamentStanding = { rank: number | null; name: string; avatar: string | null; score: number; done: boolean; started: boolean; payout: number; isYou: boolean };
+
+export type TournamentDetail = TournamentSummary & {
+  /** Amount per rank if the tournament ended now with every ranked player distinct. */
+  prizes: number[];
+  standings: TournamentStanding[];
+};
+
+export type AdminTournament = TournamentSummary & { played: number; finished: number };

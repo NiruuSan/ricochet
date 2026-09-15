@@ -1,7 +1,7 @@
 import { adminId, database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulate, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
 import type { Asset, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
-import { cancelRefund, isStake, winnerFee, winnerPayout } from "./api-types";
+import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
 import { listNotifications, notificationInsert } from "./notifications";
@@ -81,6 +81,15 @@ export async function settle(matchId: string) {
       );
     }
   }
+  // Winning a real SOL match also earns gems. The ID makes it once per match.
+  const bonusGems = m.asset === "devnet" && winner ? SOL_WIN_GEM_BONUS : 0;
+  if (bonusGems) {
+    ops.push(
+      db
+        .prepare("INSERT OR IGNORE INTO ledger(id, user_id, match_id, kind, amount, created) VALUES(?, ?, ?, 'sol_win_bonus', ?, ?)")
+        .bind(`${matchId}:gem-bonus:${winner}`, winner, matchId, bonusGems, now),
+    );
+  }
   ops.push(db.prepare("UPDATE matches SET settled = 1, winner = ?, fee = ? WHERE id = ? AND settled = 0").bind(winner, fee, matchId));
   // Tell both players how it ended, including one who has since gone offline.
   const names = await db
@@ -102,6 +111,7 @@ export async function settle(matchId: string) {
       opponent: nameOf(other.user_id),
       score: me.score,
       opponentScore: other.score,
+      bonusGems: result === "win" ? bonusGems : 0,
     };
     // The ID names the seat, not the player: notification IDs reach the browser.
     ops.push(notificationInsert(db, `${matchId}:result:${me.user_id === m.p1 ? "p1" : "p2"}`, me.user_id, "match_result", data, now));
@@ -273,6 +283,7 @@ type RecapRow = {
   other_forfeit: number | null;
   other_name: string | null;
   other_avatar: string | null;
+  bonus: number | null;
 };
 
 function recapSide(name: string, avatar: string | null, stateJson: string, clears: number, forfeit: number): RecapSide {
@@ -294,7 +305,8 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
         `SELECT m.stake, m.asset, m.p2, m.settled, m.cancelled, m.winner, m.fee,
            r.user_id AS me, r.state, r.clears, r.done, r.forfeit, p.name, p.avatar,
            o.state AS other_state, o.clears AS other_clears, o.done AS other_done, o.forfeit AS other_forfeit,
-           op.name AS other_name, op.avatar AS other_avatar
+           op.name AS other_name, op.avatar AS other_avatar,
+           (SELECT amount FROM ledger WHERE id = ?) AS bonus
          FROM runs r
          JOIN matches m ON m.id = r.match_id
          JOIN players p ON p.id = r.user_id
@@ -302,7 +314,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
          LEFT JOIN runs o ON o.match_id = m.id AND o.user_id = op.id
          WHERE r.match_id = ? AND r.user_id = ?`,
       )
-      .bind(matchId, uid)
+      .bind(`${matchId}:gem-bonus:${uid}`, matchId, uid)
       .first<RecapRow>();
   let row = await load();
   if (!row) throw new GameError("Match not found.", 404);
@@ -321,6 +333,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
     status,
     result,
     net: settled ? netResult(result, row.stake, row.fee) : null,
+    bonusGems: row.bonus ?? 0,
     you: recapSide(row.name, row.avatar, row.state, row.clears, row.forfeit),
     opponent: row.other_name
       ? {

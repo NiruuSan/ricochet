@@ -10,6 +10,7 @@ export const LIMITS = {
   walletWrite: 30,
   treasuryWrite: 60,
   profileWrite: 20,
+  tournamentWrite: 30,
 } as const;
 
 /**

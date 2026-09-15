@@ -7,6 +7,7 @@ import { settings } from "@/lib/payments/accounts";
 import { PaymentError } from "@/lib/payments/errors";
 import { launchStatus } from "@/lib/payments/policy";
 import { createPlayer } from "@/lib/profile";
+import { playTournamentShot, settleDueTournaments } from "@/lib/tournaments";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,8 @@ export async function GET(req: Request) {
     const asset: Asset = new URL(req.url).searchParams.get("asset") === "devnet" ? "devnet" : "gems";
     const user = await currentUser();
     if (!user) return json({ authenticated: false });
-    const [limited] = await Promise.all([rateLimited("gameRead", user.userId), touchPlayer(user.userId)]);
+    // Tournaments that ended are paid out here too, so results reach players who never open the tournament page.
+    const [limited] = await Promise.all([rateLimited("gameRead", user.userId), touchPlayer(user.userId), settleDueTournaments()]);
     if (limited) return json({ error: TOO_MANY_REQUESTS }, 429);
     return json({ authenticated: true, ...(await playerSnapshot(user.userId, asset)) });
   } catch (e) {
@@ -40,7 +42,12 @@ export async function POST(req: Request) {
     // Shots are the hot path: the rate limit runs alongside loading the run, and
     // owning a run already proves the profile exists.
     if (b.action === "shot" || b.action === "forfeit") {
-      return json({ run: await playShot(uid, b.runId, b.revision, b.action, b.angle, limited.then((over) => !over)) });
+      const allowed = limited.then((over) => !over);
+      // Tournament runs are addressed as `t:<entry id>`.
+      if (typeof b.runId === "string" && b.runId.startsWith("t:")) {
+        return json({ run: await playTournamentShot(uid, b.runId.slice(2), b.revision, b.action, b.angle, allowed) });
+      }
+      return json({ run: await playShot(uid, b.runId, b.revision, b.action, b.angle, allowed) });
     }
     if (await limited) return json({ error: TOO_MANY_REQUESTS }, 429);
 

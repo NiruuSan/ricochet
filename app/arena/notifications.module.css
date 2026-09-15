@@ -126,6 +126,11 @@
   background: #b6a1fc22;
   color: #c7b7ff;
 }
+.tournament .icon,
+.icon.tournament {
+  background: #ffd17b1f;
+  color: #ffd17b;
+}
 .tip .icon,
 .icon.tip {
   background: #7fd6ff1f;

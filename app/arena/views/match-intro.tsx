@@ -25,10 +25,12 @@ type Props = {
   stage: IntroStage;
   /** Undefined while searching; null when the player takes an open seat first. */
   opponent?: { name: string; avatar: string | null } | null;
+  /** A tournament run: the number is the prize pool instead of a stake. */
+  tournament?: string;
 };
 
 /** Full-screen matchmaking moment between choosing a stake and the first shot. */
-export function MatchIntro({ asset, stake, stage, opponent }: Props) {
+export function MatchIntro({ asset, stake, stage, opponent, tournament }: Props) {
   const ready = stage !== "searching";
   // On GO the stake and status clear out, so the word has the screen to itself.
   const go = stage === "go" || stage === "leaving";
@@ -46,15 +48,25 @@ export function MatchIntro({ asset, stake, stage, opponent }: Props) {
         ))}
       </div>
       <div className={`${styles.introCenter} ${go ? styles.introCleared : ""}`}>
-        <p className={styles.introTag}>{ready ? "MATCH READY" : "ENTERING THE ARENA"}</p>
+        <p className={styles.introTag}>{tournament ? "TOURNAMENT RUN" : ready ? "MATCH READY" : "ENTERING THE ARENA"}</p>
         <div className={styles.stakeValue}>
           {asset === "gems" ? <Gem /> : <Zap fill="currentColor" />}
           {units(stake, asset)}
         </div>
         <div className={styles.introBelow}>
-          <p className={styles.stakeUnit}>{CURRENCY[asset].toUpperCase()} ON THE LINE</p>
+          <p className={styles.stakeUnit}>
+            {CURRENCY[asset].toUpperCase()} {tournament ? "PRIZE POOL" : "ON THE LINE"}
+          </p>
           <div className={styles.introStatus}>
-            {!ready ? (
+            {tournament ? (
+              !ready ? (
+                <span className={styles.dots}>Loading your run</span>
+              ) : (
+                <span className={styles.found}>
+                  One run in <b>{tournament}</b>. Make it count.
+                </span>
+              )
+            ) : !ready ? (
               <span className={styles.dots}>Finding your opponent</span>
             ) : opponent ? (
               <span className={`${styles.introStatus} ${styles.found}`} style={{ marginTop: 0 }}>

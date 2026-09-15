@@ -69,7 +69,8 @@
   border-radius: 15px;
   background: #c6f5641a;
   color: #c6f564;
-  margin-bottom: auto;
+  /* Content starts at the top, so titles line up whatever the description length. */
+  flex-shrink: 0;
 }
 .modeIcon svg {
   width: 26px;
@@ -550,6 +551,10 @@
 }
 .positive {
   color: #c6f564;
+}
+.gemBonus {
+  color: #7fd6ff;
+  font-weight: 800;
 }
 .negative {
   color: #ff7a8a;

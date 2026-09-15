@@ -7,6 +7,8 @@ import { Avatar } from "../avatar";
 import { FundedWallet } from "../funded-wallet";
 import { units } from "../format";
 import type { PlayerState } from "../arena";
+import { AdminTournaments } from "./admin-tournaments";
+import tournamentStyles from "./tournaments.module.css";
 import { AdminVolume } from "./volume-chart";
 
 const REFRESH_MS = 15_000;
@@ -15,6 +17,7 @@ export function AdminView({ player }: { player: PlayerState }) {
   const { data, loaded } = player;
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState("");
+  const [tab, setTab] = useState<"overview" | "tournaments">("overview");
 
   useEffect(() => {
     if (!data.isAdmin) return;
@@ -54,49 +57,63 @@ export function AdminView({ player }: { player: PlayerState }) {
         ADMIN
       </div>
       <h1>House overview.</h1>
-      <p className="muted">
-        Live players, volumes and the devnet treasury. Refreshes every 15 seconds
-        {overview && ` · updated ${new Date(overview.generated).toLocaleTimeString()}`}.
-      </p>
-      {error && (
-        <div className="error" role="alert">
-          <span>{error}</span>
-        </div>
-      )}
-
-      <h2 style={{ marginBottom: 4 }}>Players</h2>
-      <div className="stat-grid">
-        <div className="stat-card">
-          <span className="muted">Registered</span>
-          <b>{overview ? count(overview.players.registered) : "—"}</b>
-        </div>
-        <div className="stat-card">
-          <span className="muted">
-            <span className="online-dot" /> Online now
-          </span>
-          <b className="lime">{overview ? count(overview.players.online) : "—"}</b>
-        </div>
-        <div className="stat-card">
-          <span className="muted">Offline</span>
-          <b>{overview ? count(overview.players.offline) : "—"}</b>
-        </div>
+      <div className={tournamentStyles.tabs} role="group" aria-label="Admin sections">
+        <button aria-pressed={tab === "overview"} onClick={() => setTab("overview")}>
+          Overview
+        </button>
+        <button aria-pressed={tab === "tournaments"} onClick={() => setTab("tournaments")}>
+          Tournaments
+        </button>
       </div>
-      {overview && overview.players.onlineNames.length > 0 && (
-        <div className="online-list">
-          {overview.players.onlineNames.map((p) => (
-            <span key={p.name} className="online-chip">
-              <Avatar name={p.name} src={p.avatar} size={24} />
-              {p.name}
-            </span>
-          ))}
-        </div>
+      {tab === "tournaments" ? (
+        <AdminTournaments solConfigured={!!data.launch?.configured} />
+      ) : (
+        <>
+          <p className="muted">
+            Live players, volumes and the devnet treasury. Refreshes every 15 seconds
+            {overview && ` · updated ${new Date(overview.generated).toLocaleTimeString()}`}.
+          </p>
+          {error && (
+            <div className="error" role="alert">
+              <span>{error}</span>
+            </div>
+          )}
+
+          <h2 style={{ marginBottom: 4 }}>Players</h2>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <span className="muted">Registered</span>
+              <b>{overview ? count(overview.players.registered) : "—"}</b>
+            </div>
+            <div className="stat-card">
+              <span className="muted">
+                <span className="online-dot" /> Online now
+              </span>
+              <b className="lime">{overview ? count(overview.players.online) : "—"}</b>
+            </div>
+            <div className="stat-card">
+              <span className="muted">Offline</span>
+              <b>{overview ? count(overview.players.offline) : "—"}</b>
+            </div>
+          </div>
+          {overview && overview.players.onlineNames.length > 0 && (
+            <div className="online-list">
+              {overview.players.onlineNames.map((p) => (
+                <span key={p.name} className="online-chip">
+                  <Avatar name={p.name} src={p.avatar} size={24} />
+                  {p.name}
+                </span>
+              ))}
+            </div>
+          )}
+          <p className="fine">Online means active in the last minute. Open pages check in every 15 seconds.</p>
+
+          <AdminVolume overview={overview} />
+
+          <h2 style={{ marginTop: 35 }}>Treasury</h2>
+          <FundedWallet treasury />
+        </>
       )}
-      <p className="fine">Online means active in the last minute. Open pages check in every 15 seconds.</p>
-
-      <AdminVolume overview={overview} />
-
-      <h2 style={{ marginTop: 35 }}>Treasury</h2>
-      <FundedWallet treasury />
     </section>
   );
 }
