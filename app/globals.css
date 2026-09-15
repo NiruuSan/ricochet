@@ -1228,3 +1228,20 @@ code {
   background: #ff809113;
   color: #ff91a0;
 }
+.provider-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 28px;
+}
+.provider-button {
+  justify-content: center;
+  gap: 12px;
+  padding-block: 13px;
+  font-size: 15px;
+}
+.provider-button svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
