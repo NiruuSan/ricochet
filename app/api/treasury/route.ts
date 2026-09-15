@@ -1,23 +1,18 @@
-import { currentUser } from "@/lib/auth-user";
-import { adminId, database } from "@/db/raw";
+import { administrator } from "@/lib/auth-user";
+import { database } from "@/db/raw";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { safePaymentError } from "@/lib/payments/errors";
-import { beginWithdrawal, reconcileOpenTransfers, reconcileTransfer, treasurySnapshot } from "@/lib/payments/service";
+import { beginDeposit, beginWithdrawal, HOUSE, reconcileOpenTransfers, reconcileTransfer, treasurySnapshot } from "@/lib/payments/service";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-
-async function administrator() {
-  const user = await currentUser();
-  const admin = adminId();
-  return user && admin && user.userId === admin ? user : null;
-}
 
 export async function GET() {
   if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
   try {
     return json(await treasurySnapshot());
-  } catch {
+  } catch (e) {
+    console.error(e);
     return json({ error: "Treasury is unavailable." }, 503);
   }
 }
@@ -31,6 +26,8 @@ export async function POST(req: Request) {
     const parsed = await readBody(req, 2048);
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
     const b = parsed.body;
+    // Treasury deposits sweep the house deposit address into the pool and credit the house account.
+    if (b.action === "deposit") return json(await beginDeposit(HOUSE, b.id));
     if (b.action === "withdraw") return json(await beginWithdrawal(user.userId, b.id, b.destination, b.amount, true));
     if (b.action === "reconcile_all") return json(await reconcileOpenTransfers());
     if (b.action === "reconcile" && typeof b.id === "string") {

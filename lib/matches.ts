@@ -1,8 +1,8 @@
 import { adminId, database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulate, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
-import type { Asset, MatchResult, MatchSummary, Run, Snapshot } from "./api-types";
-import { STAKES } from "./api-types";
-import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/service";
+import type { Asset, MatchResult, MatchSummary, Profile, Run, Snapshot } from "./api-types";
+import { cancelRefund, isStake, winnerFee, winnerPayout } from "./api-types";
+import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
 
 /** An error whose message is safe to show and carries an HTTP status. */
@@ -14,18 +14,15 @@ export class GameError extends Error {
   }
 }
 
-// Economics, as fractions of one entry. Stakes are multiples of 50,000,000
-// lamports, so every amount below is an exact integer.
-const winnerPayout = (stake: number) => (stake * 176) / 100; // 88% of both entries
-const winnerFee = (stake: number) => (stake * 24) / 100; // 12% of both entries
-const cancelRefund = (stake: number) => (stake * 88) / 100; // entry minus the 12% fee
-
 type RunRow = { user_id: string; done: number; forfeit: number; score: number };
 type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number };
 
 const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, m.asset, m.ruleset";
 type RunRecord = Omit<Run, "state"> & { state: string };
 const parseRun = (row: RunRecord): Run => ({ ...row, state: JSON.parse(row.state) as Game });
+
+/** Public URL of a stored profile picture. Keys are random, never user IDs. */
+export const avatarUrl = (key: string | null) => (key ? `/api/avatars/${key}` : null);
 
 // A match with a forfeited run and no second player has been (or is about to
 // be) cancelled, so nobody may join it.
@@ -153,17 +150,25 @@ async function activeRun(uid: string) {
   return row ? parseRun(row) : null;
 }
 
+/** Players seen within this window count as online. The client polls every 15 seconds. */
+export const ONLINE_MS = 60_000;
+
+/** Records that the player is here. Writes at most once every 20 seconds per player. */
+export async function touchPlayer(uid: string, now = Date.now()) {
+  await database().prepare("UPDATE players SET last_seen = ? WHERE id = ? AND last_seen < ?").bind(now, uid, now - 20_000).run();
+}
+
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
   const db = database();
   await settleFinishedMatches(uid);
   const leaderQuery =
-    asset === "demo"
-      ? `SELECT p.name, p.id = ? AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games
+    asset === "gems"
+      ? `SELECT p.name, p.avatar, p.id = ? AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games
          FROM players p
          JOIN ledger l ON l.user_id = p.id
-         JOIN matches m ON m.id = l.match_id AND m.settled = 1 AND m.asset = 'demo'
+         JOIN matches m ON m.id = l.match_id AND m.settled = 1 AND m.asset = 'gems'
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`
-      : `SELECT p.name, p.id = ? AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games
+      : `SELECT p.name, p.avatar, p.id = ? AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games
          FROM players p
          JOIN cash_accounts a ON a.user_id = p.id AND a.network = 'devnet'
          JOIN cash_ledger l ON l.account_id = a.id
@@ -171,13 +176,14 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
          WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund')
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
   const [player, history, transactions, leaders, active, cash] = await Promise.all([
-    db.prepare("SELECT name, balance FROM players WHERE id = ?").bind(uid).first<{ name: string; balance: number }>(),
+    db.prepare("SELECT name, balance, avatar, created FROM players WHERE id = ?").bind(uid).first<Profile>(),
     db
       .prepare(
         `SELECT m.id, m.stake, m.settled, m.created,
            r.id AS run_id, r.score, r.done, r.forfeit,
            CASE WHEN m.p2 IS NULL THEN 0 ELSE 1 END AS joined,
            CASE WHEN m.p1 = r.user_id THEN p2.name ELSE p1.name END AS opponent,
+           CASE WHEN m.p1 = r.user_id THEN p2.avatar ELSE p1.avatar END AS opponent_avatar,
            CASE WHEN m.settled = 1 THEN other.score ELSE NULL END AS opponent_score,
            CASE WHEN m.settled = 0 THEN NULL
                 WHEN m.cancelled = 1 THEN 'cancelled'
@@ -204,10 +210,10 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     asset,
     cashBalance: cash?.balance ?? 0,
     launch: launchStatus(settings()),
-    player,
-    matches: history.results.map((m) => ({ ...m, net: netResult(m.result, m.stake) })),
+    player: player && { ...player, avatar: avatarUrl(player.avatar) },
+    matches: history.results.map((m) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake) })),
     transactions: transactions.results,
-    leaders: leaders.results,
+    leaders: leaders.results.map((l) => ({ ...l, avatar: avatarUrl(l.avatar) })),
     active,
     isAdmin: !!admin && uid === admin,
   };
@@ -215,8 +221,8 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
 
 export async function startMatch(uid: string, stakeInput: unknown, assetInput: unknown): Promise<Run> {
   const db = database();
-  const asset = assetInput ?? "demo";
-  if (asset !== "demo" && asset !== "devnet") throw new GameError("Unsupported match currency.");
+  const asset = assetInput ?? "gems";
+  if (asset !== "gems" && asset !== "devnet") throw new GameError("Unsupported match currency.");
   if (asset === "devnet") {
     requireDevnet(settings());
     await ensureCashAccount(uid);
@@ -225,13 +231,13 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
   if (active) return active;
 
   const stake = Number(stakeInput);
-  if (!(STAKES as readonly number[]).includes(stake)) throw new GameError("Choose one of the five entry amounts.");
+  if (!isStake(asset, stake)) throw new GameError("Choose one of the five entry amounts.");
   const available =
-    asset === "demo"
+    asset === "gems"
       ? ((await db.prepare("SELECT balance FROM players WHERE id = ?").bind(uid).first<{ balance: number }>())?.balance ?? 0)
       : ((await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(uid)).first<{ balance: number }>())?.balance ?? 0);
   if (available < stake) {
-    throw new GameError(asset === "demo" ? "Not enough demo SOL. Practice is always free." : "Not enough deposited devnet SOL. Open your wallet to fund it.");
+    throw new GameError(asset === "gems" ? "Not enough gems. Practice is always free." : "Not enough deposited devnet SOL. Open your wallet to fund it.");
   }
 
   const rulesets = SUPPORTED_RULESETS.map(Number).join(", ");
@@ -291,12 +297,28 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
   return parseRun(row);
 }
 
-export async function playShot(uid: string, runIdInput: unknown, revision: unknown, action: "shot" | "forfeit", angle?: unknown): Promise<Run> {
+/**
+ * Applies one shot (or a forfeit) to the player's run. `allowed` lets the caller
+ * run its rate-limit check concurrently with loading the run: the save path is
+ * on every shot, so each database round trip saved is felt by the player.
+ */
+export async function playShot(
+  uid: string,
+  runIdInput: unknown,
+  revision: unknown,
+  action: "shot" | "forfeit",
+  angle?: unknown,
+  allowed: Promise<boolean> | boolean = true,
+): Promise<Run> {
   const db = database();
-  const row = await db
-    .prepare(`SELECT ${PUBLIC_RUN} FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.id = ? AND r.user_id = ?`)
-    .bind(String(runIdInput), uid)
-    .first<RunRecord>();
+  const [row, permitted] = await Promise.all([
+    db
+      .prepare(`SELECT ${PUBLIC_RUN} FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.id = ? AND r.user_id = ?`)
+      .bind(String(runIdInput), uid)
+      .first<RunRecord>(),
+    allowed,
+  ]);
+  if (!permitted) throw new GameError("Too many requests. Wait a minute before trying again.", 429);
   if (!row) throw new GameError("Game not found.", 404);
   if (row.done || row.revision !== revision) throw new GameError("This game changed in another tab. Reload to resume.", 409);
 
@@ -322,10 +344,4 @@ export async function playShot(uid: string, runIdInput: unknown, revision: unkno
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
   if (state.over) await settle(run.match_id);
   return { ...run, state, score: state.score, done: state.over ? 1 : 0, forfeit: forfeit ? 1 : 0, revision: run.revision + 1 };
-}
-
-export async function demoTreasurySummary() {
-  return database()
-    .prepare("SELECT COUNT(*) AS settled_matches, COALESCE(SUM(fee), 0) AS fees FROM matches WHERE settled = 1 AND asset = 'demo'")
-    .first<{ settled_matches: number; fees: number }>();
 }

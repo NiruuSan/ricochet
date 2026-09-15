@@ -1040,3 +1040,149 @@ h3 {
     animation: none !important;
   }
 }
+
+/* Avatars, balances, profile and admin */
+.avatar-img {
+  object-fit: cover;
+  background: #262f43;
+  display: block;
+}
+.avatar-link {
+  border-radius: 11px;
+}
+.avatar-link:focus-visible {
+  outline: 2px solid #c6f564;
+  outline-offset: 2px;
+}
+.rival-avatar {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 11px;
+}
+.pill-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pill-part svg,
+.gem-icon {
+  color: #7fd6ff;
+  width: 16px;
+  height: 16px;
+}
+.sync-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 8px;
+  border-radius: 50%;
+  background: #c6f564;
+  vertical-align: middle;
+  animation: pulse 1s ease-in-out infinite;
+}
+.online-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #c6f564;
+  box-shadow: 0 0 0 3px #c6f56433;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+.spin {
+  display: inline-block;
+  vertical-align: -2px;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.callout-inline {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #c6f56414;
+  border: 1px solid #c6f56433;
+  color: #dff5b3;
+  font-size: 14px;
+}
+.live-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 18px 0 6px;
+}
+.live-grid > div {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #303b4f;
+  background: #101723;
+}
+.live-grid span {
+  display: block;
+  font-size: 12px;
+  color: #9eabc1;
+}
+.live-grid b {
+  display: block;
+  margin-top: 6px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.live-grid a {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.online-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.online-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid #303b4f;
+  background: #151d2a;
+  font-size: 13px;
+}
+.online-chip .avatar {
+  border-radius: 50%;
+}
+.profile-picture {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.profile-picture .avatar {
+  border-radius: 26px;
+}
+code {
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: #0d141f;
+  border: 1px solid #2b364b;
+}
+@media (max-width: 720px) {
+  .balance-pill {
+    gap: 8px;
+    font-size: 12px;
+  }
+  .live-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

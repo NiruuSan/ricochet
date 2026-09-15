@@ -31,7 +31,7 @@ export function WelcomeView({ session }: { session: GameSession }) {
             </Link>
           </div>
           <p className="fine" style={{ fontSize: 13 }}>
-            Free practice & demo-SOL matches. No real money.
+            Free practice & gem matches. No real money.
           </p>
         </div>
         <div className="hero-game">

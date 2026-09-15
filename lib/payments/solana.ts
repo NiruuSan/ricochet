@@ -5,13 +5,20 @@ import bs58 from "bs58";
 export const DEVNET_GENESIS = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 export const MEMO_PROGRAM = new PublicKey("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr");
 
+// RPC URLs already proven to serve devnet in this process. A URL keeps pointing
+// at the same cluster, so one genesis check per instance is enough.
+const verified = new Set<string>();
+
 export async function devnetConnection(url: string) {
   const connection = new Connection(url, {
     commitment: "finalized",
     disableRetryOnRateLimit: true,
     fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(12000) }),
   });
-  if ((await connection.getGenesisHash()) !== DEVNET_GENESIS) throw new PaymentError("RPC cluster mismatch: only verified Solana devnet is allowed.");
+  if (!verified.has(url)) {
+    if ((await connection.getGenesisHash()) !== DEVNET_GENESIS) throw new PaymentError("RPC cluster mismatch: only verified Solana devnet is allowed.");
+    verified.add(url);
+  }
   return connection;
 }
 

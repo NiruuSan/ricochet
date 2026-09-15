@@ -3,7 +3,8 @@ import Link from "next/link";
 import { ArrowRight, Trophy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AssetTabs } from "../asset-tabs";
-import { initials, signed } from "../format";
+import { Avatar } from "../avatar";
+import { CURRENCY, signedAmount } from "../format";
 import type { PlayerState } from "../arena";
 
 export function LeaderboardView({ player }: { player: PlayerState }) {
@@ -15,7 +16,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
       </div>
       <h1>Meet the angle masters.</h1>
       <AssetTabs asset={asset} onChange={setAsset} />
-      <p className="muted">Ranked by net profit from settled {asset} matches. Entry fees included.</p>
+      <p className="muted">Ranked by net profit from settled {asset === "gems" ? "gem" : "devnet SOL"} matches. Entry fees included.</p>
       <div className="table-card">
         {data.leaders.length ? (
           <Table>
@@ -24,7 +25,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
                 <TableHead>Rank</TableHead>
                 <TableHead>Player</TableHead>
                 <TableHead>Settled matches</TableHead>
-                <TableHead>Net P&L · {asset} SOL</TableHead>
+                <TableHead>Net P&L · {CURRENCY[asset]}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -36,7 +37,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
                   </TableCell>
                   <TableCell>
                     <div className="you-card">
-                      <span className="avatar">{initials(p.name)}</span>
+                      <Avatar name={p.name} src={p.avatar} />
                       <b>
                         {p.name}
                         {p.is_you ? " (you)" : ""}
@@ -45,7 +46,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
                   </TableCell>
                   <TableCell>{p.games}</TableCell>
                   <TableCell className={p.pnl >= 0 ? "lime" : ""}>
-                    <b>{signed(p.pnl)}</b>
+                    <b>{signedAmount(p.pnl, asset)}</b>
                   </TableCell>
                 </TableRow>
               ))}

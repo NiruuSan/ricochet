@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Zap } from "lucide-react";
+import { STARTING_GEMS } from "@/lib/api-types";
 import { signInWithGitHub } from "../../auth-actions";
 import { gameAction } from "../api";
 import type { PlayerState } from "../arena";
@@ -70,7 +71,7 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
           </label>
           <p className="fine">3–20 letters, numbers or underscores. Visible to other players.</p>
           <button className="btn btn-primary full" disabled={saving}>
-            {saving ? "Creating profile…" : "Create profile + 20 demo SOL"}
+            {saving ? "Creating profile…" : `Create profile + ${STARTING_GEMS.toLocaleString("en")} gems`}
             <ArrowRight />
           </button>
         </form>

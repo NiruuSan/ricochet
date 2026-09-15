@@ -5,7 +5,7 @@ import { ArrowRight, History } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssetTabs } from "../asset-tabs";
-import { matchStats, outcome, shortDate, shortId, signed, sol } from "../format";
+import { amount, CURRENCY, matchStats, outcome, shortDate, shortId, signedAmount } from "../format";
 import type { PlayerState } from "../arena";
 
 type Filter = "all" | "open" | "settled";
@@ -34,8 +34,8 @@ export function MatchesView({ player }: { player: PlayerState }) {
           <b>{wins}</b>
         </div>
         <div className="stat-card">
-          <span className="muted">Settled P&L · {asset} SOL</span>
-          <b className={pnl >= 0 ? "lime" : ""}>{signed(pnl)}</b>
+          <span className="muted">Settled P&L · {CURRENCY[asset]}</span>
+          <b className={pnl >= 0 ? "lime" : ""}>{signedAmount(pnl, asset)}</b>
         </div>
       </div>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
@@ -65,7 +65,7 @@ export function MatchesView({ player }: { player: PlayerState }) {
                     <b>{shortId(m.id)}</b>
                     <div className="fine">{shortDate(m.created)}</div>
                   </TableCell>
-                  <TableCell>{sol(m.stake)} SOL</TableCell>
+                  <TableCell>{amount(m.stake, asset)}</TableCell>
                   <TableCell>{m.score}</TableCell>
                   <TableCell>
                     {m.opponent ?? (m.result === "cancelled" ? "—" : "Seat open")}
@@ -80,7 +80,7 @@ export function MatchesView({ player }: { player: PlayerState }) {
                       </Link>
                     )}
                   </TableCell>
-                  <TableCell>{m.settled ? <span className={m.net > 0 ? "lime" : ""}>{signed(m.net)}</span> : "—"}</TableCell>
+                  <TableCell>{m.settled ? <span className={m.net > 0 ? "lime" : ""}>{signedAmount(m.net, asset)}</span> : "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

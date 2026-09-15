@@ -14,8 +14,8 @@ type Props = {
 };
 
 export function Board({ session, mini = false, startLabel, startDisabled, onStart }: Props) {
-  const { game, run, started, flying, saving, liveScore, speed, attachCanvas } = session;
-  const locked = flying || saving;
+  const { game, run, started, flying, busy, syncing, liveScore, speed, attachCanvas } = session;
+  const locked = flying || busy;
   return (
     <div className="board-shell">
       <div className="board-head">
@@ -91,7 +91,13 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
           <div className="board-overlay">
             <div className="tag lime">RUN COMPLETE</div>
             <h2>{game.score} points.</h2>
-            <p>{run ? "Your score is saved. Check Matches for the result." : "Every bounce is a lesson. Find your next angle."}</p>
+            <p>
+              {!run
+                ? "Every bounce is a lesson. Find your next angle."
+                : syncing
+                  ? "Saving your final score…"
+                  : "Your score is saved. Check Matches for the result."}
+            </p>
             <button className="btn btn-primary" onClick={() => session.reset()}>
               Back to arena
             </button>
@@ -105,7 +111,8 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
       </div>
       <div className="board-bottom">
         <span>
-          {saving ? "Saving your shot…" : flying ? "Let it bounce." : started ? "Aim anywhere above the line." : "472 × 612 · 7 columns · 9 rows"}
+          {busy ? "Saving…" : flying ? "Let it bounce." : started ? "Aim anywhere above the line." : "472 × 612 · 7 columns · 9 rows"}
+          {syncing && !game.over && <span className="sync-dot" title="Saving your shots in the background" />}
         </span>
         <button aria-label="Toggle animation speed" className="icon-btn" onClick={() => session.toggleSpeed()}>
           <FastForward size={15} />

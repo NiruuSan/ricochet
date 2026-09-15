@@ -255,15 +255,55 @@ const shortA = balance("a");
 await assert.rejects(() => settle("short"), /insufficient/);
 assert.equal(balance("a"), shortA);
 assert.equal(sqlite.prepare("SELECT settled FROM matches WHERE id='short'").get().settled, 0);
-assert.equal(sqlite.prepare("SELECT balance FROM players WHERE id='a'").get().balance, 20_000_000_000, "Devnet must not affect demo credits");
+assert.equal(sqlite.prepare("SELECT balance FROM players WHERE id='a'").get().balance, 2000, "Devnet must not affect gems");
 const treasury = await service.beginWithdrawal("admin", crypto.randomUUID(), destination, "0.1", true);
 assert.equal(balance(service.HOUSE), houseBefore + 240_000_000 - 100_005_000);
 assert.equal(balance("a"), shortA);
 finalized(treasury.signature);
 await service.reconcileTransfer(treasury.id, "admin");
+
+// Deposits below the minimum are refused; SOL waiting at an address is reported.
+const tiny = await service.ensureWallet("b");
+balances.set(tiny.address, 500_000);
+await assert.rejects(() => service.beginDeposit("b", crypto.randomUUID()), /at least 0.001/);
+assert.equal((await service.walletSnapshot("b")).detected, 500_000);
+balances.delete(tiny.address);
+
+// Withdrawals may empty the pool or leave it rent-exempt, never in between.
+const poolBefore = balances.get(pool.address);
+balances.set(pool.address, 100_000_000 + 5000 + 100_000);
+await assert.rejects(() => service.beginWithdrawal("a", crypto.randomUUID(), destination, "0.1"), /rent minimum/);
+balances.set(pool.address, 100_000_000 + 5000);
+const emptying = await service.beginWithdrawal("a", crypto.randomUUID(), destination, "0.1");
+finalized(emptying.signature);
+await service.reconcileTransfer(emptying.id, "a");
+balances.set(pool.address, poolBefore);
+
+// Treasury: deposits credit the house account; the snapshot reports liabilities and the live pool balance.
+const houseWallet = await service.ensureWallet(service.HOUSE);
+balances.set(houseWallet.address, 2_000_000_000);
+const houseBalance = balance(service.HOUSE);
+const houseDeposit = await service.beginDeposit(service.HOUSE, crypto.randomUUID());
+finalized(houseDeposit.signature);
+await service.reconcileTransfer(houseDeposit.id, service.HOUSE);
+assert.equal(balance(service.HOUSE), houseBalance + 2_000_000_000 - 5000);
+balances.delete(houseWallet.address);
+const snapshot = await service.treasurySnapshot();
+const owed = sqlite.prepare("SELECT SUM(balance) AS n FROM cash_accounts WHERE user_id NOT LIKE 'escrow:%' AND user_id <> ?").get(service.HOUSE).n;
+const escrow = sqlite.prepare("SELECT SUM(balance) AS n FROM cash_accounts WHERE user_id LIKE 'escrow:%'").get().n;
+assert.deepEqual(
+  [snapshot.balance, snapshot.playerBalances, snapshot.escrow, snapshot.poolOnChain, snapshot.address],
+  [balance(service.HOUSE), owed, escrow, poolBefore, houseWallet.address],
+);
+assert.ok(snapshot.transfers.some((t) => t.id === houseDeposit.id) && snapshot.transfers.some((t) => t.id === treasury.id));
+assert.ok(!JSON.stringify(snapshot).includes("wire") && !JSON.stringify(snapshot).includes("encrypted_key"));
+rpcFailure = true;
+assert.equal((await service.treasurySnapshot()).poolOnChain, null, "An RPC outage degrades the live balance, not the page");
+rpcFailure = false;
+
 assert.ok(!JSON.stringify(await service.walletSnapshot("a")).includes("encrypted_key"));
 assert.ok(!JSON.stringify(await service.walletSnapshot("a")).includes("wire"));
 console.log(
-  "PASS: decimal precision, mainnet/cluster gates, encrypted wallet integrity, finalized-only deposits, replay safety, pool serialization, expiry holds, provable-expiry refunds, abandoned-transfer unblocking, failed-transfer refunds, secret redaction, escrow conservation, 12% fees, ties, atomic settlement rollback, demo isolation, treasury isolation.",
+  "PASS: decimal precision, mainnet/cluster gates, encrypted wallet integrity, finalized-only deposits, replay safety, pool serialization, expiry holds, provable-expiry refunds, abandoned-transfer unblocking, failed-transfer refunds, secret redaction, escrow conservation, 12% fees, ties, atomic settlement rollback, gem isolation, treasury isolation, minimum deposits, rent-exempt pool, treasury deposits and live snapshot.",
 );
 close();

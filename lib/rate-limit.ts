@@ -5,10 +5,11 @@ const WINDOW_MS = 60_000;
 /** Per-minute request budgets, keyed by authenticated user. */
 export const LIMITS = {
   gameRead: 120,
-  gameWrite: 60,
+  gameWrite: 120,
   walletRead: 60,
-  walletWrite: 10,
-  treasuryWrite: 20,
+  walletWrite: 30,
+  treasuryWrite: 60,
+  profileWrite: 20,
 } as const;
 
 /**

@@ -6,10 +6,29 @@ export const players = sqliteTable(
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
-    balance: integer("balance").notNull().default(20000000000),
+    // Gems: the free in-game currency. Whole units, never tied to real money.
+    balance: integer("balance").notNull().default(2000),
+    created: integer("created").notNull(),
+    // Last authenticated request, for the administrator's online count.
+    lastSeen: integer("last_seen").notNull().default(0),
+    // Key of the player's current picture in `avatars`, if any.
+    avatar: text("avatar"),
+  },
+  (t) => [check("balance_nonnegative", sql`${t.balance} >= 0`), uniqueIndex("player_name_unique").on(sql`lower(${t.name})`)],
+);
+
+// Profile pictures, already resized by the browser. The key is random, so
+// serving a picture never reveals whose it is.
+export const avatars = sqliteTable(
+  "avatars",
+  {
+    key: text("key").primaryKey(),
+    userId: text("user_id").notNull(),
+    type: text("type").notNull(),
+    data: text("data").notNull(),
     created: integer("created").notNull(),
   },
-  (t) => [check("balance_nonnegative", sql`${t.balance} >= 0`)],
+  (t) => [index("avatar_owner").on(t.userId)],
 );
 
 export const matches = sqliteTable(
@@ -18,7 +37,7 @@ export const matches = sqliteTable(
     id: text("id").primaryKey(),
     seed: integer("seed").notNull(),
     stake: integer("stake").notNull(),
-    asset: text("asset").notNull().default("demo"),
+    asset: text("asset").notNull().default("gems"),
     p1: text("p1").notNull(),
     p2: text("p2"),
     settled: integer("settled").notNull().default(0),

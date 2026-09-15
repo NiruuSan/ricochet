@@ -1,14 +1,13 @@
 import { PaymentError } from "./errors";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { database } from "../../db/raw";
+import { MIN_DEPOSIT, type TreasurySnapshot } from "../api-types";
+import { cashAccountId, ensureCashAccount, HOUSE, POOL, settings } from "./accounts";
 import { requireDevnet, validateOperationId, parseSol, launchStatus } from "./policy";
 import { encryptWallet, decryptWallet } from "./vault";
 import { devnetConnection, prepareTransfer, recipientAddress } from "./solana";
 
-export const settings = () => process.env as Record<string, string | undefined>;
-export const cashAccountId = (uid: string) => `devnet:${uid}`;
-export const HOUSE = "__house__";
-export const POOL = "__player_pool__";
+export { cashAccountId, ensureCashAccount, HOUSE, POOL, settings };
 
 /**
  * A transaction whose blockhash expired can never be processed, but an RPC node
@@ -16,6 +15,13 @@ export const POOL = "__player_pool__";
  * transfer never landed once finality is this many blocks past its expiry.
  */
 export const EXPIRY_MARGIN_BLOCKS = 150;
+/**
+ * Solana refuses a transfer that leaves an account holding lamports but less
+ * than rent exemption (890,880 lamports for a plain wallet). The pool must stay
+ * above it, and a deposit must be large enough to open an empty pool.
+ */
+export const RENT_EXEMPT_MINIMUM = 890_880;
+export { MIN_DEPOSIT };
 const OPEN = "('pending', 'review')";
 
 type Wallet = { id: string; network: string; owner: string; address: string; encrypted_key: string };
@@ -50,14 +56,6 @@ const publicTransfer = (t: Transfer) => ({
   error: t.error,
   created: t.created,
 });
-
-export async function ensureCashAccount(uid: string) {
-  await database()
-    .prepare("INSERT OR IGNORE INTO cash_accounts(id, network, user_id, created) VALUES(?, ?, ?, ?)")
-    .bind(cashAccountId(uid), "devnet", uid, Date.now())
-    .run();
-  return cashAccountId(uid);
-}
 
 export async function ensureWallet(uid: string): Promise<Wallet> {
   const s = settings();
@@ -118,6 +116,7 @@ export async function beginDeposit(uid: string, idInput: unknown) {
   await resolveOpenTransfers(wallet.address);
   const balance = await connection.getBalance(new PublicKey(wallet.address), "finalized");
   if (!Number.isSafeInteger(balance) || balance <= 0) throw new PaymentError("No confirmed devnet SOL was found at your deposit address.");
+  if (balance < MIN_DEPOSIT) throw new PaymentError("Deposits must be at least 0.001 devnet SOL.");
   const signer = await decryptWallet(wallet.encrypted_key, s.SOLANA_VAULT_KEY!, wallet.id);
   const prepared = await prepareTransfer(connection, signer, new PublicKey(pool.address), balance, id, true);
   signer.secretKey.fill(0);
@@ -147,8 +146,10 @@ export async function beginWithdrawal(uid: string, idInput: unknown, destination
   signer.secretKey.fill(0);
   const available = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(account).first<{ balance: number }>();
   if (!available || available.balance < amount + prepared.fee) throw new PaymentError("Insufficient available balance, including the network fee.");
-  if ((await connection.getBalance(new PublicKey(pool.address), "finalized")) < amount + prepared.fee) {
-    throw new PaymentError("Custody liquidity is insufficient. No withdrawal was submitted.");
+  const remaining = (await connection.getBalance(new PublicKey(pool.address), "finalized")) - amount - prepared.fee;
+  if (remaining < 0) throw new PaymentError("Custody liquidity is insufficient. No withdrawal was submitted.");
+  if (remaining > 0 && remaining < RENT_EXEMPT_MINIMUM) {
+    throw new PaymentError("This amount would leave the pool wallet below Solana's rent minimum. Withdraw slightly less. No withdrawal was submitted.");
   }
   await insertTransfer({ id, uid, account, kind, source: pool.address, destination, ...prepared }, true);
   return reconcileTransfer(id, uid);
@@ -289,43 +290,80 @@ export async function reconcileOpenTransfers(limit = 20) {
   return { checked: open.results.length, resolved, failed };
 }
 
+/**
+ * Finalized SOL sitting at a deposit address, waiting to be swept into the
+ * pool. Zero when the RPC cannot be reached: this only drives a hint and the
+ * automatic deposit check, never a balance.
+ */
+async function waitingAt(address: string) {
+  try {
+    const connection = await devnetConnection(settings().SOLANA_RPC_URL!);
+    return await connection.getBalance(new PublicKey(address), "finalized");
+  } catch {
+    return 0;
+  }
+}
+
 export async function walletSnapshot(uid: string) {
   const status = launchStatus(settings());
-  if (!status.configured) return { ...status, address: null, balance: 0, transfers: [], activity: [] };
+  if (!status.configured) return { ...status, address: null, balance: 0, detected: 0, transfers: [], activity: [] };
   const wallet = await ensureWallet(uid);
   const account = await ensureCashAccount(uid);
   const db = database();
-  const [balance, transfers, activity] = await Promise.all([
+  const [balance, transfers, activity, detected] = await Promise.all([
     db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(account).first<{ balance: number }>(),
     db.prepare("SELECT * FROM cash_transfers WHERE account_id = ? ORDER BY created DESC LIMIT 50").bind(account).all<Transfer>(),
     db.prepare("SELECT kind, amount, reference, created FROM cash_ledger WHERE account_id = ? ORDER BY created DESC LIMIT 100").bind(account).all(),
+    waitingAt(wallet.address),
   ]);
   return {
     ...status,
     address: wallet.address,
     balance: balance?.balance ?? 0,
+    detected,
     transfers: transfers.results.map(publicTransfer),
     activity: activity.results,
   };
 }
 
-export async function treasurySnapshot() {
+/** Pool liabilities and the house position, read live for the administrator. */
+export async function treasurySnapshot(): Promise<TreasurySnapshot> {
   const db = database();
+  const configured = launchStatus(settings()).configured;
   await ensureCashAccount(HOUSE);
-  const [balance, transfers, open] = await Promise.all([
+  const [balance, liabilities, transfers, open] = await Promise.all([
     db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(HOUSE)).first<{ balance: number }>(),
     db
-      .prepare("SELECT id, kind, amount, fee, destination, signature, status, error, created FROM cash_transfers WHERE kind = 'treasury' ORDER BY created DESC LIMIT 50")
-      .all(),
-    db
-      .prepare(`SELECT id, kind, amount, fee, destination, signature, status, error, created FROM cash_transfers WHERE status IN ${OPEN} ORDER BY created ASC LIMIT 50`)
-      .all(),
+      .prepare(
+        `SELECT COALESCE(SUM(CASE WHEN user_id LIKE 'escrow:%' THEN 0 ELSE balance END), 0) AS players,
+                COALESCE(SUM(CASE WHEN user_id LIKE 'escrow:%' THEN balance ELSE 0 END), 0) AS escrow
+         FROM cash_accounts WHERE network = 'devnet' AND user_id <> ?`,
+      )
+      .bind(HOUSE)
+      .first<{ players: number; escrow: number }>(),
+    db.prepare("SELECT * FROM cash_transfers WHERE account_id = ? ORDER BY created DESC LIMIT 50").bind(cashAccountId(HOUSE)).all<Transfer>(),
+    db.prepare(`SELECT * FROM cash_transfers WHERE status IN ${OPEN} ORDER BY created ASC LIMIT 50`).all<Transfer>(),
   ]);
+  let chain: Pick<TreasurySnapshot, "poolOnChain" | "poolAddress" | "address" | "detected"> = { poolOnChain: null, poolAddress: null, address: null, detected: 0 };
+  if (configured) {
+    const [pool, wallet] = await Promise.all([ensureWallet(POOL), ensureWallet(HOUSE)]);
+    let poolOnChain: number | null = null;
+    try {
+      const connection = await devnetConnection(settings().SOLANA_RPC_URL!);
+      poolOnChain = await connection.getBalance(new PublicKey(pool.address), "confirmed");
+    } catch {
+      // Shown as unavailable; the ledger figures above are still exact.
+    }
+    chain = { poolOnChain, poolAddress: pool.address, address: wallet.address, detected: await waitingAt(wallet.address) };
+  }
   return {
-    configured: launchStatus(settings()).configured,
+    configured,
     network: "devnet",
     balance: balance?.balance ?? 0,
-    transfers: transfers.results,
-    open: open.results,
+    playerBalances: liabilities?.players ?? 0,
+    escrow: liabilities?.escrow ?? 0,
+    ...chain,
+    transfers: transfers.results.map(publicTransfer),
+    open: open.results.map(publicTransfer),
   };
 }

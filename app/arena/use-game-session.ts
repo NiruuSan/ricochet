@@ -10,9 +10,10 @@ const TICK_MS = 1000 / 120;
 const DEFAULT_ANGLE = 73;
 
 const clampAngle = (angle: number) => Math.max(MIN_ANGLE, Math.min(MAX_ANGLE, angle));
+const sameState = (a: Game, b: Game) => JSON.stringify(a) === JSON.stringify(b);
 
 type Options = {
-  /** Called after the server saved a match change. */
+  /** Called after the server saved a change that affects balances or match lists. */
   onSaved: () => void;
   onError: (message: string) => void;
 };
@@ -21,6 +22,12 @@ type Options = {
  * The board being played: practice or a saved match run, the aim, and the shot
  * animation. The animation loop and async handlers read the latest values from
  * refs, which every setter below keeps in step with React state.
+ *
+ * Match shots are saved in the background. The engine is deterministic and the
+ * server replays each shot with the same code, so the board the player just
+ * watched is already the result: the next shot is playable immediately while
+ * saves go out one at a time, in order. If a save fails, the board returns to
+ * the last shot the server confirmed.
  */
 export function useGameSession({ onSaved, onError }: Options) {
   const [game, setGameState] = useState<Game>(() => initial(SHOWCASE_SEED));
@@ -29,11 +36,17 @@ export function useGameSession({ onSaved, onError }: Options) {
   const [angle, setAngleState] = useState(DEFAULT_ANGLE);
   const [speed, setSpeedState] = useState(1);
   const [flying, setFlying] = useState(false);
-  const [saving, setSaving] = useState(false);
+  /** A blocking request is in flight: entering or forfeiting a match. */
+  const [busy, setBusy] = useState(false);
+  /** Shots are still being saved in the background. Never blocks play. */
+  const [syncing, setSyncing] = useState(false);
   const [liveScore, setLiveScore] = useState(0);
 
   const gameRef = useRef(game);
+  /** The run as this tab plays it, including shots not saved yet. */
   const runRef = useRef(run);
+  /** The latest run state the server has confirmed. */
+  const confirmedRef = useRef<Run | null>(null);
   const startedRef = useRef(started);
   const angleRef = useRef(angle);
   const speedRef = useRef(speed);
@@ -42,6 +55,10 @@ export function useGameSession({ onSaved, onError }: Options) {
   const frameRef = useRef(0);
   const busyRef = useRef(false);
   const disposedRef = useRef(false);
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingSavesRef = useRef(0);
+  const saveFailedRef = useRef(false);
+  const mismatchRef = useRef(false);
 
   const draw = useCallback(() => {
     if (canvasRef.current) drawBoard(canvasRef.current, flightRef.current, gameRef.current, angleRef.current);
@@ -76,6 +93,10 @@ export function useGameSession({ onSaved, onError }: Options) {
     speedRef.current = speedRef.current === 1 ? 3 : 1;
     setSpeedState(speedRef.current);
   }, []);
+  const setBlocking = useCallback((value: boolean) => {
+    busyRef.current = value;
+    setBusy(value);
+  }, []);
 
   /** Callback ref: the board canvas remounts when the view changes, so paint on attach. */
   const attachCanvas = useCallback(
@@ -93,6 +114,58 @@ export function useGameSession({ onSaved, onError }: Options) {
       cancelAnimationFrame(frameRef.current);
     };
   }, []);
+
+  // Closing the tab would drop shots that are not saved yet.
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (pendingSavesRef.current > 0) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+
+  /** Shows the server's version of the current run, abandoning any shot in the air. */
+  const adoptConfirmed = useCallback(() => {
+    const confirmed = confirmedRef.current;
+    if (!confirmed || runRef.current?.id !== confirmed.id) return;
+    cancelAnimationFrame(frameRef.current);
+    flightRef.current = null;
+    busyRef.current = false;
+    setFlying(false);
+    setRun(confirmed);
+    setGame(confirmed.state);
+  }, [setGame, setRun]);
+
+  const saveShot = useCallback(
+    (runId: string, revision: number, shotAngle: number, predicted: Game) => {
+      pendingSavesRef.current++;
+      setSyncing(true);
+      saveChainRef.current = saveChainRef.current.then(async () => {
+        try {
+          // After a failure, later shots were played on a board the server never had.
+          if (saveFailedRef.current) return;
+          const { run: saved } = await gameAction<{ run: Run }>({ action: "shot", runId, revision, angle: shotAngle });
+          confirmedRef.current = saved;
+          if (!sameState(saved.state, predicted)) mismatchRef.current = true;
+          if (saved.done && !disposedRef.current) onSaved();
+        } catch (e) {
+          saveFailedRef.current = true;
+          if (!disposedRef.current) onError(`${(e as Error).message} The board is back at your last saved shot.`);
+        } finally {
+          pendingSavesRef.current--;
+          if (pendingSavesRef.current === 0) {
+            if (!disposedRef.current) {
+              setSyncing(false);
+              if (saveFailedRef.current || mismatchRef.current) adoptConfirmed();
+            }
+            saveFailedRef.current = false;
+            mismatchRef.current = false;
+          }
+        }
+      });
+    },
+    [adoptConfirmed, onError, onSaved],
+  );
 
   const aimAt = useCallback(
     (clientX: number, clientY: number, rect: DOMRect) => {
@@ -121,34 +194,23 @@ export function useGameSession({ onSaved, onError }: Options) {
     setLiveScore(gameRef.current.score);
     flightRef.current = f;
 
-    const finish = async () => {
+    const finish = () => {
       flightRef.current = null;
       setFlying(false);
-      if (currentRun) {
-        setSaving(true);
-        try {
-          const { run: saved } = await gameAction<{ run: Run }>({ action: "shot", runId: currentRun.id, revision: currentRun.revision, angle: shotAngle });
-          if (!disposedRef.current) {
-            setRun(saved);
-            setGame(saved.state);
-            onSaved();
-          }
-        } catch (e) {
-          if (!disposedRef.current) onError((e as Error).message);
-        } finally {
-          if (!disposedRef.current) setSaving(false);
-        }
-      } else {
-        setGame(f.game);
-      }
       busyRef.current = false;
-      draw();
+      if (currentRun) {
+        const next = f.game;
+        setRun({ ...currentRun, state: next, score: next.score, done: next.over ? 1 : 0, revision: currentRun.revision + 1 });
+        saveShot(currentRun.id, currentRun.revision, shotAngle, next);
+      }
+      setGame(f.game);
     };
 
     let previous = 0;
     let pending = 0;
     const tick = (ts: number) => {
-      if (disposedRef.current) return;
+      // Stop if unmounted, or if this flight was abandoned (reset or restored board).
+      if (disposedRef.current || flightRef.current !== f) return;
       if (!previous) previous = ts;
       pending += Math.min(100, ts - previous) * speedRef.current;
       previous = ts;
@@ -166,11 +228,11 @@ export function useGameSession({ onSaved, onError }: Options) {
       }
       setLiveScore(f.game.score);
       draw();
-      if (f.done) void finish();
+      if (f.done) finish();
       else frameRef.current = requestAnimationFrame(tick);
     };
     frameRef.current = requestAnimationFrame(tick);
-  }, [draw, onError, onSaved, setGame, setRun]);
+  }, [draw, onError, saveShot, setGame, setRun]);
 
   const startPractice = useCallback(() => {
     if (busyRef.current) return;
@@ -185,10 +247,10 @@ export function useGameSession({ onSaved, onError }: Options) {
   const startMatch = useCallback(
     async (stake: number, asset: Asset) => {
       if (busyRef.current) return null;
-      busyRef.current = true;
-      setSaving(true);
+      setBlocking(true);
       try {
         const { run: entered } = await gameAction<{ run: Run }>({ action: "start", stake, asset });
+        confirmedRef.current = entered;
         setRun(entered);
         setGame(entered.state);
         setStarted(true);
@@ -198,35 +260,37 @@ export function useGameSession({ onSaved, onError }: Options) {
         onError((e as Error).message);
         return null;
       } finally {
-        setSaving(false);
-        busyRef.current = false;
+        setBlocking(false);
       }
     },
-    [onError, onSaved, setGame, setRun, setStarted],
+    [onError, onSaved, setBlocking, setGame, setRun, setStarted],
   );
 
   const forfeit = useCallback(async () => {
-    const current = runRef.current;
-    if (!current || busyRef.current) return;
-    busyRef.current = true;
-    setSaving(true);
+    if (!runRef.current || busyRef.current) return;
+    setBlocking(true);
     try {
+      // Queued shots land first, so the forfeit applies to the latest revision.
+      await saveChainRef.current;
+      const current = runRef.current;
+      if (!current || current.done) return;
       const { run: ended } = await gameAction<{ run: Run }>({ action: "forfeit", runId: current.id, revision: current.revision });
+      confirmedRef.current = ended;
       setRun(ended);
       setGame(ended.state);
       onSaved();
     } catch (e) {
       onError((e as Error).message);
     } finally {
-      setSaving(false);
-      busyRef.current = false;
+      setBlocking(false);
     }
-  }, [onError, onSaved, setGame, setRun]);
+  }, [onError, onSaved, setBlocking, setGame, setRun]);
 
   const resume = useCallback(
     (active: Run) => {
       // Polling must not rewind a run this tab is already playing.
       if (runRef.current?.id === active.id) return;
+      confirmedRef.current = active;
       setRun(active);
       setGame(active.state);
       setStarted(true);
@@ -234,7 +298,7 @@ export function useGameSession({ onSaved, onError }: Options) {
     [setGame, setRun, setStarted],
   );
 
-  /** Leaves a finished run or abandons practice, back to the showcase board. */
+  /** Leaves a finished run or abandons practice, back to the showcase board. Pending saves still complete. */
   const reset = useCallback(() => {
     cancelAnimationFrame(frameRef.current);
     flightRef.current = null;
@@ -281,7 +345,8 @@ export function useGameSession({ onSaved, onError }: Options) {
     angle,
     speed,
     flying,
-    saving,
+    busy,
+    syncing,
     liveScore,
     attachCanvas,
     aimAt,

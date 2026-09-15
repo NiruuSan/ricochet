@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Check, Gamepad2, HelpCircle, History, Trophy, Wallet, X, Zap } from "lucide-react";
+import { ArrowUpRight, Gamepad2, HelpCircle, History, Landmark, Trophy, Wallet, X, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { STAKES } from "@/lib/api-types";
-import { initials, sol } from "./format";
+import { Avatar, GemIcon } from "./avatar";
+import { units } from "./format";
 import { useGameSession } from "./use-game-session";
 import type { View } from "./views";
 import { usePlayerData } from "./use-player-data";
@@ -13,6 +14,7 @@ import { AuthView } from "./views/auth-view";
 import { LeaderboardView } from "./views/leaderboard-view";
 import { MatchesView } from "./views/matches-view";
 import { PlayView, type Mode } from "./views/play-view";
+import { ProfileView } from "./views/profile-view";
 import { RulesView } from "./views/rules-view";
 import { WalletView } from "./views/wallet-view";
 import { WelcomeView } from "./views/welcome-view";
@@ -26,16 +28,15 @@ const NAVIGATION = [
   { href: "/faq", view: "faq", label: "How to play", Icon: HelpCircle },
 ];
 
-type Modal = "" | "forfeit" | "demo-funds";
-
 export default function Arena({ view }: { view: View }) {
   const player = usePlayerData();
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
   const session = useGameSession({ onSaved, onError: setError });
   const [mode, setMode] = useState<Mode>("practice");
-  const [stake, setStake] = useState<number>(STAKES[1]);
-  const [modal, setModal] = useState<Modal>("");
+  // Each currency has its own five entries; the choice is kept by position.
+  const [stakeIndex, setStakeIndex] = useState(1);
+  const [confirmForfeit, setConfirmForfeit] = useState(false);
 
   // Load the player; on the arena, pick up a saved run where it was left.
   const { resume } = session;
@@ -59,7 +60,7 @@ export default function Arena({ view }: { view: View }) {
       window.location.href = "/signup";
       return;
     }
-    const run = await session.startMatch(stake, asset);
+    const run = await session.startMatch(STAKES[asset][stakeIndex], asset);
     if (run) setAsset(run.asset);
   };
 
@@ -85,17 +86,31 @@ export default function Arena({ view }: { view: View }) {
               {label}
             </Link>
           ))}
+          {data.isAdmin && (
+            <Link href="/admin" className={view === "admin" ? "active" : ""}>
+              <Landmark />
+              Admin
+            </Link>
+          )}
         </nav>
         <div className="top-actions">
           <span className="demo-tag">TEST MODE</span>
           {data.player ? (
             <>
-              <Link className="balance-pill" href="/wallet">
-                <Wallet />
-                {sol(asset === "devnet" ? (data.cashBalance ?? 0) : data.player.balance)} {asset} SOL
+              <Link className="balance-pill" href="/wallet" aria-label="Balances">
+                <span className="pill-part">
+                  <GemIcon />
+                  {units(data.player.balance, "gems")}
+                </span>
+                {data.launch?.configured && (
+                  <span className="pill-part">
+                    <Wallet />
+                    {units(data.cashBalance ?? 0, "devnet")} SOL
+                  </span>
+                )}
               </Link>
-              <Link className="avatar" href="/wallet" aria-label="Open wallet">
-                {initials(data.player.name)}
+              <Link href="/profile" aria-label="Your profile" className="avatar-link">
+                <Avatar name={data.player.name} src={data.player.avatar} />
               </Link>
             </>
           ) : (
@@ -120,16 +135,17 @@ export default function Arena({ view }: { view: View }) {
             session={session}
             mode={mode}
             setMode={setMode}
-            stake={stake}
-            setStake={setStake}
+            stakeIndex={stakeIndex}
+            setStakeIndex={setStakeIndex}
             onStart={() => void start()}
-            onForfeit={() => setModal("forfeit")}
+            onForfeit={() => setConfirmForfeit(true)}
           />
         )}
         {view === "welcome" && <WelcomeView session={session} />}
         {view === "matches" && <MatchesView player={player} />}
         {view === "leaderboard" && <LeaderboardView player={player} />}
-        {view === "wallet" && <WalletView player={player} onDemoFundsInfo={() => setModal("demo-funds")} />}
+        {view === "wallet" && <WalletView player={player} />}
+        {view === "profile" && <ProfileView player={player} />}
         {(view === "login" || view === "signup") && <AuthView player={player} signup={view === "signup"} />}
         {(view === "faq" || view === "rules") && <RulesView rules={view === "rules"} />}
         {view === "admin" && <AdminView player={player} />}
@@ -139,40 +155,27 @@ export default function Arena({ view }: { view: View }) {
             <Link href="/rules">Game rules</Link>
             <Link href="/faq">Q&A</Link>
             <Link href="/wallet">Test funds only</Link>
-            {data.isAdmin && <Link href="/admin">Treasury</Link>}
           </div>
         </footer>
       </main>
-      <Dialog open={!!modal} onOpenChange={(v) => !v && setModal("")}>
+      <Dialog open={confirmForfeit} onOpenChange={setConfirmForfeit}>
         <DialogContent className="dialog-dark">
-          <DialogTitle>{modal === "forfeit" ? "Leave this match?" : "You’re playing with demo funds."}</DialogTitle>
-          <DialogDescription>
-            {modal === "forfeit"
-              ? forfeitWarning
-              : "Demo credits cannot be deposited or withdrawn. Each profile receives 20 free demo SOL. The separate devnet wallet supports test-network transfers when configured. Real SOL is not accepted."}
-          </DialogDescription>
+          <DialogTitle>Leave this match?</DialogTitle>
+          <DialogDescription>{forfeitWarning}</DialogDescription>
           <div className="row-actions" style={{ marginTop: 10 }}>
-            {modal === "forfeit" ? (
-              <>
-                <button className="btn" onClick={() => setModal("")}>
-                  Keep playing
-                </button>
-                <button
-                  className="btn"
-                  style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
-                  onClick={() => {
-                    setModal("");
-                    void session.forfeit();
-                  }}
-                >
-                  Forfeit match
-                </button>
-              </>
-            ) : (
-              <button className="btn btn-primary" onClick={() => setModal("")}>
-                Got it <Check />
-              </button>
-            )}
+            <button className="btn" onClick={() => setConfirmForfeit(false)}>
+              Keep playing
+            </button>
+            <button
+              className="btn"
+              style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
+              onClick={() => {
+                setConfirmForfeit(false);
+                void session.forfeit();
+              }}
+            >
+              Forfeit match
+            </button>
           </div>
         </DialogContent>
       </Dialog>

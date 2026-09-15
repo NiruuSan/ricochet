@@ -1,17 +1,26 @@
-import type { MatchSummary } from "@/lib/api-types";
+import type { Asset, MatchSummary } from "@/lib/api-types";
 
 const solFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 4 });
+const gemFormat = new Intl.NumberFormat("en", { maximumFractionDigits: 0 });
 
 /** Lamports to a short SOL amount. */
 export const sol = (lamports: number) => solFormat.format(lamports / 1e9);
+
+/** A bare amount in the currency's display units: whole gems, or SOL. */
+export const units = (value: number, asset: Asset) => (asset === "gems" ? gemFormat.format(value) : sol(value));
+
+export const CURRENCY: Record<Asset, string> = { gems: "gems", devnet: "SOL" };
+
+/** An amount with its unit, e.g. "1,250 gems" or "0.1 SOL". */
+export const amount = (value: number, asset: Asset) => `${units(value, asset)} ${CURRENCY[asset]}`;
+
+export const signedAmount = (value: number, asset: Asset) => `${value > 0 ? "+" : ""}${units(value, asset)}`;
 
 export const shortId = (id: string) => id.slice(0, 8).toUpperCase();
 
 export const initials = (name: string) => name.slice(0, 2).toUpperCase();
 
 export const shortDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-export const signed = (lamports: number) => `${lamports > 0 ? "+" : ""}${sol(lamports)}`;
 
 export function outcome(m: MatchSummary) {
   if (!m.done) return "In progress";

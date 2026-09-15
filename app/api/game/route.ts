@@ -1,25 +1,27 @@
 import { currentUser } from "@/lib/auth-user";
-import { adminId, database } from "@/db/raw";
+import { database } from "@/db/raw";
 import type { Asset } from "@/lib/api-types";
 import { json, readBody, sameOrigin } from "@/lib/http";
-import { demoTreasurySummary, GameError, playerSnapshot, playShot, startMatch } from "@/lib/matches";
+import { GameError, playerSnapshot, playShot, startMatch, touchPlayer } from "@/lib/matches";
+import { settings } from "@/lib/payments/accounts";
 import { PaymentError } from "@/lib/payments/errors";
-import { ensureCashAccount, ensureWallet, settings } from "@/lib/payments/service";
 import { launchStatus } from "@/lib/payments/policy";
+import { createPlayer } from "@/lib/profile";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const asset: Asset = new URL(req.url).searchParams.get("asset") === "devnet" ? "devnet" : "demo";
+    const asset: Asset = new URL(req.url).searchParams.get("asset") === "devnet" ? "devnet" : "gems";
     const user = await currentUser();
     if (!user) return json({ authenticated: false });
-    if (await rateLimited("gameRead", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
+    const [limited] = await Promise.all([rateLimited("gameRead", user.userId), touchPlayer(user.userId)]);
+    if (limited) return json({ error: TOO_MANY_REQUESTS }, 429);
     return json({ authenticated: true, ...(await playerSnapshot(user.userId, asset)) });
   } catch (e) {
     console.error(e);
-    return json({ error: "Unable to load demo accounts. You can still play practice." }, 503);
+    return json({ error: "Unable to load your account. You can still play practice." }, 503);
   }
 }
 
@@ -29,45 +31,40 @@ export async function POST(req: Request) {
     const user = await currentUser();
     if (!user) return json({ error: "Sign in to save your games." }, 401);
     const uid = user.userId;
-    if (await rateLimited("gameWrite", uid)) return json({ error: TOO_MANY_REQUESTS }, 429);
+    const limited = rateLimited("gameWrite", uid);
+    limited.catch(() => {}); // Still rethrown where awaited; avoids an unhandled rejection on early returns.
     const parsed = await readBody(req, 4096);
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
     const b = parsed.body;
-    const db = database();
+
+    // Shots are the hot path: the rate limit runs alongside loading the run, and
+    // owning a run already proves the profile exists.
+    if (b.action === "shot" || b.action === "forfeit") {
+      return json({ run: await playShot(uid, b.runId, b.revision, b.action, b.angle, limited.then((over) => !over)) });
+    }
+    if (await limited) return json({ error: TOO_MANY_REQUESTS }, 429);
 
     if (b.action === "signup") {
-      const name = String(b.name ?? "").trim();
-      if (!/^[a-zA-Z0-9_]{3,20}$/.test(name)) return json({ error: "Use 3–20 letters, numbers or underscores." }, 400);
-      await db.prepare("INSERT OR IGNORE INTO players(id, name, created) VALUES(?, ?, ?)").bind(uid, name, Date.now()).run();
+      await createPlayer(uid, b.name);
       if (launchStatus(settings()).configured) {
         try {
+          const { ensureCashAccount, ensureWallet } = await import("@/lib/payments/service");
           await ensureWallet(uid);
           await ensureCashAccount(uid);
         } catch {
           // The account survives a temporary wallet provisioning failure; the wallet page retries.
         }
       }
-      return json(await playerSnapshot(uid, "demo"));
+      return json(await playerSnapshot(uid, "gems"));
     }
 
-    if (!(await db.prepare("SELECT 1 FROM players WHERE id = ?").bind(uid).first())) {
-      return json({ error: "Create your player profile first." }, 403);
-    }
-
-    switch (b.action) {
-      case "start":
-        return json({ run: await startMatch(uid, b.stake, b.asset) });
-      case "shot":
-      case "forfeit":
-        return json({ run: await playShot(uid, b.runId, b.revision, b.action, b.angle) });
-      case "admin": {
-        const admin = adminId();
-        if (!admin || uid !== admin) return json({ error: "Treasury access is restricted to the configured administrator." }, 403);
-        return json(await demoTreasurySummary());
+    if (b.action === "start") {
+      if (!(await database().prepare("SELECT 1 FROM players WHERE id = ?").bind(uid).first())) {
+        return json({ error: "Create your player profile first." }, 403);
       }
-      default:
-        return json({ error: "Unknown action." }, 400);
+      return json({ run: await startMatch(uid, b.stake, b.asset) });
     }
+    return json({ error: "Unknown action." }, 400);
   } catch (e) {
     if (e instanceof GameError) return json({ error: e.message }, e.status);
     if (e instanceof PaymentError) return json({ error: e.message }, 400);

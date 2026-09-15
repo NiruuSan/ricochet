@@ -7,7 +7,7 @@ const POLL_MS = 15_000;
 
 /** The signed-in player's snapshot for the selected currency, kept fresh while they have a profile. */
 export function usePlayerData() {
-  const [asset, setAsset] = useState<Asset>("demo");
+  const [asset, setAsset] = useState<Asset>("gems");
   const [data, setData] = useState<PlayerData>(EMPTY_PLAYER);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");

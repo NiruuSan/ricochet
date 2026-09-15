@@ -5,11 +5,11 @@ export const FAQ: [question: string, answer: string][] = [
   ],
   [
     "Do I have to wait for an opponent?",
-    "No. Your run starts immediately. If nobody has entered at your amount, the second seat stays open. Another player can join while you play or after you finish. Scores are hidden until both players finish. There is no automatic expiry in this demo.",
+    "No. Your run starts immediately. If nobody has entered at your amount, the second seat stays open. Another player can join while you play or after you finish. Scores are hidden until both players finish. There is no automatic expiry in this development version.",
   ],
   [
     "How much does the winner receive?",
-    "The house fee is 12% of each entry, charged only when a match resolves with a winner. The winner receives 88% of the combined entries: for two 1 SOL entries, the payout is 1.76 SOL, the winner’s net profit is 0.76 SOL, and the house receives 0.24 SOL. All amounts in this development version are demo credits or devnet test SOL.",
+    "The house fee is 12% of each entry, charged only when a match resolves with a winner. The winner receives 88% of the combined entries: for two 1 SOL entries, the payout is 1.76 SOL, the winner’s net profit is 0.76 SOL, and the house receives 0.24 SOL. Gem matches work the same way in gems. All amounts in this development version are gems or devnet test SOL.",
   ],
   [
     "What happens in a draw or a forfeit?",
@@ -24,8 +24,12 @@ export const FAQ: [question: string, answer: string][] = [
     "The playfield is 472 × 612 units, with seven columns and nine rows. From bottom to top: ground, rows 1 through 7, and sky. Coordinates are column:row. At the start of each round, 1–7 bricks spawn in row 7, one per chosen column. New bricks have HP equal to the round number. Surviving bricks descend one row; reaching row 1 ends your game. Sky stays empty.",
   ],
   [
+    "What are gems?",
+    "Gems are Ricochet’s free in-game currency. Every new profile receives 2,000 gems to enter gem matches. They have no monetary value and cannot be bought, sold, deposited or withdrawn.",
+  ],
+  [
     "Can I deposit or withdraw real SOL?",
-    "Real SOL is not accepted. Demo credits are free and separate from the Solana devnet wallet. When the development payment service is configured, your wallet can receive and withdraw test-network SOL. Mainnet stays disabled until the real-money launch is ready.",
+    "Real SOL is not accepted. When the development payment service is configured, your wallet can receive and withdraw Solana devnet test SOL, which is separate from gems. Mainnet stays disabled until the real-money launch is ready.",
   ],
   [
     "What if I close the page?",
