@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 import { FastForward, Play } from "lucide-react";
 import { H, MAX_ANGLE, MIN_ANGLE, W } from "@/lib/engine";
 import type { GameSession } from "./use-game-session";
@@ -14,7 +13,7 @@ type Props = {
 };
 
 export function Board({ session, mini = false, startLabel, startDisabled, onStart }: Props) {
-  const { game, run, started, flying, busy, syncing, liveScore, speed, attachCanvas } = session;
+  const { game, started, flying, busy, syncing, liveScore, speed, attachCanvas } = session;
   const locked = flying || busy;
   return (
     <div className="board-shell">
@@ -85,27 +84,6 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
               <Play size={16} />
               {startLabel}
             </button>
-          </div>
-        )}
-        {game.over && !mini && (
-          <div className="board-overlay">
-            <div className="tag lime">RUN COMPLETE</div>
-            <h2>{game.score} points.</h2>
-            <p>
-              {!run
-                ? "Every bounce is a lesson. Find your next angle."
-                : syncing
-                  ? "Saving your final score…"
-                  : "Your score is saved. Check Matches for the result."}
-            </p>
-            <button className="btn btn-primary" onClick={() => session.reset()}>
-              Back to arena
-            </button>
-            {run && (
-              <Link className="btn" href="/matches">
-                View match
-              </Link>
-            )}
           </div>
         )}
       </div>

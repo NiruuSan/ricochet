@@ -67,6 +67,8 @@ export const runs = sqliteTable(
     done: integer("done").notNull().default(0),
     forfeit: integer("forfeit").notNull().default(0),
     created: integer("created").notNull(),
+    // Boards fully cleared during the run, for the end-of-match recap.
+    clears: integer("clears").notNull().default(0),
   },
   (t) => [
     uniqueIndex("one_run_per_player_match").on(t.matchId, t.userId),
@@ -169,4 +171,19 @@ export const rateLimits = sqliteTable(
     count: integer("count").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.key, t.window] })],
+);
+
+// Things that happened to a player, such as a match settling or a tip arriving.
+// IDs are deterministic per event, so writing one twice is a harmless no-op.
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    kind: text("kind").notNull(),
+    data: text("data").notNull(),
+    created: integer("created").notNull(),
+    readAt: integer("read_at"),
+  },
+  (t) => [index("notification_owner").on(t.userId, t.created)],
 );

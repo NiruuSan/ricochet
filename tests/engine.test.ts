@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
+  brickHp,
   GROUND,
   initial,
   launch,
@@ -134,12 +135,31 @@ for (let angle = 8; angle <= 172; angle += 0.25) {
 const straightUp = launch(initial(5), 90, 3);
 assert.equal(straightUp.balls[0].vx, 0);
 assert.equal(straightUp.balls[0].vy, -4.5);
-assert.equal(RULESET, 3);
+assert.equal(RULESET, 4);
 // Frozen ruleset 3 outcome: changing it would break replays of live matches.
 let v3 = initial(777);
 for (const angle of [33.3, 90, 147.25, 61.5, 12]) if (!v3.over) v3 = simulate(v3, angle, 3);
 assert.equal(createHash("sha256").update(JSON.stringify(v3)).digest("hex").slice(0, 16), "0f1baef4e93a1baa");
 console.log("PASS: ruleset 3 portable trigonometry and frozen replay.");
+
+// Ruleset 4: bricks toughen faster, from +1 HP per round up to +4 per round at round 10.
+assert.deepEqual(Array.from({ length: 12 }, (_, i) => brickHp(i + 1, 4)), [1, 2, 3, 4, 6, 8, 10, 13, 16, 20, 24, 28]);
+const increments = Array.from({ length: 30 }, (_, i) => brickHp(i + 2, 4) - brickHp(i + 1, 4));
+assert.ok(increments.every((d, i) => d >= 1 && d <= 4 && (i === 0 || d >= increments[i - 1])), "The per-round increase never shrinks and stays between +1 and +4");
+assert.equal(brickHp(217, 4), 848);
+for (const legacy of [2, 3]) assert.equal(brickHp(217, legacy), 217, "Earlier rulesets keep HP equal to the round");
+const round9 = initial(4242);
+round9.round = 9;
+round9.bricks = [{ col: 0, row: 7, hp: 999 }];
+const round10 = simulate(round9, 150, 4);
+assert.equal(round10.round, 10);
+assert.ok(round10.bricks.filter((b) => b.row === 7).every((b) => b.hp === 20), "Round 10 spawns 20-HP bricks");
+assert.ok(simulate(round9, 150, 3).bricks.filter((b) => b.row === 7).every((b) => b.hp === 10), "Ruleset 3 still spawns round-number HP");
+// Frozen ruleset 4 outcome: changing it would break replays of live matches.
+let v4 = initial(777);
+for (const angle of [33.3, 90, 147.25, 61.5, 12, 75, 100, 45, 130, 88]) if (!v4.over) v4 = simulate(v4, angle, 4);
+assert.equal(createHash("sha256").update(JSON.stringify(v4)).digest("hex").slice(0, 16), "a22061d08978aab3");
+console.log("PASS: ruleset 4 brick HP progression and frozen replay.");
 
 // Work budget: a shot that costs too much is rejected rather than burning CPU.
 // 8,000 balls on a shallow angle each fly for ~1,700 ticks: about 14M ball-steps.
@@ -164,4 +184,10 @@ const lateFlight = launch(late, 8.5, 3);
 while (!lateFlight.done && !lateFlight.aborted) step(lateFlight);
 assert.equal(lateFlight.aborted, false);
 assert.ok(lateFlight.ballSteps < MAX_BALL_STEPS / 5);
+// Ruleset 4's tougher bricks keep more of the board alive for the whole shot.
+for (const b of late.bricks) b.hp = brickHp(late.round, 4);
+const tougherFlight = launch(late, 8.5, 4);
+while (!tougherFlight.done && !tougherFlight.aborted) step(tougherFlight);
+assert.equal(tougherFlight.aborted, false);
+assert.ok(tougherFlight.ballSteps < MAX_BALL_STEPS / 5);
 console.log("PASS: late-game shots fit the budget with headroom.");

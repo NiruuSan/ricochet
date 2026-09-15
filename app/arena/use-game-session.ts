@@ -41,6 +41,8 @@ export function useGameSession({ onSaved, onError }: Options) {
   /** Shots are still being saved in the background. Never blocks play. */
   const [syncing, setSyncing] = useState(false);
   const [liveScore, setLiveScore] = useState(0);
+  /** Boards cleared in the current practice run; a match run carries its own count. */
+  const [practiceClears, setPracticeClears] = useState(0);
 
   const gameRef = useRef(game);
   /** The run as this tab plays it, including shots not saved yet. */
@@ -200,8 +202,11 @@ export function useGameSession({ onSaved, onError }: Options) {
       busyRef.current = false;
       if (currentRun) {
         const next = f.game;
-        setRun({ ...currentRun, state: next, score: next.score, done: next.over ? 1 : 0, revision: currentRun.revision + 1 });
+        const clears = (currentRun.clears ?? 0) + (next.bonus ? 1 : 0);
+        setRun({ ...currentRun, state: next, score: next.score, done: next.over ? 1 : 0, clears, revision: currentRun.revision + 1 });
         saveShot(currentRun.id, currentRun.revision, shotAngle, next);
+      } else if (f.game.bonus) {
+        setPracticeClears((count) => count + 1);
       }
       setGame(f.game);
     };
@@ -238,6 +243,7 @@ export function useGameSession({ onSaved, onError }: Options) {
     if (busyRef.current) return;
     flightRef.current = null;
     setRun(null);
+    setPracticeClears(0);
     setGame(initial(crypto.getRandomValues(new Uint32Array(1))[0]));
     setStarted(true);
     setAngle(DEFAULT_ANGLE);
@@ -348,6 +354,7 @@ export function useGameSession({ onSaved, onError }: Options) {
     busy,
     syncing,
     liveScore,
+    clears: run ? (run.clears ?? 0) : practiceClears,
     attachCanvas,
     aimAt,
     setAngle,

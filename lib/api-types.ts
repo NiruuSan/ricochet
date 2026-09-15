@@ -33,6 +33,8 @@ export type Run = {
   score: number;
   done: number;
   forfeit: number;
+  /** Boards fully cleared so far. */
+  clears: number;
 };
 
 export type MatchResult = "win" | "loss" | "draw" | "cancelled";
@@ -82,6 +84,43 @@ export type ProfilePerformance = {
   series: Record<PnlRange, { total: number; points: { at: number; value: number }[] }>;
 };
 
+/** One player's side of a finished run, for the end-of-match screen. */
+export type RecapSide = { name: string; avatar: string | null; score: number; balls: number; clears: number; rounds: number; forfeit: boolean; board: Game };
+
+export type MatchRecap = {
+  matchId: string;
+  asset: Asset;
+  stake: number;
+  /**
+   * playing: your run is not over. waiting: nobody has taken the second seat.
+   * opponent_playing: your opponent has not finished. settled: final result known.
+   */
+  status: "playing" | "waiting" | "opponent_playing" | "settled";
+  result: MatchResult | null;
+  /** Profit or loss once settled, in the match currency's units. */
+  net: number | null;
+  you: RecapSide;
+  /** The opponent's stats appear only once the match has settled; scores stay hidden until both finish. */
+  opponent: { name: string; avatar: string | null; stats: RecapSide | null } | null;
+};
+
+export type MatchNotification = {
+  matchId: string;
+  asset: Asset;
+  stake: number;
+  result: Exclude<MatchResult, "cancelled">;
+  net: number;
+  opponent: string | null;
+  score: number;
+  opponentScore: number;
+};
+export type TipNotification = { amount: number; from: string };
+
+export type NotificationItem = { id: string; created: number; read: boolean } & (
+  | { kind: "match_result"; data: MatchNotification }
+  | { kind: "tip_received"; data: TipNotification }
+);
+
 export type Snapshot = {
   asset: Asset;
   cashBalance: number;
@@ -92,6 +131,8 @@ export type Snapshot = {
   leaders: Leader[];
   active: Run | null;
   isAdmin: boolean;
+  notifications: NotificationItem[];
+  unreadNotifications: number;
 };
 
 export type Transfer = {

@@ -47,18 +47,23 @@ function PnlCard({ performance, asset }: { performance: ProfilePerformance; asse
       <span>{selected ? new Date(selected.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : RANGES.find(([key]) => key === range)![2]}</span>
       <span className={styles.watermark}><Zap size={15} fill="currentColor" /> ricochet.</span>
     </div>
-    <svg className={styles.chart} viewBox="0 0 500 175" role="img" tabIndex={0} aria-label={`${RANGES.find(([key]) => key === range)![2]} PNL: ${signed(total, asset)} ${currency(asset)}. Use left and right arrow keys to inspect points.`}
-      onPointerMove={inspect} onPointerDown={inspect} onPointerLeave={() => setHover(null)} onBlur={() => setHover(null)} onKeyDown={(event) => {
-        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-        event.preventDefault();
-        setHover((previous) => event.key === "Home" ? 0 : event.key === "End" ? points.length - 1 : Math.max(0, Math.min(points.length - 1, (previous ?? points.length - 1) + (event.key === "ArrowLeft" ? -1 : 1))));
-      }}>
-      <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".23" /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></linearGradient></defs>
-      <line x1="8" x2="492" y1={y(0)} y2={y(0)} className={styles.baseline} />
-      <path d={`${path} L492,166 L8,166 Z`} fill={`url(#${id})`} />
-      <path d={path} stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinejoin="round" />
-      {hover !== null && selected && <><line x1={x(hover)} x2={x(hover)} y1="10" y2="165" className={styles.crosshair} /><circle cx={x(hover)} cy={y(selected.value)} r="4.5" fill="currentColor" stroke="var(--card)" strokeWidth="2" /></>}
-    </svg>
+    <div className={styles.chartWrap}>
+      {/* The drawing stretches to the box, so pointer positions map straight onto the viewBox; strokes keep their width. */}
+      <svg className={styles.chart} viewBox="0 0 500 175" preserveAspectRatio="none" role="img" tabIndex={0} aria-label={`${RANGES.find(([key]) => key === range)![2]} PNL: ${signed(total, asset)} ${currency(asset)}. Use left and right arrow keys to inspect points.`}
+        onPointerMove={inspect} onPointerDown={inspect} onPointerLeave={() => setHover(null)} onBlur={() => setHover(null)} onKeyDown={(event) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+          event.preventDefault();
+          setHover((previous) => event.key === "Home" ? 0 : event.key === "End" ? points.length - 1 : Math.max(0, Math.min(points.length - 1, (previous ?? points.length - 1) + (event.key === "ArrowLeft" ? -1 : 1))));
+        }}>
+        <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="currentColor" stopOpacity=".23" /><stop offset="1" stopColor="currentColor" stopOpacity="0" /></linearGradient></defs>
+        <line x1="8" x2="492" y1={y(0)} y2={y(0)} className={styles.baseline} vectorEffect="non-scaling-stroke" />
+        <path d={`${path} L492,166 L8,166 Z`} fill={`url(#${id})`} />
+        <path d={path} stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+        {hover !== null && selected && <line x1={x(hover)} x2={x(hover)} y1="10" y2="165" className={styles.crosshair} vectorEffect="non-scaling-stroke" />}
+      </svg>
+      {/* A round marker in HTML, since the stretched SVG would squash a circle. */}
+      {hover !== null && selected && <span className={styles.marker} style={{ left: `${x(hover) / 5}%`, top: `${y(selected.value) / 1.75}%` }} aria-hidden />}
+    </div>
     <div className={styles.chartDates}><span>{new Date(points[0].at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><span>{high === 0 && low === 0 ? "No settled PNL in this period" : "Settled match PNL"}</span><span>Now</span></div>
     <span className={styles.srOnly} aria-live="polite">{selected && `${signed(selected.value, asset)} ${currency(asset)}`}</span>
   </section>;

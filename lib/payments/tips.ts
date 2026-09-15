@@ -1,5 +1,6 @@
 import { database } from "@/db/raw";
 import type { TipReceipt } from "../api-types";
+import { notificationInsert } from "../notifications";
 import { cashAccountId, ensureCashAccount, settings } from "./accounts";
 import { PaymentError } from "./errors";
 import { parseSol, requireDevnet, validateOperationId } from "./policy";
@@ -14,7 +15,7 @@ export async function sendTip(uid: string, idInput: unknown, recipientInput: unk
   if (typeof recipientInput !== "string" || !/^[a-f0-9]{32}$/.test(recipientInput)) throw new PaymentError("Choose a valid player to tip.");
   const db = database();
   const [sender, recipient] = await Promise.all([
-    db.prepare("SELECT 1 FROM players WHERE id = ?").bind(uid).first(),
+    db.prepare("SELECT name FROM players WHERE id = ?").bind(uid).first<{ name: string }>(),
     db.prepare("SELECT id, name FROM players WHERE public_id = ?").bind(recipientInput).first<{ id: string; name: string }>(),
   ]);
   if (!sender) throw new PaymentError("Create your player profile first.");
@@ -43,6 +44,7 @@ export async function sendTip(uid: string, idInput: unknown, recipientInput: unk
         .bind(sentId, source, -amount, id, now),
       db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'tip_received', ?, ?, ?)")
         .bind(receivedId, destination, amount, id, now),
+      notificationInsert(db, `tip:${id}:notify`, recipient.id, "tip_received", { amount, from: sender.name }, now),
     ]);
   } catch (error) {
     const completed = await replay();

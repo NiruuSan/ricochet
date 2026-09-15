@@ -9,8 +9,10 @@
 //            distances use plain multiplication. Basic IEEE-754 arithmetic is
 //            exact in every JavaScript engine, so browsers replay the server's
 //            result bit for bit. Also bounds the work a single shot may cost.
-export const RULESET = 3;
-export const SUPPORTED_RULESETS: readonly number[] = [2, 3];
+// Ruleset 4: ruleset 3 physics, with bricks that toughen faster (see brickHp),
+//            and matches settled on score alone: a forfeit just ends a run early.
+export const RULESET = 4;
+export const SUPPORTED_RULESETS: readonly number[] = [2, 3, 4];
 export const isSupportedRuleset = (ruleset: number) => SUPPORTED_RULESETS.includes(ruleset);
 
 export const W = 472;
@@ -68,7 +70,19 @@ export function random(seed: number) {
   };
 }
 
-export function spawn(g: Game) {
+/**
+ * Ruleset 4: HP of the bricks spawned in rounds 1–10. The per-round increase
+ * grows from +1 to +4, and stays at +4 from round 10 on. Earlier rulesets used
+ * the round number (+1 per round).
+ */
+const RULESET4_HP = [1, 2, 3, 4, 6, 8, 10, 13, 16, 20];
+
+export function brickHp(round: number, ruleset = RULESET) {
+  if (ruleset < 4) return round;
+  return round <= RULESET4_HP.length ? RULESET4_HP[round - 1] : RULESET4_HP.at(-1)! + 4 * (round - RULESET4_HP.length);
+}
+
+export function spawn(g: Game, ruleset = RULESET) {
   const rng = random(g.seed ^ Math.imul(g.round, 2654435761));
   const count = 1 + Math.floor(rng() * 7);
   const cols = [0, 1, 2, 3, 4, 5, 6];
@@ -76,7 +90,7 @@ export function spawn(g: Game) {
     const j = Math.floor(rng() * (i + 1));
     [cols[i], cols[j]] = [cols[j], cols[i]];
   }
-  for (const col of cols.slice(0, count)) g.bricks.push({ col, row: 7, hp: g.round });
+  for (const col of cols.slice(0, count)) g.bricks.push({ col, row: 7, hp: brickHp(g.round, ruleset) });
 }
 
 export function initial(seed: number): Game {
@@ -216,7 +230,7 @@ function finishRound(f: Flight) {
   g.over = g.bricks.some((b) => b.row <= 1);
   if (!g.over) {
     g.round++;
-    spawn(g);
+    spawn(g, f.ruleset);
   }
 }
 

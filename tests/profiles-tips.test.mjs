@@ -9,6 +9,7 @@ const { sendTip } = await import("../lib/payments/tips.ts");
 const { cashAccountId, ensureCashAccount } = await import("../lib/payments/accounts.ts");
 const { playerSnapshot } = await import("../lib/matches.ts");
 const { pnlSeries, profilePerformance } = await import("../lib/profile-performance.ts");
+const { listNotifications } = await import("../lib/notifications.ts");
 globalThis.fetch = async () => { throw new Error("Internal tips must not submit a blockchain transaction"); };
 
 try {
@@ -66,8 +67,11 @@ try {
   assert.equal(balance(ALICE), 1_750_000_000);
   assert.equal(balance(BOB), 250_000_000);
   assert.equal(total(), liabilities, "Tips conserve funded balances");
+  const tipInbox = await listNotifications(BOB);
+  assert.deepEqual([tipInbox.unread, tipInbox.items[0].kind, tipInbox.items[0].data], [1, "tip_received", { amount: 250_000_000, from: "Alice" }]);
   assert.deepEqual(await sendTip(ALICE, id, bob.publicId, "0.25"), receipt, "A retry returns the existing receipt");
   assert.equal(balance(BOB), 250_000_000);
+  assert.equal((await listNotifications(BOB)).unread, 1, "A retried tip notifies once");
   assert.deepEqual((await publicProfile("Bob")).stats, before.stats, "Tips do not change PNL or match counts");
   await assert.rejects(() => sendTip(ALICE, id, bob.publicId, "0.5"), /different request/);
   await assert.rejects(() => sendTip(CAROL, id, bob.publicId, "0.25"), /different request/);
@@ -124,5 +128,5 @@ try {
   await assert.rejects(() => sendTip(ALICE, crypto.randomUUID(), carol.publicId, "0.1"), /devnet only/);
   const serialized = JSON.stringify(await publicProfile("Bobby"));
   for (const secret of [ALICE, BOB, CAROL, "balance", "encrypted_key", "account_id"]) assert.ok(!serialized.includes(secret));
-  console.log("PASS: public profile privacy, all-time and historical PNL, dashboard PNL series and match history, zero stats, stable recipient IDs, tip conservation, idempotency, concurrent spending, rollback, validation, and devnet-only tips.");
+  console.log("PASS: public profile privacy, all-time and historical PNL, dashboard PNL series and match history, zero stats, stable recipient IDs, tip conservation, tip notifications, idempotency, concurrent spending, rollback, validation, and devnet-only tips.");
 } finally { close(); }

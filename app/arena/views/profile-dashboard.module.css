@@ -45,6 +45,8 @@
 .chartMeta { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; min-height: 19px; font-size: 12px; color: #a5b0c5; }
 .watermark { display: flex; align-items: center; gap: 4px; font-size: 15px; font-weight: 750; letter-spacing: -.4px; opacity: .45; }
 .chart { display: block; width: 100%; height: 155px; color: var(--primary); overflow: visible; cursor: crosshair; }
+.chartWrap { position: relative; color: var(--primary); }
+.marker { position: absolute; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--card); pointer-events: none; }
 .baseline { stroke: #46536a; stroke-width: .7; stroke-dasharray: 3 5; opacity: .5; }
 .crosshair { stroke: #a3b179; stroke-width: 1; stroke-dasharray: 3 4; opacity: .5; }
 .chartDates { display: flex; justify-content: space-between; gap: 8px; color: #8795aa; font-size: 10px; }

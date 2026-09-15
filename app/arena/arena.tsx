@@ -1,11 +1,12 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowUpRight, Gamepad2, HelpCircle, History, Landmark, Trophy, Wallet, X, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { STAKES } from "@/lib/api-types";
 import { Avatar, GemIcon } from "./avatar";
 import { units } from "./format";
+import { Notifications } from "./notifications";
 import { useGameSession } from "./use-game-session";
 import type { View } from "./views";
 import { usePlayerData } from "./use-player-data";
@@ -13,7 +14,7 @@ import { AdminView } from "./views/admin-view";
 import { AuthView } from "./views/auth-view";
 import { LeaderboardView } from "./views/leaderboard-view";
 import { MatchesView } from "./views/matches-view";
-import { PlayView, type Mode } from "./views/play-view";
+import { PlayView } from "./views/play-view";
 import { ProfileView } from "./views/profile-view";
 import { PublicProfileView } from "./views/public-profile-view";
 import { RulesView } from "./views/rules-view";
@@ -29,15 +30,29 @@ const NAVIGATION = [
   { href: "/faq", view: "faq", label: "How to play", Icon: HelpCircle },
 ];
 
-export default function Arena({ view, profileName }: { view: View; profileName?: string }) {
+export default function Arena({ view, profileName, initialMatchId }: { view: View; profileName?: string; initialMatchId?: string }) {
   const player = usePlayerData();
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
   const session = useGameSession({ onSaved, onError: setError });
-  const [mode, setMode] = useState<Mode>("practice");
-  // Each currency has its own five entries; the choice is kept by position.
-  const [stakeIndex, setStakeIndex] = useState(1);
   const [confirmForfeit, setConfirmForfeit] = useState(false);
+  const router = useRouter();
+  // A match recap opened from a notification or a `/?match=<id>` link.
+  const [recapMatchId, setRecapState] = useState<string | null>(view === "play" ? (initialMatchId ?? null) : null);
+
+  const setRecapMatchId = useCallback((id: string | null) => {
+    setRecapState(id);
+    if (!id && window.location.search.includes("match=")) window.history.replaceState(null, "", "/");
+  }, []);
+
+  const openMatch = useCallback(
+    (id: string) => {
+      if (view === "play") setRecapMatchId(id);
+      else router.push(`/?match=${encodeURIComponent(id)}`);
+    },
+    [router, setRecapMatchId, view],
+  );
+  const viewingMatchId = recapMatchId ?? (session.started && session.game.over ? (session.run?.match_id ?? null) : null);
 
   // Load the player; on the arena, pick up a saved run where it was left.
   const { resume } = session;
@@ -47,30 +62,23 @@ export default function Arena({ view, profileName }: { view: View; profileName?:
       if (!current || !snapshot?.active || view !== "play") return;
       resume(snapshot.active);
       setAsset(snapshot.active.asset);
-      setMode("match");
     });
     return () => {
       current = false;
     };
   }, [refresh, resume, setAsset, view]);
 
-  const start = async () => {
-    setError("");
-    if (mode === "practice") return session.startPractice();
-    if (!data.player) {
-      window.location.href = "/signup";
-      return;
-    }
-    const run = await session.startMatch(STAKES[asset][stakeIndex], asset);
-    if (run) setAsset(run.asset);
-  };
-
   const currentMatch = data.matches.find((m) => m.id === session.run?.match_id);
   const refundDescription = (session.run?.asset ?? asset) === "gems" ? "refunded in full" : "refunded minus the 12% house fee";
+  // Matches created before ruleset 4 keep the forfeit rules they started with.
   const forfeitWarning =
-    currentMatch && !currentMatch.joined
-      ? `Nobody has joined this match yet, so forfeiting closes it: no one can take the seat, and your entry is ${refundDescription}. This cannot be undone.`
-      : `Forfeiting ends your run. Your entry stays committed; an opponent who completes their run wins. If nobody has joined yet, the match closes and your entry is ${refundDescription}. This cannot be undone.`;
+    (session.run?.ruleset ?? 4) >= 4
+      ? `Forfeiting ends your run now with your current score of ${session.game.score.toLocaleString("en")}. Your entry stays in the match: ${
+          currentMatch?.joined ? "your opponent wins if they finish with a higher score" : "the seat stays open, and whoever joins wins the pot by beating your score"
+        }. This cannot be undone.`
+      : currentMatch && !currentMatch.joined
+        ? `Nobody has joined this match yet, so forfeiting closes it: no one can take the seat, and your entry is ${refundDescription}. This cannot be undone.`
+        : `Forfeiting ends your run. Your entry stays committed; an opponent who completes their run wins. This cannot be undone.`;
 
   return (
     <>
@@ -99,6 +107,13 @@ export default function Arena({ view, profileName }: { view: View; profileName?:
           <span className="demo-tag">TEST MODE</span>
           {data.player ? (
             <>
+              <Notifications
+                items={data.notifications}
+                unread={data.unreadNotifications ?? 0}
+                onOpenMatch={openMatch}
+                onRead={onSaved}
+                viewingMatchId={viewingMatchId}
+              />
               <Link className="balance-pill" href="/wallet" aria-label="Balances">
                 <span className="pill-part">
                   <GemIcon />
@@ -135,12 +150,9 @@ export default function Arena({ view, profileName }: { view: View; profileName?:
           <PlayView
             player={player}
             session={session}
-            mode={mode}
-            setMode={setMode}
-            stakeIndex={stakeIndex}
-            setStakeIndex={setStakeIndex}
-            onStart={() => void start()}
             onForfeit={() => setConfirmForfeit(true)}
+            recapMatchId={recapMatchId}
+            setRecapMatchId={setRecapMatchId}
           />
         )}
         {view === "welcome" && <WelcomeView session={session} />}

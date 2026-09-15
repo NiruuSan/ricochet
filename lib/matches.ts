@@ -1,9 +1,10 @@
 import { adminId, database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulate, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
-import type { Asset, MatchResult, MatchSummary, Profile, Run, Snapshot } from "./api-types";
+import type { Asset, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, winnerFee, winnerPayout } from "./api-types";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
+import { listNotifications, notificationInsert } from "./notifications";
 
 /** An error whose message is safe to show and carries an HTTP status. */
 export class GameError extends Error {
@@ -17,28 +18,34 @@ export class GameError extends Error {
 type RunRow = { user_id: string; done: number; forfeit: number; score: number };
 type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number };
 
-const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, m.asset, m.ruleset";
+const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, r.clears, m.asset, m.ruleset";
 type RunRecord = Omit<Run, "state"> & { state: string };
 const parseRun = (row: RunRecord): Run => ({ ...row, state: JSON.parse(row.state) as Game });
 
 /** Public URL of a stored profile picture. Keys are random, never user IDs. */
 export const avatarUrl = (key: string | null) => (key ? `/api/avatars/${key}` : null);
 
-// A match with a forfeited run and no second player has been (or is about to
-// be) cancelled, so nobody may join it.
-const NOT_FORFEITED = "NOT EXISTS (SELECT 1 FROM runs f WHERE f.match_id = matches.id AND f.forfeit = 1)";
+// Before ruleset 4, a match whose creator forfeited before anyone joined is
+// (or is about to be) cancelled, so nobody may join it. From ruleset 4 a forfeit
+// only ends that run: its score stands and the seat stays open.
+const JOINABLE = "(matches.ruleset >= 4 OR NOT EXISTS (SELECT 1 FROM runs f WHERE f.match_id = matches.id AND f.forfeit = 1))";
+
+/** Ruleset 4+: the higher score wins, forfeit or not. Earlier: a single forfeit loses. */
+function decideWinner(ruleset: number, a: RunRow, b: RunRow) {
+  if (ruleset < 4 && a.forfeit !== b.forfeit) return a.forfeit ? b.user_id : a.user_id;
+  return a.score === b.score ? null : a.score > b.score ? a.user_id : b.user_id;
+}
 
 export async function settle(matchId: string) {
   const db = database();
   const m = await db.prepare("SELECT * FROM matches WHERE id = ?").bind(matchId).first<MatchRow>();
   if (!m || m.settled) return;
   const runs = (await db.prepare("SELECT * FROM runs WHERE match_id = ?").bind(matchId).all<RunRow>()).results;
-  if (!m.p2) return cancelUnjoined(m, runs);
+  if (!m.p2) return m.ruleset < 4 ? cancelUnjoined(m, runs) : undefined;
   if (runs.length !== 2 || runs.some((r) => !r.done)) return;
 
   const [a, b] = runs;
-  const winner =
-    a.forfeit !== b.forfeit ? (a.forfeit ? b.user_id : a.user_id) : a.score === b.score ? null : a.score > b.score ? a.user_id : b.user_id;
+  const winner = decideWinner(m.ruleset, a, b);
   const now = Date.now();
   const payout = winner ? winnerPayout(m.stake, m.asset) : m.stake;
   const fee = winner ? winnerFee(m.stake, m.asset) : 0;
@@ -75,6 +82,30 @@ export async function settle(matchId: string) {
     }
   }
   ops.push(db.prepare("UPDATE matches SET settled = 1, winner = ?, fee = ? WHERE id = ? AND settled = 0").bind(winner, fee, matchId));
+  // Tell both players how it ended, including one who has since gone offline.
+  const names = await db
+    .prepare("SELECT id, name FROM players WHERE id IN (?, ?)")
+    .bind(a.user_id, b.user_id)
+    .all<{ id: string; name: string }>();
+  const nameOf = (uid: string) => names.results.find((p) => p.id === uid)?.name ?? null;
+  for (const [me, other] of [
+    [a, b],
+    [b, a],
+  ]) {
+    const result = winner === null ? "draw" : winner === me.user_id ? "win" : "loss";
+    const data: MatchNotification = {
+      matchId,
+      asset: m.asset,
+      stake: m.stake,
+      result,
+      net: netResult(result, m.stake, fee),
+      opponent: nameOf(other.user_id),
+      score: me.score,
+      opponentScore: other.score,
+    };
+    // The ID names the seat, not the player: notification IDs reach the browser.
+    ops.push(notificationInsert(db, `${matchId}:result:${me.user_id === m.p1 ? "p1" : "p2"}`, me.user_id, "match_result", data, now));
+  }
   await db.batch(ops);
 }
 
@@ -174,7 +205,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
          JOIN matches m ON m.id = l.reference AND m.settled = 1 AND m.asset = 'devnet'
          WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund')
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
-  const [player, history, transactions, leaders, active, cash] = await Promise.all([
+  const [player, history, transactions, leaders, active, cash, inbox] = await Promise.all([
     db.prepare("SELECT public_id AS publicId, name, balance, avatar, created FROM players WHERE id = ?").bind(uid).first<Profile>(),
     db
       .prepare(
@@ -203,6 +234,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     db.prepare(leaderQuery).bind(uid).all<Snapshot["leaders"][number]>(),
     activeRun(uid),
     db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(uid)).first<{ balance: number }>(),
+    listNotifications(uid),
   ]);
   const admin = adminId();
   return {
@@ -215,6 +247,88 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     leaders: leaders.results.map((l) => ({ ...l, avatar: avatarUrl(l.avatar) })),
     active,
     isAdmin: !!admin && uid === admin,
+    notifications: inbox.items,
+    unreadNotifications: inbox.unread,
+  };
+}
+
+type RecapRow = {
+  stake: number;
+  asset: Asset;
+  p2: string | null;
+  settled: number;
+  cancelled: number;
+  winner: string | null;
+  fee: number;
+  me: string;
+  state: string;
+  clears: number;
+  done: number;
+  forfeit: number;
+  name: string;
+  avatar: string | null;
+  other_state: string | null;
+  other_clears: number | null;
+  other_done: number | null;
+  other_forfeit: number | null;
+  other_name: string | null;
+  other_avatar: string | null;
+};
+
+function recapSide(name: string, avatar: string | null, stateJson: string, clears: number, forfeit: number): RecapSide {
+  const board = JSON.parse(stateJson) as Game;
+  return { name, avatar: avatarUrl(avatar), score: board.score, balls: board.balls, clears, rounds: board.round, forfeit: !!forfeit, board };
+}
+
+/**
+ * The end-of-match recap for one of the player's matches. Settles the match
+ * first when both runs are over. The opponent's score and board are revealed
+ * only once the match has settled, so an unfinished opponent learns nothing.
+ */
+export async function matchRecap(uid: string, matchIdInput: unknown): Promise<MatchRecap> {
+  const matchId = String(matchIdInput ?? "");
+  const db = database();
+  const load = () =>
+    db
+      .prepare(
+        `SELECT m.stake, m.asset, m.p2, m.settled, m.cancelled, m.winner, m.fee,
+           r.user_id AS me, r.state, r.clears, r.done, r.forfeit, p.name, p.avatar,
+           o.state AS other_state, o.clears AS other_clears, o.done AS other_done, o.forfeit AS other_forfeit,
+           op.name AS other_name, op.avatar AS other_avatar
+         FROM runs r
+         JOIN matches m ON m.id = r.match_id
+         JOIN players p ON p.id = r.user_id
+         LEFT JOIN players op ON op.id = CASE WHEN m.p1 = r.user_id THEN m.p2 ELSE m.p1 END
+         LEFT JOIN runs o ON o.match_id = m.id AND o.user_id = op.id
+         WHERE r.match_id = ? AND r.user_id = ?`,
+      )
+      .bind(matchId, uid)
+      .first<RecapRow>();
+  let row = await load();
+  if (!row) throw new GameError("Match not found.", 404);
+  if (row.done && !row.settled) {
+    await settle(matchId);
+    row = (await load())!;
+  }
+  const settled = !!row.settled;
+  const result: MatchResult | null = !settled ? null : row.cancelled ? "cancelled" : row.winner === null ? "draw" : row.winner === uid ? "win" : "loss";
+  const status = !row.done ? "playing" : settled ? "settled" : !row.p2 ? "waiting" : "opponent_playing";
+  const reveal = settled && !row.cancelled && row.other_state !== null;
+  return {
+    matchId,
+    asset: row.asset,
+    stake: row.stake,
+    status,
+    result,
+    net: settled ? netResult(result, row.stake, row.fee) : null,
+    you: recapSide(row.name, row.avatar, row.state, row.clears, row.forfeit),
+    opponent: row.other_name
+      ? {
+          name: row.other_name,
+          avatar: avatarUrl(row.other_avatar),
+          stats: reveal ? recapSide(row.other_name, row.other_avatar, row.other_state!, row.other_clears ?? 0, row.other_forfeit ?? 0) : null,
+        }
+      : null,
   };
 }
 
@@ -244,7 +358,7 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
     .prepare(
       `SELECT id, seed, stake, asset, p1, p2, settled, ruleset FROM matches
        WHERE stake = ? AND asset = ? AND p2 IS NULL AND p1 <> ? AND settled = 0
-         AND ruleset IN (${rulesets}) AND ${NOT_FORFEITED}
+         AND ruleset IN (${rulesets}) AND ${JOINABLE}
        ORDER BY created ASC LIMIT 1`,
     )
     .bind(stake, asset, uid)
@@ -253,7 +367,7 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
   const now = Date.now();
   const ops: Statement[] = [];
   if (match) {
-    ops.push(db.prepare(`UPDATE matches SET p2 = ? WHERE id = ? AND p2 IS NULL AND settled = 0 AND ${NOT_FORFEITED}`).bind(uid, match.id));
+    ops.push(db.prepare(`UPDATE matches SET p2 = ? WHERE id = ? AND p2 IS NULL AND settled = 0 AND ${JOINABLE}`).bind(uid, match.id));
   } else {
     match = { id: crypto.randomUUID(), seed: crypto.getRandomValues(new Uint32Array(1))[0], stake, asset, p1: uid, p2: null, settled: 0, ruleset: RULESET };
     ops.push(
@@ -336,11 +450,13 @@ export async function playShot(
       throw e;
     }
   }
+  // A shot is one round, and `bonus` marks a round that cleared the board.
+  const clears = run.clears + (!forfeit && state.bonus ? 1 : 0);
   const result = await db
-    .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
-    .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, run.id, uid, run.revision)
+    .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
+    .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, run.id, uid, run.revision)
     .run();
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
   if (state.over) await settle(run.match_id);
-  return { ...run, state, score: state.score, done: state.over ? 1 : 0, forfeit: forfeit ? 1 : 0, revision: run.revision + 1 };
+  return { ...run, state, score: state.score, done: state.over ? 1 : 0, forfeit: forfeit ? 1 : 0, clears, revision: run.revision + 1 };
 }

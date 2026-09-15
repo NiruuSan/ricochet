@@ -13,7 +13,7 @@ export const FAQ: [question: string, answer: string][] = [
   ],
   [
     "What happens in a draw or a forfeit?",
-    "Equal final scores return both entries in full, with no house fee. If one player forfeits, the other wins once their run finishes. If both forfeit, scores decide, with equal scores refunded. If you forfeit before anyone has joined your match, it closes: nobody can take the seat, and your gem entry is refunded in full; devnet SOL entries are refunded minus the 12% house fee.",
+    "Equal final scores return both entries in full, with no house fee. Forfeiting ends your run immediately: your score so far becomes your final score and your entry stays in the match. If nobody has joined yet, the seat stays open, and the player who takes it wins the pot by beating your score, or loses their entry to you if they score less. Your score can only grow while you play, so finishing a run is never worse than forfeiting it.",
   ],
   [
     "How are rounds and extra balls handled?",
