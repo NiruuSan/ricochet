@@ -155,8 +155,32 @@ try {
   assert.equal(cash("u-cat"), catBefore + 352_000_000);
   assert.equal((await t.adminTournaments(now + 4 * MIN)).find((x) => x.id === early).status, "settled");
 
+  // When every entrant has finished, the tournament ends and pays out without waiting for its end time.
+  const quick = await t.createTournament({ ...base, name: "Quick Cup", asset: "gems", entry: "free", prize: "600", payout: "winner", places: 2 }, now);
+  await t.registerForTournament("u-ann", quick, now + MIN);
+  await t.registerForTournament("u-ben", quick, now + MIN);
+  const quickLive = now + 12 * MIN;
+  const annQuick = await t.startTournamentRun("u-ann", quick, quickLive);
+  const benQuick = await t.startTournamentRun("u-ben", quick, quickLive);
+  const annGems = gems("u-ann");
+  sqlite.prepare("UPDATE tournament_entries SET score = 9, state = json_set(state, '$.score', 9) WHERE id = ?").run(annQuick.id.slice(2));
+  await t.playTournamentShot("u-ann", annQuick.id.slice(2), 0, "forfeit", undefined, true, quickLive);
+  assert.equal((await t.tournamentDetail(null, quick, quickLive)).status, "live", "One player still has a run to play");
+  await t.playTournamentShot("u-ben", benQuick.id.slice(2), 0, "forfeit", undefined, true, quickLive + MIN);
+  const quickRow = sqlite.prepare("SELECT status, ends_at FROM tournaments WHERE id = ?").get(quick);
+  assert.deepEqual([quickRow.status, quickRow.ends_at], ["settled", quickLive + MIN], "The last finished run ends the tournament");
+  assert.equal(gems("u-ann"), annGems + 600, "The winner is paid straight away");
+  assert.ok((await listNotifications("u-ben")).items.some((n) => n.kind === "tournament_result" && n.data.name === "Quick Cup"), "Entrants hear the result");
+  // A registered player who has not played yet keeps the tournament open.
+  const waiting = await t.createTournament({ ...base, name: "Waiting Cup", asset: "gems", entry: "free", prize: "600", payout: "winner", places: 2 }, now);
+  await t.registerForTournament("u-ann", waiting, now + MIN);
+  await t.registerForTournament("u-cat", waiting, now + MIN);
+  const annWaiting = await t.startTournamentRun("u-ann", waiting, quickLive);
+  await t.playTournamentShot("u-ann", annWaiting.id.slice(2), 0, "forfeit", undefined, true, quickLive);
+  assert.equal(sqlite.prepare("SELECT status FROM tournaments WHERE id = ?").get(waiting).status, "scheduled");
+
   console.log(
-    "PASS: prize presets and splits (fewer players, ties, dust), validation, capacity, one entry each, registration and play windows, same-board runs, conserved SOL with the 12% house share, tie payouts, notifications without player IDs, free gem prizes, refunds when nobody plays, house-funded SOL prizes and idempotent cancellation, early close.",
+    "PASS: prize presets and splits (fewer players, ties, dust), validation, capacity, one entry each, registration and play windows, same-board runs, conserved SOL with the 12% house share, tie payouts, notifications without player IDs, free gem prizes, refunds when nobody plays, house-funded SOL prizes and idempotent cancellation, early close, automatic end once every entrant has finished.",
   );
 } finally {
   close();

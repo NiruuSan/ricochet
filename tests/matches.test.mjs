@@ -238,7 +238,8 @@ assert.ok(!JSON.stringify(overview).includes("user-"), "The overview carries no 
   const stake = 1000;
   const before = gemBalance(BOB);
   const bobOpen = await matches.startMatch(BOB, stake, "gems");
-  assert.equal(bobOpen.ruleset, 4);
+  assert.equal(bobOpen.ruleset, engine.RULESET);
+  assert.ok(bobOpen.ruleset >= 4, "New matches settle on score alone");
   sqlite.prepare("UPDATE runs SET score = 7, state = json_set(state, '$.score', 7) WHERE id = ?").run(bobOpen.id);
   const quit = await matches.playShot(BOB, bobOpen.id, bobOpen.revision, "forfeit");
   assert.deepEqual([quit.done, quit.forfeit, quit.score], [1, 1, 7]);

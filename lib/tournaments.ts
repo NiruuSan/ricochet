@@ -319,10 +319,31 @@ export async function playTournamentShot(
     .bind(JSON.stringify(state), state.score, done, forfeit ? 1 : 0, clears, done ? now : null, row.id, uid, row.revision)
     .run();
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
+  if (done) {
+    // The run is saved; if the payout fails here, the next visit after the new end settles it.
+    await endIfEveryoneFinished(row.tournament_id, now).catch((e) => console.error("Could not end the tournament early", e));
+  }
   return toRun(
     { id: row.tournament_id, asset: row.asset, ruleset: row.ruleset },
     { ...row, state: JSON.stringify(state), score: state.score, done, forfeit: forfeit ? 1 : 0, clears, revision: row.revision + 1 },
   );
+}
+
+/**
+ * Ends a live tournament as soon as every entrant has finished their run, and
+ * pays it out. Registration closes at the start, so the entrants are final.
+ */
+async function endIfEveryoneFinished(id: string, now: number) {
+  const db = database();
+  const ended = await db
+    .prepare(
+      `UPDATE tournaments SET ends_at = ?
+       WHERE id = ? AND status = 'scheduled' AND starts_at <= ? AND ends_at > ?
+         AND NOT EXISTS (SELECT 1 FROM tournament_entries e WHERE e.tournament_id = tournaments.id AND e.done = 0)`,
+    )
+    .bind(now, id, now, now)
+    .run();
+  if (ended.meta.changes) await settleTournament(id, now);
 }
 
 /** Entrants who played, best score first; ties keep the order they finished in. */

@@ -11,8 +11,11 @@
 //            result bit for bit. Also bounds the work a single shot may cost.
 // Ruleset 4: ruleset 3 physics, with bricks that toughen faster (see brickHp),
 //            and matches settled on score alone: a forfeit just ends a run early.
-export const RULESET = 4;
-export const SUPPORTED_RULESETS: readonly number[] = [2, 3, 4];
+// Ruleset 5: ruleset 4, plus sharp corners. A ball that clips the exposed corner
+//            of a brick reflects off the rounded corner, so its path can be
+//            deflected at any angle instead of only flipping one axis.
+export const RULESET = 5;
+export const SUPPORTED_RULESETS: readonly number[] = [2, 3, 4, 5];
 export const isSupportedRuleset = (ruleset: number) => SUPPORTED_RULESETS.includes(ruleset);
 
 export const W = 472;
@@ -220,6 +223,122 @@ function bounce(ball: Ball, b: Brick, ox: number, oy: number) {
   }
 }
 
+/** Ruleset 5: slowest vertical speed after a corner, so a ball never skims sideways forever (about a launch at 8°). */
+const MIN_VY = 0.625;
+
+/** Whether the grid cell holds a live brick. Cells outside the board count as solid walls. */
+function solid(f: Flight, col: number, cy: number) {
+  if (col < 0 || col >= COLS || cy < 0 || cy >= ROWS) return true;
+  for (const i of f.cells![cy * COLS + col]) if (f.order[i].hp > 0) return true;
+  return false;
+}
+
+/**
+ * Ruleset 5 collision response. Sweeps the ball's centre from its previous
+ * position against the brick's outline grown by the radius: four flat faces and
+ * four quarter circles at the corners. A face flips one axis, as before. A corner
+ * is sharp only when neither neighbouring cell next to it holds a brick; there the
+ * velocity reflects about the line from the corner to the ball, which can turn it
+ * by any amount. Uses Math.sqrt, which ECMAScript specifies as correctly rounded.
+ */
+function bounceSharp(f: Flight, ball: Ball, b: Brick, ox: number, oy: number) {
+  if (!f.cells) return bounce(ball, b, ox, oy);
+  const r = brickBounds(b);
+  const dx = ball.x - ox;
+  const dy = ball.y - oy;
+  const left = r.x;
+  const right = r.x + r.w;
+  const top = r.y;
+  const bottom = r.y + r.h;
+  let best = 2;
+  type Side = "top" | "bottom" | "left" | "right" | "corner";
+  let hit = null as Side | null;
+  let cornerX = 0;
+  let cornerY = 0;
+  const face = (t: number, along: number, from: number, to: number, side: Side) => {
+    if (t >= 0 && t <= 1 && t < best && along >= from && along <= to) {
+      best = t;
+      hit = side;
+    }
+  };
+  if (dy > 0) face((top - RADIUS - oy) / dy, ox + dx * ((top - RADIUS - oy) / dy), left, right, "top");
+  if (dy < 0) face((bottom + RADIUS - oy) / dy, ox + dx * ((bottom + RADIUS - oy) / dy), left, right, "bottom");
+  if (dx > 0) face((left - RADIUS - ox) / dx, oy + dy * ((left - RADIUS - ox) / dx), top, bottom, "left");
+  if (dx < 0) face((right + RADIUS - ox) / dx, oy + dy * ((right + RADIUS - ox) / dx), top, bottom, "right");
+  const a = dx * dx + dy * dy;
+  if (a > 0) {
+    for (const cx of [left, right]) {
+      for (const cy of [top, bottom]) {
+        const fx = ox - cx;
+        const fy = oy - cy;
+        const half = fx * dx + fy * dy;
+        const disc = half * half - a * (fx * fx + fy * fy - RADIUS * RADIUS);
+        if (half >= 0 || disc < 0) continue;
+        const t = (-half - Math.sqrt(disc)) / a;
+        const px = ox + dx * t;
+        const py = oy + dy * t;
+        // Only the outer quarter of the circle belongs to the corner; the rest lies behind a face.
+        const outside = (cx === left ? px <= left : px >= right) && (cy === top ? py <= top : py >= bottom);
+        if (t >= 0 && t <= 1 && t < best && outside) {
+          best = t;
+          hit = "corner";
+          cornerX = cx;
+          cornerY = cy;
+        }
+      }
+    }
+  }
+  if (hit === null) return bounce(ball, b, ox, oy);
+  if (hit === "corner") {
+    const cy = 8 - b.row;
+    const side = cornerX === left ? -1 : 1;
+    const vertical = cornerY === top ? -1 : 1;
+    const besideSolid = solid(f, b.col + side, cy);
+    const aboveSolid = solid(f, b.col, cy + vertical);
+    if (besideSolid || aboveSolid) {
+      // A neighbour continues a face through this corner, so it is not sharp.
+      if (besideSolid) {
+        ball.y = vertical < 0 ? top - RADIUS : bottom + RADIUS;
+        ball.vy = vertical < 0 ? -Math.abs(ball.vy) : Math.abs(ball.vy);
+      }
+      if (aboveSolid) {
+        ball.x = side < 0 ? left - RADIUS : right + RADIUS;
+        ball.vx = side < 0 ? -Math.abs(ball.vx) : Math.abs(ball.vx);
+      }
+      return;
+    }
+    const px = ox + dx * best;
+    const py = oy + dy * best;
+    const nx = (px - cornerX) / RADIUS;
+    const ny = (py - cornerY) / RADIUS;
+    const dot = ball.vx * nx + ball.vy * ny;
+    let vx = ball.vx - 2 * dot * nx;
+    let vy = ball.vy - 2 * dot * ny;
+    if (vy > -MIN_VY && vy < MIN_VY) vy = (vy === 0 ? ny : vy) < 0 ? -MIN_VY : MIN_VY;
+    // Keep the ball at its launch speed.
+    const vxSquared = SPEED * SPEED - vy * vy;
+    vx = (vx < 0 || (vx === 0 && nx < 0) ? -1 : 1) * Math.sqrt(vxSquared > 0 ? vxSquared : 0);
+    ball.x = px;
+    ball.y = py;
+    ball.vx = vx;
+    ball.vy = vy;
+    return;
+  }
+  if (hit === "top") {
+    ball.y = top - RADIUS;
+    ball.vy = -Math.abs(ball.vy);
+  } else if (hit === "bottom") {
+    ball.y = bottom + RADIUS;
+    ball.vy = Math.abs(ball.vy);
+  } else if (hit === "left") {
+    ball.x = left - RADIUS;
+    ball.vx = -Math.abs(ball.vx);
+  } else {
+    ball.x = right + RADIUS;
+    ball.vx = Math.abs(ball.vx);
+  }
+}
+
 function finishRound(f: Flight) {
   const g = f.game;
   f.done = true;
@@ -272,7 +391,8 @@ export function step(f: Flight) {
     if (brick) {
       brick.hp--;
       f.game.score++;
-      bounce(ball, brick, ox, oy);
+      if (f.ruleset >= 5) bounceSharp(f, ball, brick, ox, oy);
+      else bounce(ball, brick, ox, oy);
     }
   }
   f.game.bricks = f.game.bricks.filter((b) => b.hp > 0);

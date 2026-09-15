@@ -135,7 +135,7 @@ for (let angle = 8; angle <= 172; angle += 0.25) {
 const straightUp = launch(initial(5), 90, 3);
 assert.equal(straightUp.balls[0].vx, 0);
 assert.equal(straightUp.balls[0].vy, -4.5);
-assert.equal(RULESET, 4);
+assert.equal(RULESET, 5);
 // Frozen ruleset 3 outcome: changing it would break replays of live matches.
 let v3 = initial(777);
 for (const angle of [33.3, 90, 147.25, 61.5, 12]) if (!v3.over) v3 = simulate(v3, angle, 3);
@@ -160,6 +160,40 @@ let v4 = initial(777);
 for (const angle of [33.3, 90, 147.25, 61.5, 12, 75, 100, 45, 130, 88]) if (!v4.over) v4 = simulate(v4, angle, 4);
 assert.equal(createHash("sha256").update(JSON.stringify(v4)).digest("hex").slice(0, 16), "a22061d08978aab3");
 console.log("PASS: ruleset 4 brick HP progression and frozen replay.");
+
+// Ruleset 5: a ball that clips the exposed corner of a brick is deflected by an
+// amount that depends on how far off-centre it hits; flat faces behave as before.
+const CW = 472 / 7;
+const RH = 612 / 9;
+function cornerShot(offset: number, ruleset: number, neighbour = false) {
+  const g = initial(1);
+  g.bricks = [{ col: 3, row: 4, hp: 100 }];
+  if (neighbour) g.bricks.push({ col: 2, row: 4, hp: 100 });
+  const flight = launch(g, 90, ruleset);
+  const ball = flight.balls[0];
+  // Straight up, just left of the brick's bottom-left corner.
+  Object.assign(ball, { x: 3 * CW - offset, y: 5 * RH + 40, vx: 0, vy: -4.5 });
+  while (flight.game.score === 0 && ball.y > 4 * RH) step(flight);
+  return { hits: flight.game.score, vx: ball.vx, vy: ball.vy };
+}
+const glancing = cornerShot(1, 5);
+const half = cornerShot(2.5, 5);
+const edge = cornerShot(4, 5);
+assert.ok(glancing.hits === 1 && half.hits === 1 && edge.hits === 1, "Corner contacts count as one hit");
+assert.ok(glancing.vx < 0 && glancing.vy > 0 && half.vx < glancing.vx, "Hitting further off-centre deflects more");
+assert.ok(Math.abs(half.vx + 4.5 * Math.sin(Math.PI / 3)) < 1e-9 && Math.abs(half.vy - 2.25) < 1e-9, "Half a radius off the corner turns the ball by 60°");
+assert.ok(edge.vx < -4 && edge.vy < 0, "A corner clipped at the edge sends the ball sideways");
+for (const shot of [glancing, half, edge]) assert.ok(Math.abs(Math.hypot(shot.vx, shot.vy) - 4.5) < 1e-12, "Corners keep the ball's speed");
+for (const offset of [1, 2.5, 4]) {
+  const legacy = cornerShot(offset, 4);
+  assert.ok(legacy.vx === 0, "Ruleset 4 corners still flip a single axis");
+}
+assert.ok(cornerShot(2.5, 5, true).vx === 0 && cornerShot(2.5, 5, true).vy === 4.5, "A corner shared with a neighbour is a flat face");
+// Frozen ruleset 5 outcome: changing it would break replays of live matches.
+let v5 = initial(777);
+for (const angle of [33.3, 90, 147.25, 61.5, 12, 75, 100, 45, 130, 88]) if (!v5.over) v5 = simulate(v5, angle, 5);
+assert.equal(createHash("sha256").update(JSON.stringify(v5)).digest("hex").slice(0, 16), "000ddf6fe9859939");
+console.log("PASS: ruleset 5 sharp corners deflect the ball, shared corners stay flat, frozen replay.");
 
 // Work budget: a shot that costs too much is rejected rather than burning CPU.
 // 8,000 balls on a shallow angle each fly for ~1,700 ticks: about 14M ball-steps.
@@ -186,8 +220,12 @@ assert.equal(lateFlight.aborted, false);
 assert.ok(lateFlight.ballSteps < MAX_BALL_STEPS / 5);
 // Ruleset 4's tougher bricks keep more of the board alive for the whole shot.
 for (const b of late.bricks) b.hp = brickHp(late.round, 4);
-const tougherFlight = launch(late, 8.5, 4);
-while (!tougherFlight.done && !tougherFlight.aborted) step(tougherFlight);
-assert.equal(tougherFlight.aborted, false);
-assert.ok(tougherFlight.ballSteps < MAX_BALL_STEPS / 5);
+for (const ruleset of [4, 5]) {
+  for (const angle of [8.5, 45, 90, 171]) {
+    const tougherFlight = launch(late, angle, ruleset);
+    while (!tougherFlight.done && !tougherFlight.aborted) step(tougherFlight);
+    assert.equal(tougherFlight.aborted, false);
+    assert.ok(tougherFlight.ballSteps < MAX_BALL_STEPS / 5);
+  }
+}
 console.log("PASS: late-game shots fit the budget with headroom.");
