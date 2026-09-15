@@ -15,6 +15,13 @@
       "when": 1789461557635,
       "tag": "0001_sticky_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789466786057,
+      "tag": "0002_ruleset_cancel_ratelimit",
+      "breakpoints": true
     }
   ]
 }

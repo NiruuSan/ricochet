@@ -1,0 +1,67 @@
+"use client";
+import Link from "next/link";
+import { ArrowRight, Trophy } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AssetTabs } from "../asset-tabs";
+import { initials, signed } from "../format";
+import type { PlayerState } from "../arena";
+
+export function LeaderboardView({ player }: { player: PlayerState }) {
+  const { data, asset, setAsset, loaded } = player;
+  return (
+    <section className="subpage">
+      <div className="tag lime" style={{ marginBottom: 12 }}>
+        THE SCORE THAT COUNTS
+      </div>
+      <h1>Meet the angle masters.</h1>
+      <AssetTabs asset={asset} onChange={setAsset} />
+      <p className="muted">Ranked by net profit from settled {asset} matches. Entry fees included.</p>
+      <div className="table-card">
+        {data.leaders.length ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Rank</TableHead>
+                <TableHead>Player</TableHead>
+                <TableHead>Settled matches</TableHead>
+                <TableHead>Net P&L · {asset} SOL</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.leaders.map((p, i) => (
+                // Player names are not unique and IDs are never sent, so rank is the key.
+                <TableRow key={i}>
+                  <TableCell>
+                    <b className={i === 0 ? "lime" : ""}>{String(i + 1).padStart(2, "0")}</b>
+                  </TableCell>
+                  <TableCell>
+                    <div className="you-card">
+                      <span className="avatar">{initials(p.name)}</span>
+                      <b>
+                        {p.name}
+                        {p.is_you ? " (you)" : ""}
+                      </b>
+                    </div>
+                  </TableCell>
+                  <TableCell>{p.games}</TableCell>
+                  <TableCell className={p.pnl >= 0 ? "lime" : ""}>
+                    <b>{signed(p.pnl)}</b>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <div className="empty-big">
+            <Trophy />
+            <h2>The top spot is wide open.</h2>
+            <p>{loaded ? "Rankings appear when the first matches settle. No bots, no invented champions." : "Loading the leaderboard…"}</p>
+            <Link href="/" className="btn btn-primary" style={{ marginTop: 15 }}>
+              Enter the arena <ArrowRight />
+            </Link>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

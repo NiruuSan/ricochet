@@ -1,2 +1,5 @@
-import Arena from './ricochet';
-export default function Home(){return <Arena view="play"/>}
+import Arena from "./arena/arena";
+
+export default function Home() {
+  return <Arena view="play" />;
+}
