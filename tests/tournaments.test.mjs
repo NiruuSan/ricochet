@@ -113,6 +113,26 @@ try {
   assert.equal((await listNotifications("u-dom")).items[0].data.rank, null);
   assert.ok(!JSON.stringify(inbox).includes("u-cat"));
 
+  // Match history lists tournament entries with rank, players and net once paid out.
+  const { tournamentHistory } = await import("../lib/tournament-history.ts");
+  const catHistory = await tournamentHistory("u-cat", "devnet", 50, end);
+  assert.deepEqual(
+    [catHistory[0].id, catHistory[0].status, catHistory[0].rank, catHistory[0].players, catHistory[0].net, catHistory[0].entryFee],
+    [paidId, "settled", 3, 3, Math.floor((pot * 20) / 100) - 100_000_000, 100_000_000],
+  );
+  const domHistory = await tournamentHistory("u-dom", "devnet", 50, end);
+  assert.deepEqual([domHistory[0].rank, domHistory[0].started, domHistory[0].net], [null, false, -100_000_000], "An entrant who never played lost the entry");
+  assert.equal((await tournamentHistory("u-cat", "gems", 50, end)).length, 0, "History is per currency");
+  const liveHistory = await tournamentHistory("u-cat", "devnet", 50, live);
+  assert.deepEqual([liveHistory[0].status, liveHistory[0].net], ["settled", Math.floor((pot * 20) / 100) - 100_000_000]);
+  const { profilePerformance } = await import("../lib/profile-performance.ts");
+  const catProfile = await profilePerformance("Cat", "devnet", end);
+  const catRow = catProfile.history.find((row) => row.id === paidId);
+  assert.deepEqual(catRow.tournament, { name: "Friday Cup", status: "settled", rank: 3, players: 3 });
+  assert.equal(catRow.settled, 1);
+  assert.equal(catProfile.series.all.total, catRow.net, "Tournament results count toward the PNL chart");
+  assert.ok(!JSON.stringify(catProfile).includes("u-cat"), "Public history carries no player IDs");
+
   // A free gem tournament pays prizes from the house; nobody playing leaves nothing to pay.
   const freeGems = await t.createTournament({ ...base, name: "Gem Rush", asset: "gems", entry: "free", prize: "1000", payout: "winner", places: 2 }, now);
   const before = gems("u-dom");
@@ -180,7 +200,7 @@ try {
   assert.equal(sqlite.prepare("SELECT status FROM tournaments WHERE id = ?").get(waiting).status, "scheduled");
 
   console.log(
-    "PASS: prize presets and splits (fewer players, ties, dust), validation, capacity, one entry each, registration and play windows, same-board runs, conserved SOL with the 12% house share, tie payouts, notifications without player IDs, free gem prizes, refunds when nobody plays, house-funded SOL prizes and idempotent cancellation, early close, automatic end once every entrant has finished.",
+    "PASS: prize presets and splits (fewer players, ties, dust), validation, capacity, one entry each, registration and play windows, same-board runs, conserved SOL with the 12% house share, tie payouts, notifications without player IDs, free gem prizes, refunds when nobody plays, house-funded SOL prizes and idempotent cancellation, early close, automatic end once every entrant has finished, tournament entries in match history and profile PNL.",
   );
 } finally {
   close();

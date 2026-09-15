@@ -20,6 +20,7 @@ import { PublicProfileView } from "./views/public-profile-view";
 import { RulesView } from "./views/rules-view";
 import { TournamentDetailView } from "./views/tournament-detail-view";
 import { TournamentsView } from "./views/tournaments-view";
+import { WatchView } from "./views/watch-view";
 import { WalletView } from "./views/wallet-view";
 import { WelcomeView } from "./views/welcome-view";
 
@@ -33,9 +34,9 @@ const NAVIGATION = [
   { href: "/faq", view: "faq", label: "How to play", Icon: HelpCircle },
 ];
 
-type ArenaProps = { view: View; profileName?: string; initialMatchId?: string; initialTournamentId?: string; tournamentId?: string };
+type ArenaProps = { view: View; profileName?: string; initialMatchId?: string; initialTournamentId?: string; tournamentId?: string; watchId?: string };
 
-export default function Arena({ view, profileName, initialMatchId, initialTournamentId, tournamentId }: ArenaProps) {
+export default function Arena({ view, profileName, initialMatchId, initialTournamentId, tournamentId, watchId }: ArenaProps) {
   const player = usePlayerData();
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
@@ -171,6 +172,7 @@ export default function Arena({ view, profileName, initialMatchId, initialTourna
           />
         )}
         {view === "tournaments" && (tournamentId ? <TournamentDetailView key={tournamentId} id={tournamentId} player={player} /> : <TournamentsView player={player} />)}
+        {view === "watch" && watchId && <WatchView key={watchId} id={watchId} />}
         {view === "welcome" && <WelcomeView session={session} />}
         {view === "matches" && <MatchesView player={player} />}
         {view === "leaderboard" && <LeaderboardView player={player} />}

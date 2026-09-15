@@ -7,6 +7,7 @@ import type { PlayerState } from "../arena";
 import styles from "./screens.module.css";
 import { TournamentCard, useTournaments } from "./tournaments-view";
 import tournamentStyles from "./tournaments.module.css";
+import { LiveNow } from "./live-now";
 
 export type LobbyChoice = "practice" | Asset;
 
@@ -151,6 +152,8 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           </div>
         </div>
       )}
+
+      <LiveNow />
     </section>
   );
 }

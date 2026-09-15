@@ -9,8 +9,8 @@ const BRICK_PALETTE = [
   ["#c6f564", "#809e3e"],
 ];
 
-/** Paints the board: the live flight while a shot animates, otherwise the aim guide. */
-export function drawBoard(canvas: HTMLCanvasElement, flight: Flight | null, game: Game, angle: number) {
+/** Paints the board: the live flight while a shot animates, otherwise the aim guide (none for spectators: `angle` null). */
+export function drawBoard(canvas: HTMLCanvasElement, flight: Flight | null, game: Game, angle: number | null) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const g = flight?.game ?? game;
@@ -87,7 +87,21 @@ function drawFlight(ctx: CanvasRenderingContext2D, flight: Flight) {
 }
 
 // The dotted guide is decorative only, so native trigonometry is fine here.
-function drawAim(ctx: CanvasRenderingContext2D, g: Game, angle: number) {
+function drawAim(ctx: CanvasRenderingContext2D, g: Game, angle: number | null) {
+  if (angle !== null) drawGuide(ctx, g, angle);
+  ctx.beginPath();
+  ctx.arc(g.x, GROUND - 6, 6, 0, Math.PI * 2);
+  ctx.fillStyle = "#c6f564";
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = "#c6f564";
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#d8e6fa";
+  ctx.font = "600 12px Arial";
+  ctx.fillText(`×${g.balls}`, Math.max(22, Math.min(W - 22, g.x)), GROUND + 23);
+}
+
+function drawGuide(ctx: CanvasRenderingContext2D, g: Game, angle: number) {
   const rad = (angle * Math.PI) / 180;
   let x = g.x;
   let y = GROUND - 6;
@@ -109,14 +123,4 @@ function drawAim(ctx: CanvasRenderingContext2D, g: Game, angle: number) {
     ctx.fillStyle = `rgba(198,245,100,${0.65 - i * 0.019})`;
     ctx.fill();
   }
-  ctx.beginPath();
-  ctx.arc(g.x, GROUND - 6, 6, 0, Math.PI * 2);
-  ctx.fillStyle = "#c6f564";
-  ctx.shadowBlur = 18;
-  ctx.shadowColor = "#c6f564";
-  ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = "#d8e6fa";
-  ctx.font = "600 12px Arial";
-  ctx.fillText(`×${g.balls}`, Math.max(22, Math.min(W - 22, g.x)), GROUND + 23);
 }

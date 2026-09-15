@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, index, uniqueIndex, check, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex, check, primaryKey } from "drizzle-orm/sqlite-core";
 
 export const players = sqliteTable(
   "players",
@@ -234,4 +234,19 @@ export const tournamentEntries = sqliteTable(
     payout: integer("payout").notNull().default(0),
   },
   (t) => [uniqueIndex("one_entry_per_player").on(t.tournamentId, t.userId), index("tournament_entry_owner").on(t.userId, t.registered)],
+);
+
+// Every shot of a match run or tournament run, so spectators can animate live
+// shots and replay a run from the start. `run_key` is the watch ID: `m-<run id>`
+// for a match run, `t-<entry id>` for a tournament entry. `revision` is the run
+// revision the shot was taken from; `angle` is null for a forfeit.
+export const runShots = sqliteTable(
+  "run_shots",
+  {
+    runKey: text("run_key").notNull(),
+    revision: integer("revision").notNull(),
+    angle: real("angle"),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runKey, t.revision] })],
 );

@@ -5,6 +5,8 @@ import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } fro
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
 import { listNotifications, notificationInsert } from "./notifications";
+import { shotInsert } from "./spectate-shots";
+import { tournamentHistory } from "./tournament-history";
 
 /** An error whose message is safe to show and carries an HTTP status. */
 export class GameError extends Error {
@@ -215,7 +217,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
          JOIN matches m ON m.id = l.reference AND m.settled = 1 AND m.asset = 'devnet'
          WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund')
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
-  const [player, history, transactions, leaders, active, cash, inbox] = await Promise.all([
+  const [player, history, transactions, leaders, active, cash, inbox, tournaments] = await Promise.all([
     db.prepare("SELECT public_id AS publicId, name, balance, avatar, created FROM players WHERE id = ?").bind(uid).first<Profile>(),
     db
       .prepare(
@@ -245,6 +247,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     activeRun(uid),
     db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(uid)).first<{ balance: number }>(),
     listNotifications(uid),
+    tournamentHistory(uid, asset),
   ]);
   const admin = adminId();
   return {
@@ -259,6 +262,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     isAdmin: !!admin && uid === admin,
     notifications: inbox.items,
     unreadNotifications: inbox.unread,
+    tournaments,
   };
 }
 
@@ -465,10 +469,12 @@ export async function playShot(
   }
   // A shot is one round, and `bonus` marks a round that cleared the board.
   const clears = run.clears + (!forfeit && state.bonus ? 1 : 0);
-  const result = await db
-    .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
-    .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, run.id, uid, run.revision)
-    .run();
+  const [result] = await db.batch([
+    db
+      .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
+      .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, run.id, uid, run.revision),
+    shotInsert(db, `m-${run.id}`, "runs", run.id, run.revision, forfeit ? null : (angle as number), Date.now()),
+  ]);
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
   if (state.over) await settle(run.match_id);
   return { ...run, state, score: state.score, done: state.over ? 1 : 0, forfeit: forfeit ? 1 : 0, clears, revision: run.revision + 1 };

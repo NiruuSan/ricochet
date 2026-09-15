@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Play } from "lucide-react";
+import { ArrowLeft, Check, Eye, Play } from "lucide-react";
 import type { TournamentDetail } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -176,6 +176,9 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
                   <th>Rank</th>
                   <th>Player</th>
                   <th>Score</th>
+                  <th>
+                    <span className="sr-only">Watch</span>
+                  </th>
                   <th>{t.status === "settled" ? "Prize" : "Projected prize"}</th>
                 </tr>
               </thead>
@@ -195,6 +198,13 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
                       </Link>
                     </td>
                     <td>{s.started ? s.score.toLocaleString("en") : "—"}</td>
+                    <td>
+                      {s.watchId && (
+                        <Link className={styles.watch} href={`/watch/${s.watchId}`} aria-label={`Watch ${s.name}'s run`}>
+                          <Eye size={14} /> {s.done ? "Replay" : "Watch"}
+                        </Link>
+                      )}
+                    </td>
                     <td className={s.payout ? styles.positive : styles.muted}>{s.payout ? amount(s.payout, t.asset) : "—"}</td>
                   </tr>
                 ))}

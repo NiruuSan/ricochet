@@ -124,3 +124,5 @@
   .playerStats span { font-size: 10px; }
   .assetTabs button { font-size: 13px; }
 }
+.watchLink { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 700; }
+.watchLink:hover { text-decoration: underline; }

@@ -371,3 +371,20 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+.watch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #34415a;
+  color: #d8e6fa;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.watch:hover {
+  border-color: #c6f56488;
+  color: #c6f564;
+}

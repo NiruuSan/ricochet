@@ -82,6 +82,10 @@ export type ProfileMatch = {
   id: string; stake: number; created: number; settled: number;
   opponent: string | null; opponentAvatar: string | null;
   result: MatchResult | null; net: number; ended: number;
+  /** Set when the row is a tournament entry; `id` is then the tournament's ID and `stake` its entry fee. */
+  tournament: { name: string; status: TournamentStatus; rank: number | null; players: number } | null;
+  /** Spectator link to this player's run: joined matches and started tournament runs. */
+  watchId: string | null;
 };
 export type ProfilePerformance = {
   asset: Asset; generated: number; openEntries: number; bestWin: number; played: number;
@@ -154,6 +158,8 @@ export type Snapshot = {
   isAdmin: boolean;
   notifications: NotificationItem[];
   unreadNotifications: number;
+  /** The player's tournament entries in this currency, newest first. */
+  tournaments: TournamentHistoryItem[];
 };
 
 export type Transfer = {
@@ -233,12 +239,93 @@ export type TournamentSummary = {
   you: TournamentYou | null;
 };
 
-export type TournamentStanding = { rank: number | null; name: string; avatar: string | null; score: number; done: boolean; started: boolean; payout: number; isYou: boolean };
+export type TournamentStanding = {
+  rank: number | null;
+  name: string;
+  avatar: string | null;
+  score: number;
+  done: boolean;
+  started: boolean;
+  payout: number;
+  isYou: boolean;
+  /** Set when the viewer may watch this run. */
+  watchId: string | null;
+};
 
 export type TournamentDetail = TournamentSummary & {
   /** Amount per rank if the tournament ended now with every ranked player distinct. */
   prizes: number[];
   standings: TournamentStanding[];
+};
+
+/** One of a player's tournament entries, shown alongside their matches. */
+export type TournamentHistoryItem = {
+  id: string;
+  name: string;
+  entryFee: number;
+  status: TournamentStatus;
+  registered: number;
+  /** When the tournament ended, or is scheduled to. */
+  ended: number;
+  score: number;
+  started: boolean;
+  done: boolean;
+  /** Final rank; null until paid out, or when the player never played. */
+  rank: number | null;
+  /** Entrants who played a run. */
+  players: number;
+  payout: number;
+  /** Prize and refunds minus the entry, once paid out or cancelled; 0 before. */
+  net: number;
+  /** Spectator link to this run, once it has started. */
+  watchId: string | null;
+};
+
+/** A shot as spectators see it: the run revision it was taken from, and its angle (null for a forfeit). */
+export type WatchShot = { revision: number; angle: number | null };
+
+/** One player's run in a match, for switching sides while watching. */
+export type WatchSide = { watchId: string; name: string; avatar: string | null; score: number; done: boolean; isYou: boolean };
+
+/** A match or tournament run opened in spectator mode. Never carries player IDs. */
+export type WatchData = {
+  watchId: string;
+  kind: "match" | "tournament";
+  asset: Asset;
+  ruleset: number;
+  /** Match entry, or tournament entry fee. */
+  stake: number;
+  tournament: { id: string; name: string } | null;
+  player: { name: string; avatar: string | null; isYou: boolean };
+  state: Game;
+  revision: number;
+  score: number;
+  done: boolean;
+  forfeit: boolean;
+  /** The match is settled or the tournament has closed. */
+  final: boolean;
+  /** The board before the first shot. */
+  start: Game;
+  /** Logged shots from the requested revision on, in order. */
+  shots: WatchShot[];
+  /** Every shot since the start is logged, so the run can be replayed from the beginning. */
+  replayable: boolean;
+  /** Both runs of a match, when the viewer may watch them; empty for tournaments. */
+  sides: WatchSide[];
+};
+
+/** A run being played right now, for the lobby's Live now list. */
+export type LiveGame = {
+  watchId: string;
+  kind: "match" | "tournament";
+  asset: Asset;
+  name: string;
+  avatar: string | null;
+  score: number;
+  round: number;
+  stake: number;
+  /** The tournament name, or the opponent's name for a match. */
+  context: string;
 };
 
 export type AdminTournament = TournamentSummary & { played: number; finished: number };

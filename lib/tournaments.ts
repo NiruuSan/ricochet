@@ -10,13 +10,16 @@ import {
   type TournamentDetail,
   type TournamentNotification,
   type TournamentStanding,
-  type TournamentStatus,
   type TournamentSummary,
 } from "./api-types";
 import { avatarUrl, GameError } from "./matches";
 import { notificationInsert } from "./notifications";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { parseSol, requireDevnet } from "./payments/policy";
+import { shotInsert } from "./spectate-shots";
+import { tournamentStatus } from "./tournament-history";
+
+export { tournamentStatus };
 
 // Score tournaments: every entrant plays one run on the same seed between the
 // start and the end, and the pot is split by rank when the tournament closes.
@@ -65,11 +68,6 @@ type EntryRow = {
 
 const escrowOwner = (id: string) => `escrow:tournament:${id}`;
 const isPreset = (value: unknown): value is PayoutPreset => typeof value === "string" && value in PAYOUT_SHARES;
-
-export function tournamentStatus(t: Pick<TournamentRow, "status" | "starts_at" | "ends_at">, now = Date.now()): TournamentStatus {
-  if (t.status !== "scheduled") return t.status;
-  return now < t.starts_at ? "registration" : now < t.ends_at ? "live" : "closing";
-}
 
 /** The pot for a given number of entrants: the house prize, or entries minus the house share. */
 export function potFor(t: Pick<TournamentRow, "asset" | "entry_fee" | "prize">, entrants: number) {
@@ -311,13 +309,15 @@ export async function playTournamentShot(
   }
   const clears = row.clears + (!forfeit && state.bonus ? 1 : 0);
   const done = state.over ? 1 : 0;
-  const result = await db
-    .prepare(
-      `UPDATE tournament_entries SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, revision = revision + 1
-       WHERE id = ? AND user_id = ? AND revision = ? AND done = 0`,
-    )
-    .bind(JSON.stringify(state), state.score, done, forfeit ? 1 : 0, clears, done ? now : null, row.id, uid, row.revision)
-    .run();
+  const [result] = await db.batch([
+    db
+      .prepare(
+        `UPDATE tournament_entries SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, revision = revision + 1
+         WHERE id = ? AND user_id = ? AND revision = ? AND done = 0`,
+      )
+      .bind(JSON.stringify(state), state.score, done, forfeit ? 1 : 0, clears, done ? now : null, row.id, uid, row.revision),
+    shotInsert(db, `t-${row.id}`, "tournament_entries", row.id, row.revision, forfeit ? null : (angle as number), now),
+  ]);
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
   if (done) {
     // The run is saved; if the payout fails here, the next visit after the new end settles it.
@@ -534,6 +534,9 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
   const base = summary(t, you, now);
   const ranked = rankable(entries.results);
   const live = t.status === "scheduled";
+  // Spectating follows lib/spectate.ts: while you still have a run to play here, only your own run can be watched.
+  const blocked = base.status === "live" && !!you && !you.done;
+  const watchId = (e: EntryRow & { user_id: string }) => (e.state !== null && (!blocked || e.user_id === uid) ? `t-${e.id}` : null);
   // While running, rank provisionally with the current pot; once settled, show what was paid.
   const projected = distribute(base.pot, t.payout, ranked.map((e) => e.score));
   const standings: TournamentStanding[] = [
@@ -546,10 +549,11 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
       started: true,
       payout: live ? projected.amounts[i] : e.payout,
       isYou: e.user_id === uid,
+      watchId: watchId(e),
     })),
     ...entries.results
       .filter((e) => e.state === null)
-      .map((e) => ({ rank: null, name: e.name, avatar: avatarUrl(e.avatar), score: 0, done: !!e.done, started: false, payout: 0, isYou: e.user_id === uid })),
+      .map((e) => ({ rank: null, name: e.name, avatar: avatarUrl(e.avatar), score: 0, done: !!e.done, started: false, payout: 0, isYou: e.user_id === uid, watchId: null })),
   ];
   const ladder = distribute(base.status === "registration" ? base.maxPot : base.pot, t.payout, PAYOUT_SHARES[t.payout].map((_, i) => -i));
   return { ...base, prizes: ladder.amounts, standings: standings.slice(0, 200) };

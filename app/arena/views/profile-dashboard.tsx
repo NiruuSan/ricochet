@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useId, useState, type PointerEvent } from "react";
 import Link from "next/link";
-import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Gem, History, Search, Settings2, Share2, TrendingUp, Wallet, Zap } from "lucide-react";
+import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Eye, Gem, History, Medal, Search, Settings2, Share2, TrendingUp, Wallet, Zap } from "lucide-react";
 import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, PublicPlayerProfile } from "@/lib/api-types";
 import type { PlayerState } from "../arena";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import { fullSol } from "../funded-wallet";
 import { shortId } from "../format";
+import { ordinal } from "../tournament-format";
 import { TipButton } from "../tip-button";
 import styles from "./profile-dashboard.module.css";
 
@@ -16,6 +17,7 @@ const number = (value: number, asset: Asset) => asset === "devnet" ? fullSol(val
 const signed = (value: number, asset: Asset) => `${value > 0 ? "+" : ""}${number(value, asset)}`;
 const currency = (asset: Asset) => asset === "gems" ? "gems" : "SOL";
 const RESULTS = { win: "Won", loss: "Lost", draw: "Draw", cancelled: "Cancelled" };
+const TOURNAMENT_STATUS = { registration: "Registered", live: "Live", closing: "Paying out", settled: "Did not play", cancelled: "Cancelled" };
 
 function PnlCard({ performance, asset }: { performance: ProfilePerformance; asset: Asset }) {
   const [range, setRange] = useState<PnlRange>("all");
@@ -64,7 +66,7 @@ function PnlCard({ performance, asset }: { performance: ProfilePerformance; asse
       {/* A round marker in HTML, since the stretched SVG would squash a circle. */}
       {hover !== null && selected && <span className={styles.marker} style={{ left: `${x(hover) / 5}%`, top: `${y(selected.value) / 1.75}%` }} aria-hidden />}
     </div>
-    <div className={styles.chartDates}><span>{new Date(points[0].at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><span>{high === 0 && low === 0 ? "No settled PNL in this period" : "Settled match PNL"}</span><span>Now</span></div>
+    <div className={styles.chartDates}><span>{new Date(points[0].at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><span>{high === 0 && low === 0 ? "No settled PNL in this period" : "Settled PNL"}</span><span>Now</span></div>
     <span className={styles.srOnly} aria-live="polite">{selected && `${signed(selected.value, asset)} ${currency(asset)}`}</span>
   </section>;
 }
@@ -73,14 +75,20 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
   const [filter, setFilter] = useState<"open" | "settled">("settled");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
-  const matches = performance.history.filter((match) => (filter === "settled" ? !!match.settled : !match.settled) && `${match.opponent ?? "open seat"} ${match.id} ${match.result ?? "open"}`.toLowerCase().includes(search.toLowerCase().trim()))
+  const matches = performance.history.filter((match) => (filter === "settled" ? !!match.settled : !match.settled) && `${match.tournament ? `tournament ${match.tournament.name}` : match.opponent ?? "open seat"} ${match.id} ${match.result ?? "open"}`.toLowerCase().includes(search.toLowerCase().trim()))
     .sort((a, b) => sort === "pnl" ? b.net - a.net : sort === "stake" ? b.stake - a.stake : b.created - a.created);
-  const status = (match: ProfileMatch) => match.result ? RESULTS[match.result] : match.opponent ? "In progress" : "Seat open";
+  const status = (match: ProfileMatch) => {
+    const t = match.tournament;
+    if (t) return t.status === "settled" && t.rank ? `${ordinal(t.rank)} of ${t.players}` : TOURNAMENT_STATUS[t.status];
+    return match.result ? RESULTS[match.result] : match.opponent ? "In progress" : "Seat open";
+  };
+  const won = (match: ProfileMatch) => match.tournament ? match.settled && match.net > 0 : match.result === "win";
+  const lost = (match: ProfileMatch) => match.tournament ? match.tournament.status === "settled" && match.net < 0 : match.result === "loss";
   return <section className={styles.historySection} aria-label="Player match history">
     <h2 className={styles.historyTitle}>Matches</h2>
     <div className={styles.toolbar}>
       <div className={styles.filters} role="group" aria-label="Match status"><button aria-pressed={filter === "open"} onClick={() => setFilter("open")}>Open</button><button aria-pressed={filter === "settled"} onClick={() => setFilter("settled")}>Settled</button></div>
-      <label className={styles.search}><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search matches or players" aria-label="Search match history" /></label>
+      <label className={styles.search}><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search matches, players or tournaments" aria-label="Search match history" /></label>
       <label className={styles.sort}><ArrowDownUp size={15} /><select aria-label="Sort match history" value={sort} onChange={(event) => setSort(event.target.value)}><option value="recent">Recent</option><option value="pnl">Profit / Loss</option><option value="stake">Entry value</option></select><ChevronDown size={13} /></label>
     </div>
     <div className={styles.tableScroll}>
@@ -88,18 +96,18 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
         <thead><tr><th>Match</th><th>Entry</th><th>Result</th><th>Profit / Loss</th></tr></thead>
         <tbody>{matches.map((match) => <tr key={match.id}>
           <td><div className={styles.matchIdentity}>
-            {match.opponent ? <Avatar name={match.opponent} src={match.opponentAvatar} size={40} /> : <span className={styles.matchIcon}><Zap size={22} /></span>}
-            <div><div className={styles.matchName}>{match.opponent ? <>vs <Link href={`/players/${encodeURIComponent(match.opponent)}`}>{match.opponent}</Link></> : "Open challenge"}</div>
-              <span className={styles.matchSub}>#{shortId(match.id)} <span>·</span> {new Date(match.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>
+            {match.opponent ? <Avatar name={match.opponent} src={match.opponentAvatar} size={40} /> : <span className={styles.matchIcon}>{match.tournament ? <Medal size={22} /> : <Zap size={22} />}</span>}
+            <div><div className={styles.matchName}>{match.tournament ? <Link href={`/tournaments/${match.id}`}>{match.tournament.name}</Link> : match.opponent ? <>vs <Link href={`/players/${encodeURIComponent(match.opponent)}`}>{match.opponent}</Link></> : "Open challenge"}</div>
+              <span className={styles.matchSub}>{match.tournament ? "Tournament" : `#${shortId(match.id)}`} <span>·</span> {new Date(match.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{match.watchId && <> <span>·</span> <Link className={styles.watchLink} href={`/watch/${match.watchId}`}><Eye size={12} /> Watch</Link></>}</span></div>
           </div></td>
-          <td>{number(match.stake, asset)} <small>{currency(asset)}</small></td>
-          <td><span className={`${styles.status} ${match.result === "win" ? styles.won : match.result === "loss" ? styles.lost : ""}`}>{status(match)}</span></td>
-          <td><strong className={match.net > 0 ? styles.positive : match.net < 0 ? styles.negative : ""}>{match.settled ? `${signed(match.net, asset)} ${currency(asset)}` : "—"}</strong><span className={styles.return}>{match.settled ? `${match.net > 0 ? "+" : ""}${Math.round(match.net / match.stake * 100)}% return` : "Entry committed"}</span></td>
+          <td>{match.stake ? <>{number(match.stake, asset)} <small>{currency(asset)}</small></> : "Free"}</td>
+          <td><span className={`${styles.status} ${won(match) ? styles.won : lost(match) ? styles.lost : ""}`}>{status(match)}</span></td>
+          <td><strong className={match.net > 0 ? styles.positive : match.net < 0 ? styles.negative : ""}>{match.settled ? `${signed(match.net, asset)} ${currency(asset)}` : "—"}</strong><span className={styles.return}>{!match.settled ? (match.stake ? "Entry committed" : "Free entry") : match.stake ? `${match.net > 0 ? "+" : ""}${Math.round(match.net / match.stake * 100)}% return` : "Free entry"}</span></td>
         </tr>)}</tbody>
       </table>
     </div>
-    {!matches.length && <div className={styles.empty}><History size={28} /><h3>{search ? "No matching games" : filter === "open" ? "No open matches" : "No settled matches yet"}</h3><p>{search ? "Try another player name or match ID." : "Every angle counts. Your matches will appear here."}</p></div>}
-    <p className={styles.historyNote}>Latest {performance.history.length} of {performance.played} matches · PNL chart includes all settled history. Tips and wallet transfers are excluded.</p>
+    {!matches.length && <div className={styles.empty}><History size={28} /><h3>{search ? "No matching games" : filter === "open" ? "No open matches" : "No settled matches yet"}</h3><p>{search ? "Try another player, tournament or match ID." : "Every angle counts. Your matches and tournaments will appear here."}</p></div>}
+    <p className={styles.historyNote}>Latest {performance.history.length} of {performance.played} matches and tournaments · PNL chart includes all settled history. Tips and wallet transfers are excluded.</p>
   </section>;
 }
 
@@ -155,7 +163,7 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
           <div className={styles.playerStats}>
             <div><strong>{number(own ? available : performance.openEntries, asset)} <small>{currency(asset)}</small></strong><span>{own ? "Available balance" : "Open stakes"}</span></div>
             <div><strong>{number(performance.bestWin, asset)} <small>{currency(asset)}</small></strong><span>Biggest win</span></div>
-            <div><strong>{performance.played.toLocaleString()}</strong><span>Matches played</span></div>
+            <div><strong>{performance.played.toLocaleString()}</strong><span>Games played</span></div>
           </div>
         </section>
         <PnlCard key={asset} performance={performance} asset={asset} />

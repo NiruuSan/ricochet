@@ -1,7 +1,7 @@
 import type { Asset, Snapshot } from "@/lib/api-types";
 
 export type PlayerData = Pick<Snapshot, "matches" | "transactions" | "leaders" | "active"> &
-  Partial<Pick<Snapshot, "cashBalance" | "launch" | "player" | "isAdmin" | "notifications" | "unreadNotifications">> & { authenticated?: boolean };
+  Partial<Pick<Snapshot, "cashBalance" | "launch" | "player" | "isAdmin" | "notifications" | "unreadNotifications" | "tournaments">> & { authenticated?: boolean };
 
 export const EMPTY_PLAYER: PlayerData = { matches: [], transactions: [], leaders: [], active: null };
 
