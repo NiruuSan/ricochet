@@ -70,39 +70,35 @@ function PnlCard({ performance, asset }: { performance: ProfilePerformance; asse
 }
 
 function MatchRows({ performance, asset }: { performance: ProfilePerformance; asset: Asset }) {
-  const [tab, setTab] = useState<"matches" | "activity">("matches");
   const [filter, setFilter] = useState<"open" | "settled">("settled");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
-  const matches = performance.history.filter((match) => (tab === "activity" || (filter === "settled" ? !!match.settled : !match.settled)) && `${match.opponent ?? "open seat"} ${match.id} ${match.result ?? "open"}`.toLowerCase().includes(search.toLowerCase().trim()))
-    .sort((a, b) => sort === "pnl" ? b.net - a.net : sort === "stake" ? b.stake - a.stake : (tab === "activity" ? b.ended - a.ended : b.created - a.created));
+  const matches = performance.history.filter((match) => (filter === "settled" ? !!match.settled : !match.settled) && `${match.opponent ?? "open seat"} ${match.id} ${match.result ?? "open"}`.toLowerCase().includes(search.toLowerCase().trim()))
+    .sort((a, b) => sort === "pnl" ? b.net - a.net : sort === "stake" ? b.stake - a.stake : b.created - a.created);
   const status = (match: ProfileMatch) => match.result ? RESULTS[match.result] : match.opponent ? "In progress" : "Seat open";
   return <section className={styles.historySection} aria-label="Player match history">
-    <div className={styles.historyTabs} role="group" aria-label="Profile history">
-      <button aria-pressed={tab === "matches"} onClick={() => setTab("matches")}>Matches</button>
-      <button aria-pressed={tab === "activity"} onClick={() => setTab("activity")}>Activity</button>
-    </div>
+    <h2 className={styles.historyTitle}>Matches</h2>
     <div className={styles.toolbar}>
-      {tab === "matches" && <div className={styles.filters} role="group" aria-label="Match status"><button aria-pressed={filter === "open"} onClick={() => setFilter("open")}>Open</button><button aria-pressed={filter === "settled"} onClick={() => setFilter("settled")}>Settled</button></div>}
-      <label className={styles.search}><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={tab === "matches" ? "Search matches or players" : "Search match activity"} aria-label="Search match history" /></label>
+      <div className={styles.filters} role="group" aria-label="Match status"><button aria-pressed={filter === "open"} onClick={() => setFilter("open")}>Open</button><button aria-pressed={filter === "settled"} onClick={() => setFilter("settled")}>Settled</button></div>
+      <label className={styles.search}><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search matches or players" aria-label="Search match history" /></label>
       <label className={styles.sort}><ArrowDownUp size={15} /><select aria-label="Sort match history" value={sort} onChange={(event) => setSort(event.target.value)}><option value="recent">Recent</option><option value="pnl">Profit / Loss</option><option value="stake">Entry value</option></select><ChevronDown size={13} /></label>
     </div>
     <div className={styles.tableScroll}>
       <table className={styles.table}>
-        <thead><tr><th>{tab === "activity" ? "Match activity" : "Match"}</th><th>Entry</th><th>{tab === "activity" ? "Date" : "Result"}</th><th>Profit / Loss</th></tr></thead>
+        <thead><tr><th>Match</th><th>Entry</th><th>Result</th><th>Profit / Loss</th></tr></thead>
         <tbody>{matches.map((match) => <tr key={match.id}>
           <td><div className={styles.matchIdentity}>
             {match.opponent ? <Avatar name={match.opponent} src={match.opponentAvatar} size={40} /> : <span className={styles.matchIcon}><Zap size={22} /></span>}
-            <div><div className={styles.matchName}>{tab === "activity" ? `${match.settled ? status(match) : "Entered"} · ` : ""}{match.opponent ? <>vs <Link href={`/players/${encodeURIComponent(match.opponent)}`}>{match.opponent}</Link></> : "Open challenge"}</div>
+            <div><div className={styles.matchName}>{match.opponent ? <>vs <Link href={`/players/${encodeURIComponent(match.opponent)}`}>{match.opponent}</Link></> : "Open challenge"}</div>
               <span className={styles.matchSub}>#{shortId(match.id)} <span>·</span> {new Date(match.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span></div>
           </div></td>
           <td>{number(match.stake, asset)} <small>{currency(asset)}</small></td>
-          <td>{tab === "activity" ? <span className={styles.matchSub}>{new Date(match.settled ? match.ended : match.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span> : <span className={`${styles.status} ${match.result === "win" ? styles.won : match.result === "loss" ? styles.lost : ""}`}>{status(match)}</span>}</td>
+          <td><span className={`${styles.status} ${match.result === "win" ? styles.won : match.result === "loss" ? styles.lost : ""}`}>{status(match)}</span></td>
           <td><strong className={match.net > 0 ? styles.positive : match.net < 0 ? styles.negative : ""}>{match.settled ? `${signed(match.net, asset)} ${currency(asset)}` : "—"}</strong><span className={styles.return}>{match.settled ? `${match.net > 0 ? "+" : ""}${Math.round(match.net / match.stake * 100)}% return` : "Entry committed"}</span></td>
         </tr>)}</tbody>
       </table>
     </div>
-    {!matches.length && <div className={styles.empty}><History size={28} /><h3>{search ? "No matching games" : tab === "activity" ? "The story starts with a match" : filter === "open" ? "No open matches" : "No settled matches yet"}</h3><p>{search ? "Try another player name or match ID." : "Every angle counts. Your matches will appear here."}</p></div>}
+    {!matches.length && <div className={styles.empty}><History size={28} /><h3>{search ? "No matching games" : filter === "open" ? "No open matches" : "No settled matches yet"}</h3><p>{search ? "Try another player name or match ID." : "Every angle counts. Your matches will appear here."}</p></div>}
     <p className={styles.historyNote}>Latest {performance.history.length} of {performance.played} matches · PNL chart includes all settled history. Tips and wallet transfers are excluded.</p>
   </section>;
 }
@@ -133,7 +129,7 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
   const available = asset === "gems" ? player.data.player?.balance ?? 0 : player.data.cashBalance ?? 0;
   return <section className={styles.page}>
     <div className={styles.assetBar}>
-      <div className={styles.assetTabs} role="group" aria-label="Profile currency"><button aria-pressed={asset === "gems"} onClick={() => player.setAsset("gems")}><Gem size={17} /> Gems</button><button aria-pressed={asset === "devnet"} onClick={() => player.setAsset("devnet")}><Zap size={17} /> Devnet SOL</button></div>
+      <div className={styles.assetTabs} role="group" aria-label="Profile currency"><button aria-pressed={asset === "devnet"} onClick={() => player.setAsset("devnet")}><Zap size={17} /> Devnet SOL</button><button aria-pressed={asset === "gems"} onClick={() => player.setAsset("gems")}><Gem size={17} /> Gems</button></div>
       <Link className={styles.back} href={privateView ? "/wallet" : "/leaderboard"}>{privateView ? <Wallet size={15} /> : <ArrowLeft size={15} />}{privateView ? "My wallet" : "Leaderboard"}</Link>
     </div>
     {error && <div className="error" role="alert"><span>{error}</span><button onClick={() => setRetry((value) => value + 1)}>Retry</button></div>}

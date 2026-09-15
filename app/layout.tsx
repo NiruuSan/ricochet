@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Ricochet — Brick Battle",
-  description: "Same board. Your angle. A head-to-head brick-breaker arcade. Play free or compete for gems.",
+  description: "Same board. Your angle. A head-to-head brick-breaker arcade. Play free or compete for devnet SOL and gems.",
   icons: { icon: "/favicon.svg" },
 };
 

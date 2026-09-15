@@ -45,14 +45,6 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           <strong>Practice</strong>
           <span>No entry, no wallet. Jump straight onto a fresh board.</span>
         </button>
-        <button className={`${styles.mode} ${styles.modeGems}`} aria-pressed={choice === "gems"} onClick={() => onChoose("gems")}>
-          <span className={styles.modeIcon}>
-            <Gem />
-          </span>
-          <small>1V1 · GEMS</small>
-          <strong>Gem match</strong>
-          <span>{data.player ? `${units(balance("gems"), "gems")} gems available. Winner takes both entries.` : "Sign in to play for gems. Every profile starts with 2,000."}</span>
-        </button>
         <button
           className={`${styles.mode} ${styles.modeSol}`}
           aria-pressed={choice === "devnet"}
@@ -65,6 +57,14 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           <small>1V1 · DEVNET SOL</small>
           <strong>Solana match</strong>
           <span>{!solConfigured ? "Solana matches are not available yet." : data.player ? `${units(balance("devnet"), "devnet")} SOL available. Test SOL only.` : "Sign in and fund your wallet with devnet SOL."}</span>
+        </button>
+        <button className={`${styles.mode} ${styles.modeGems}`} aria-pressed={choice === "gems"} onClick={() => onChoose("gems")}>
+          <span className={styles.modeIcon}>
+            <Gem />
+          </span>
+          <small>1V1 · GEMS</small>
+          <strong>Gem match</strong>
+          <span>{data.player ? `${units(balance("gems"), "gems")} gems available. Winner takes both entries.` : "Sign in to play for gems. Every profile starts with 2,000."}</span>
         </button>
       </div>
 

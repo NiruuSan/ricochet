@@ -1,8 +1,8 @@
 .page { max-width: 1180px; margin: 0 auto; padding: 12px 0 65px; }
 .assetBar { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); margin-bottom: 22px; }
-.assetTabs, .historyTabs { display: flex; gap: 28px; }
-.assetTabs button, .historyTabs button { display: flex; align-items: center; gap: 8px; padding: 17px 0; border-bottom: 2px solid transparent; color: var(--muted-foreground); font-size: 15px; font-weight: 700; }
-.assetTabs button[aria-pressed="true"], .historyTabs button[aria-pressed="true"] { color: var(--foreground); border-color: var(--primary); }
+.assetTabs { display: flex; gap: 28px; }
+.assetTabs button { display: flex; align-items: center; gap: 8px; padding: 17px 0; border-bottom: 2px solid transparent; color: var(--muted-foreground); font-size: 15px; font-weight: 700; }
+.assetTabs button[aria-pressed="true"] { color: var(--foreground); border-color: var(--primary); }
 .assetTabs button[aria-pressed="true"] svg { color: var(--primary); }
 .back { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted-foreground); }
 .back:hover { color: var(--primary); }
@@ -51,8 +51,7 @@
 .crosshair { stroke: #a3b179; stroke-width: 1; stroke-dasharray: 3 4; opacity: .5; }
 .chartDates { display: flex; justify-content: space-between; gap: 8px; color: #8795aa; font-size: 10px; }
 .historySection { margin-top: 23px; }
-.historyTabs { gap: 24px; margin-bottom: 18px; }
-.historyTabs button { font-size: 17px; padding-bottom: 12px; }
+.historyTitle { font-size: 22px; letter-spacing: -.4px; margin-bottom: 18px; }
 .toolbar { display: flex; gap: 10px; margin-bottom: 17px; }
 .filters { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; flex-shrink: 0; }
 .filters button { padding: 11px 17px; color: var(--muted-foreground); font-size: 13px; font-weight: 700; }

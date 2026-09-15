@@ -7,7 +7,8 @@ const POLL_MS = 15_000;
 
 /** The signed-in player's snapshot for the selected currency, kept fresh while they have a profile. */
 export function usePlayerData() {
-  const [asset, setAsset] = useState<Asset>("gems");
+  // Devnet SOL comes first; players fall back to gems only where Solana is not configured.
+  const [asset, setAsset] = useState<Asset>("devnet");
   const [data, setData] = useState<PlayerData>(EMPTY_PLAYER);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -16,6 +17,7 @@ export function usePlayerData() {
     try {
       const next = await loadPlayer(asset);
       setData({ ...EMPTY_PLAYER, ...next });
+      if (asset === "devnet" && next.launch && !next.launch.configured) setAsset("gems");
       return next;
     } catch (e) {
       setError((e as Error).message);

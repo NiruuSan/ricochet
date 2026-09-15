@@ -115,16 +115,16 @@ export default function Arena({ view, profileName, initialMatchId }: { view: Vie
                 viewingMatchId={viewingMatchId}
               />
               <Link className="balance-pill" href="/wallet" aria-label="Balances">
-                <span className="pill-part">
-                  <GemIcon />
-                  {units(data.player.balance, "gems")}
-                </span>
                 {data.launch?.configured && (
-                  <span className="pill-part">
+                  <span className="pill-part pill-sol">
                     <Wallet />
                     {units(data.cashBalance ?? 0, "devnet")} SOL
                   </span>
                 )}
+                <span className="pill-part">
+                  <GemIcon />
+                  {units(data.player.balance, "gems")}
+                </span>
               </Link>
               <Link href="/profile" aria-label="Your profile" className="avatar-link">
                 <Avatar name={data.player.name} src={data.player.avatar} />

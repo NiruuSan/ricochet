@@ -1064,6 +1064,14 @@ h3 {
   align-items: center;
   gap: 6px;
 }
+/* SOL leads the balance pill; gems follow in a quieter tone. */
+.pill-part + .pill-part {
+  color: #a5b0c5;
+  font-weight: 600;
+}
+.pill-sol svg {
+  color: #c6f564 !important;
+}
 .pill-part svg,
 .gem-icon {
   color: #7fd6ff;
