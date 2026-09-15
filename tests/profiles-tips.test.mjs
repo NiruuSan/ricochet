@@ -8,6 +8,7 @@ const { createPlayer, renamePlayer } = await import("../lib/profile.ts");
 const { sendTip } = await import("../lib/payments/tips.ts");
 const { cashAccountId, ensureCashAccount } = await import("../lib/payments/accounts.ts");
 const { playerSnapshot } = await import("../lib/matches.ts");
+const { pnlSeries, profilePerformance } = await import("../lib/profile-performance.ts");
 globalThis.fetch = async () => { throw new Error("Internal tips must not submit a blockchain transaction"); };
 
 try {
@@ -43,6 +44,20 @@ try {
   const before = await publicProfile("Bob");
   assert.deepEqual(before.stats.gems, { pnl: 6076, games: 61, wins: 61 });
   assert.equal((await playerSnapshot(BOB, "gems")).matches.find((m) => m.id === "history-0").net, 76, "Historical PNL keeps its actual fee");
+
+  // Profile dashboard: the all-time chart ends at the same PNL as the public stats; recent ranges exclude old matches.
+  const performance = await profilePerformance("bob", "gems");
+  assert.equal(performance.series.all.total, before.stats.gems.pnl);
+  assert.equal(performance.series.all.points.at(-1).value, before.stats.gems.pnl);
+  assert.deepEqual([performance.series.day.total, performance.series.year.total], [0, 0], "1970 fixtures fall outside recent ranges");
+  assert.deepEqual([performance.played, performance.openEntries, performance.bestWin], [62, 100, 100]);
+  assert.equal(performance.history[0].id, "open");
+  assert.equal(performance.history.find((m) => m.id === "history-0").net, 76);
+  assert.ok(!JSON.stringify(performance).includes("private-"), "Performance carries no player IDs");
+  await assert.rejects(() => profilePerformance("Missing", "gems"), /not found/);
+  const now = Date.now();
+  const recent = pnlSeries([{ id: "r", stake: 10, created: now - 3_600_000, settled: 1, opponent: null, opponentAvatar: null, result: "win", net: 7, ended: now - 3_600_000 }], now);
+  assert.deepEqual([recent.day.total, recent.week.total, recent.all.total, recent.day.points[0].value], [7, 7, 7, 0]);
 
   const id = crypto.randomUUID();
   const liabilities = total();
@@ -109,5 +124,5 @@ try {
   await assert.rejects(() => sendTip(ALICE, crypto.randomUUID(), carol.publicId, "0.1"), /devnet only/);
   const serialized = JSON.stringify(await publicProfile("Bobby"));
   for (const secret of [ALICE, BOB, CAROL, "balance", "encrypted_key", "account_id"]) assert.ok(!serialized.includes(secret));
-  console.log("PASS: public profile privacy, all-time and historical PNL, zero stats, stable recipient IDs, tip conservation, idempotency, concurrent spending, rollback, validation, and devnet-only tips.");
+  console.log("PASS: public profile privacy, all-time and historical PNL, dashboard PNL series and match history, zero stats, stable recipient IDs, tip conservation, idempotency, concurrent spending, rollback, validation, and devnet-only tips.");
 } finally { close(); }

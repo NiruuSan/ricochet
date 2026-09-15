@@ -70,6 +70,17 @@ export type PublicPlayerProfile = {
   stats: Record<Asset, { pnl: number; games: number; wins: number }>;
 };
 export type TipReceipt = { id: string; amount: number; recipient: string; created: number };
+export type PnlRange = "day" | "week" | "month" | "year" | "all";
+export type ProfileMatch = {
+  id: string; stake: number; created: number; settled: number;
+  opponent: string | null; opponentAvatar: string | null;
+  result: MatchResult | null; net: number; ended: number;
+};
+export type ProfilePerformance = {
+  asset: Asset; generated: number; openEntries: number; bestWin: number; played: number;
+  history: ProfileMatch[];
+  series: Record<PnlRange, { total: number; points: { at: number; value: number }[] }>;
+};
 
 export type Snapshot = {
   asset: Asset;
