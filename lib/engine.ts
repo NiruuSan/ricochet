@@ -1,0 +1,17 @@
+// Ruleset v2 (solid grid-cell collision bounds). Fixed 120 Hz physics, shared by browser and authoritative server.
+export const W=472,H=612,CW=W/7,RH=H/9,GROUND=RH*8,RADIUS=5,SPEED=4.5;
+export type Brick={col:number,row:number,hp:number};
+export type Game={seed:number,round:number,score:number,balls:number,x:number,bricks:Brick[],over:boolean,bonus:boolean};
+export type Ball={x:number,y:number,vx:number,vy:number,delay:number,done:boolean};
+export type Flight={game:Game,balls:Ball[],ticks:number,landing:number|null,done:boolean};
+export function random(seed:number){return ()=>{seed|=0;seed=(seed+0x6D2B79F5)|0;let t=Math.imul(seed^(seed>>>15),1|seed);t^=t+Math.imul(t^(t>>>7),61|t);return ((t^(t>>>14))>>>0)/4294967296}}
+export function spawn(g:Game){const rng=random(g.seed^Math.imul(g.round,2654435761));const count=1+Math.floor(rng()*7);const cols=[0,1,2,3,4,5,6];for(let i=6;i>0;i--){let j=Math.floor(rng()*(i+1));[cols[i],cols[j]]=[cols[j],cols[i]];}for(const col of cols.slice(0,count))g.bricks.push({col,row:7,hp:g.round})}
+export function initial(seed:number):Game{const g:Game={seed,round:1,score:0,balls:1,x:W/2,bricks:[],over:false,bonus:false};spawn(g);return g}
+// Padding is visual only: adjacent occupied cells form a continuous barrier.
+export function brickBounds(b:Brick){return {x:b.col*CW,y:(8-b.row)*RH,w:CW,h:RH}}
+export function brickRect(b:Brick){return {x:b.col*CW+5,y:(8-b.row)*RH+5,w:CW-10,h:RH-10}}
+export function launch(g:Game,angle:number):Flight{if(g.over||!Number.isFinite(angle)||angle<8||angle>172)throw Error('Aim between 8° and 172°.');const rad=angle*Math.PI/180;return {game:structuredClone(g),balls:Array.from({length:g.balls},(_,i)=>({x:g.x,y:GROUND-RADIUS-.01,vx:Math.cos(rad)*SPEED,vy:-Math.sin(rad)*SPEED,delay:i*9,done:false})),ticks:0,landing:null,done:false}}
+export function step(f:Flight){if(f.done)return;f.ticks++;for(const ball of f.balls){if(ball.done||ball.delay-- >0)continue;const ox=ball.x,oy=ball.y;ball.x+=ball.vx;ball.y+=ball.vy;if(ball.x<RADIUS){ball.x=2*RADIUS-ball.x;ball.vx=Math.abs(ball.vx)}if(ball.x>W-RADIUS){ball.x=2*(W-RADIUS)-ball.x;ball.vx=-Math.abs(ball.vx)}if(ball.y<RADIUS){ball.y=2*RADIUS-ball.y;ball.vy=Math.abs(ball.vy)}if(ball.vy>0&&ball.y>=GROUND-RADIUS){const t=(GROUND-RADIUS-oy)/(ball.y-oy);ball.x=Math.min(W-RADIUS,Math.max(RADIUS,ox+(ball.x-ox)*t));ball.y=GROUND;ball.done=true;if(f.landing===null)f.landing=ball.x;continue}
+for(const b of f.game.bricks){if(b.hp<=0)continue;const r=brickBounds(b);const nx=Math.max(r.x,Math.min(ball.x,r.x+r.w)),ny=Math.max(r.y,Math.min(ball.y,r.y+r.h));if((ball.x-nx)**2+(ball.y-ny)**2>RADIUS**2)continue;b.hp--;f.game.score++;if(oy<=r.y-RADIUS+.001&&ball.vy>0){ball.y=r.y-RADIUS;ball.vy=-Math.abs(ball.vy)}else if(oy>=r.y+r.h+RADIUS-.001&&ball.vy<0){ball.y=r.y+r.h+RADIUS;ball.vy=Math.abs(ball.vy)}else if(ox<r.x){ball.x=r.x-RADIUS;ball.vx=-Math.abs(ball.vx)}else if(ox>r.x+r.w){ball.x=r.x+r.w+RADIUS;ball.vx=Math.abs(ball.vx)}else{ball.y=oy;ball.vy=-ball.vy}break;}}
+f.game.bricks=f.game.bricks.filter(b=>b.hp>0);if(f.balls.every(b=>b.done)){f.done=true;f.game.x=f.landing??f.game.x;f.game.bonus=f.game.bricks.length===0;f.game.balls+=f.game.bonus?5:1;for(const b of f.game.bricks)b.row--;f.game.over=f.game.bricks.some(b=>b.row<=1);if(!f.game.over){f.game.round++;spawn(f.game)}}}
+export function simulate(g:Game,angle:number){const f=launch(g,angle);while(!f.done&&f.ticks<200000)step(f);if(!f.done)throw Error('Shot exceeded the simulation limit. Try another angle.');return f.game}
