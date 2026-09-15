@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { Keypair, Transaction, SystemInstruction } from "@solana/web3.js";
 import bs58 from "bs58";
-import { createDatabase } from "./helpers/worker-env.mjs";
+import { createDatabase } from "./helpers/test-env.mjs";
 
 // Exercise the real payment service and SQL batches. Only platform bindings and
 // the network are replaced; no request can leave this test process.
-const { sqlite, DB } = createDatabase();
-globalThis.__workerTestEnv = {
-  DB,
+const testEnv = {
   SOLANA_NETWORK: "devnet",
   SOLANA_RPC_URL: "https://rpc.invalid/secret-token",
   SOLANA_VAULT_KEY: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64"),
 };
+Object.assign(process.env, testEnv);
+const { sqlite, close } = await createDatabase();
 
 const statuses = new Map();
 const landed = new Map();
@@ -78,12 +78,12 @@ const finalized = (signature, err = null) => statuses.set(signature, { slot: 20,
 assert.equal(parseSol("0.000000001"), 1);
 assert.equal(parseSol("10.123456789"), 10123456789);
 for (const value of ["0", "-1", "NaN", "1e2", "0.1234567891", "100001", 0.1]) assert.throws(() => parseSol(value));
-assert.throws(() => requireDevnet({ ...globalThis.__workerTestEnv, SOLANA_NETWORK: "mainnet" }));
-assert.equal(launchStatus({ ...globalThis.__workerTestEnv, SOLANA_NETWORK: "mainnet" }).mainnetEnabled, false);
+assert.throws(() => requireDevnet({ ...testEnv, SOLANA_NETWORK: "mainnet" }));
+assert.equal(launchStatus({ ...testEnv, SOLANA_NETWORK: "mainnet" }).mainnetEnabled, false);
 genesis = Keypair.generate().publicKey.toBase58();
 await assert.rejects(() => devnetConnection("https://rpc.invalid"), /cluster mismatch/);
 genesis = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
-const key = globalThis.__workerTestEnv.SOLANA_VAULT_KEY;
+const key = testEnv.SOLANA_VAULT_KEY;
 const wallet = Keypair.generate();
 const encrypted = await encryptWallet(wallet, key, "owner");
 assert.equal((await decryptWallet(encrypted, key, "owner")).publicKey.toBase58(), wallet.publicKey.toBase58());
@@ -266,4 +266,4 @@ assert.ok(!JSON.stringify(await service.walletSnapshot("a")).includes("wire"));
 console.log(
   "PASS: decimal precision, mainnet/cluster gates, encrypted wallet integrity, finalized-only deposits, replay safety, pool serialization, expiry holds, provable-expiry refunds, abandoned-transfer unblocking, failed-transfer refunds, secret redaction, escrow conservation, 12% fees, ties, atomic settlement rollback, demo isolation, treasury isolation.",
 );
-sqlite.close();
+close();

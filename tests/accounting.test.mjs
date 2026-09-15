@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { createDatabase } from "./helpers/worker-env.mjs";
+import { createDatabase } from "./helpers/test-env.mjs";
 
 // Database-level guarantees of the demo ledger, independent of app code.
-const { sqlite: c } = createDatabase();
+const { sqlite: c, close } = await createDatabase();
 const balance = (uid) => c.prepare("SELECT balance FROM players WHERE id = ?").get(uid).balance;
 
 for (const uid of ["a", "b"]) c.prepare("INSERT INTO players(id, name, created) VALUES(?, ?, 0)").run(uid, uid);
@@ -33,4 +33,4 @@ assert.equal(c.prepare("UPDATE runs SET revision = revision + 1 WHERE id = 'r' A
 assert.deepEqual({ ...c.prepare("SELECT ruleset, cancelled FROM matches WHERE id = 'm'").get() }, { ruleset: 2, cancelled: 0 });
 
 console.log("PASS: 12% per-entry economics, idempotent payouts, conservation, overdraft rejection, tie refunds, one active run, optimistic shot revisions, migration defaults.");
-c.close();
+close();

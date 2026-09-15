@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
-import { createDatabase } from "./helpers/worker-env.mjs";
+import { createDatabase } from "./helpers/test-env.mjs";
 
-// Real matchmaking, shot, settlement and snapshot code against SQLite built
-// from the committed migrations.
-const { sqlite, DB, statements } = createDatabase();
-globalThis.__workerTestEnv = {
-  DB,
+// Real matchmaking, shot, settlement and snapshot code against a libSQL
+// database built from the committed migrations.
+Object.assign(process.env, {
   RICOCHET_ADMIN_USER_ID: "admin-user",
   SOLANA_NETWORK: "devnet",
   SOLANA_RPC_URL: "https://rpc.invalid",
   SOLANA_VAULT_KEY: Buffer.alloc(32, 7).toString("base64"),
-};
+});
+const { sqlite, statements, close } = await createDatabase();
 globalThis.fetch = async () => {
   throw new Error("Match code must not touch the network");
 };
@@ -160,4 +159,4 @@ assert.equal(await rateLimited("walletWrite", ALICE, now + 60_000), false, "A ne
 console.log(
   "PASS: ruleset recorded per match, legacy ruleset replay, retired rulesets, unjoined-forfeit cancellation (demo and devnet), no joining forfeited matches, settlement of unsettled matches only, no player-ID leaks, per-match net P&L, rate limits.",
 );
-sqlite.close();
+close();

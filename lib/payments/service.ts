@@ -1,12 +1,11 @@
 import { PaymentError } from "./errors";
-import { env } from "cloudflare:workers";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { database } from "../../db/raw";
 import { requireDevnet, validateOperationId, parseSol, launchStatus } from "./policy";
 import { encryptWallet, decryptWallet } from "./vault";
 import { devnetConnection, prepareTransfer, recipientAddress } from "./solana";
 
-export const settings = () => env as unknown as Record<string, string | undefined>;
+export const settings = () => process.env as Record<string, string | undefined>;
 export const cashAccountId = (uid: string) => `devnet:${uid}`;
 export const HOUSE = "__house__";
 export const POOL = "__player_pool__";

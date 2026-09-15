@@ -47,3 +47,6 @@ next-env.d.ts
 
 !.env.example
 *.tsbuildinfo
+
+# local libSQL database
+local.db*

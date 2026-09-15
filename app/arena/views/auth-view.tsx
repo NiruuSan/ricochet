@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Zap } from "lucide-react";
+import { signInWithGitHub } from "../../auth-actions";
 import { gameAction } from "../api";
 import type { PlayerState } from "../arena";
 
@@ -42,13 +43,13 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
         </Link>
       ) : !data.authenticated ? (
         <>
-          {/* Platform sign-in lives outside the app router and must break out of any frame. */}
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a className="btn btn-primary full" href="/signin-with-chatgpt?return_to=%2Fsignup" target="_top">
-            Continue with ChatGPT <ArrowUpRight />
-          </a>
+          <form action={signInWithGitHub.bind(null, "/signup")}>
+            <button className="btn btn-primary full">
+              Continue with GitHub <ArrowUpRight />
+            </button>
+          </form>
           <p className="fine center" style={{ marginTop: 20 }}>
-            This private prototype uses ChatGPT sign-in.
+            Sign in with your GitHub account. Only your account ID and display name are used.
           </p>
         </>
       ) : (

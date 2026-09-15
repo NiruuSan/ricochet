@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { currentUser } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { safePaymentError } from "@/lib/payments/errors";
@@ -11,7 +11,7 @@ const hasProfile = async (uid: string) => !!(await database().prepare("SELECT 1 
 
 export async function GET() {
   try {
-    const user = await getChatGPTUser();
+    const user = await currentUser();
     if (!user) return json({ error: "Sign in to view your wallet." }, 401);
     if (await rateLimited("walletRead", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
     if (!(await hasProfile(user.userId))) return json({ error: "Create a player profile first." }, 403);
@@ -24,7 +24,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     if (!sameOrigin(req)) return json({ error: "Request origin rejected." }, 403);
-    const user = await getChatGPTUser();
+    const user = await currentUser();
     if (!user) return json({ error: "Sign in to use your wallet." }, 401);
     if (await rateLimited("walletWrite", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
     if (!(await hasProfile(user.userId))) return json({ error: "Create a player profile first." }, 403);

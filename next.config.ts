@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Node-only packages that should be required at runtime rather than bundled.
+  serverExternalPackages: ["@libsql/client", "@solana/web3.js"],
 };
 
 export default nextConfig;

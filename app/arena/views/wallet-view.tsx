@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ArrowDownLeft, ArrowUpFromLine, Wallet } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { signOutToLogin } from "../../auth-actions";
 import { FundedWallet } from "../funded-wallet";
 import { LEDGER_LABELS, matchStats, shortDate, signed, sol } from "../format";
 import type { PlayerState } from "../arena";
@@ -58,11 +59,11 @@ export function WalletView({ player, onDemoFundsInfo }: { player: PlayerState; o
             <strong>{sol(openEntries)} SOL</strong>
           </div>
           {data.authenticated && (
-            // Platform sign-out lives outside the app router and must break out of any frame.
-            // eslint-disable-next-line @next/next/no-html-link-for-pages
-            <a className="btn" style={{ marginTop: 12 }} href="/signout-with-chatgpt?return_to=%2Flogin" target="_top">
-              Sign out
-            </a>
+            <form action={signOutToLogin}>
+              <button className="btn" style={{ marginTop: 12 }}>
+                Sign out
+              </button>
+            </form>
           )}
         </div>
       </div>

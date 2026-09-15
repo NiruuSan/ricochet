@@ -1,4 +1,4 @@
-import { adminId, database } from "@/db/raw";
+import { adminId, database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulate, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
 import type { Asset, MatchResult, MatchSummary, Run, Snapshot } from "./api-types";
 import { STAKES } from "./api-types";
@@ -46,7 +46,7 @@ export async function settle(matchId: string) {
   const payout = winner ? winnerPayout(m.stake) : m.stake;
   const fee = winner ? winnerFee(m.stake) : 0;
   const recipients = winner ? [winner] : [a.user_id, b.user_id];
-  const ops: D1PreparedStatement[] = [];
+  const ops: Statement[] = [];
   if (m.asset === "devnet") {
     await ensureCashAccount(HOUSE);
     for (const uid of recipients) {
@@ -97,7 +97,7 @@ async function cancelUnjoined(m: MatchRow, runs: RunRow[]) {
   // Every ledger insert selects from the match row, so it only applies if this
   // batch's UPDATE actually cancelled the match.
   const cancelled = "FROM matches WHERE id = ? AND cancelled = 1";
-  const ops: D1PreparedStatement[] = [
+  const ops: Statement[] = [
     db.prepare("UPDATE matches SET settled = 1, cancelled = 1, fee = ? WHERE id = ? AND p2 IS NULL AND settled = 0").bind(fee, m.id),
   ];
   if (m.asset === "devnet") {
@@ -246,7 +246,7 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
     .first<MatchRow>();
   const runId = crypto.randomUUID();
   const now = Date.now();
-  const ops: D1PreparedStatement[] = [];
+  const ops: Statement[] = [];
   if (match) {
     ops.push(db.prepare(`UPDATE matches SET p2 = ? WHERE id = ? AND p2 IS NULL AND settled = 0 AND ${NOT_FORFEITED}`).bind(uid, match.id));
   } else {

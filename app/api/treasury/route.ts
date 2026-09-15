@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { currentUser } from "@/lib/auth-user";
 import { adminId, database } from "@/db/raw";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { safePaymentError } from "@/lib/payments/errors";
@@ -8,7 +8,7 @@ import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 async function administrator() {
-  const user = await getChatGPTUser();
+  const user = await currentUser();
   const admin = adminId();
   return user && admin && user.userId === admin ? user : null;
 }

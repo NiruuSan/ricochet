@@ -1,4 +1,4 @@
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { currentUser } from "@/lib/auth-user";
 import { adminId, database } from "@/db/raw";
 import type { Asset } from "@/lib/api-types";
 import { json, readBody, sameOrigin } from "@/lib/http";
@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const asset: Asset = new URL(req.url).searchParams.get("asset") === "devnet" ? "devnet" : "demo";
-    const user = await getChatGPTUser();
+    const user = await currentUser();
     if (!user) return json({ authenticated: false });
     if (await rateLimited("gameRead", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
     return json({ authenticated: true, ...(await playerSnapshot(user.userId, asset)) });
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     if (!sameOrigin(req)) return json({ error: "Request origin rejected." }, 403);
-    const user = await getChatGPTUser();
+    const user = await currentUser();
     if (!user) return json({ error: "Sign in to save your games." }, 401);
     const uid = user.userId;
     if (await rateLimited("gameWrite", uid)) return json({ error: TOO_MANY_REQUESTS }, 429);
