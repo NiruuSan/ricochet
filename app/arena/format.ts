@@ -24,7 +24,7 @@ export const shortDate = (ms: number) => new Date(ms).toLocaleDateString(undefin
 
 export function outcome(m: MatchSummary) {
   if (!m.done) return "In progress";
-  if (m.result === "cancelled") return "Cancelled · 88% refunded";
+  if (m.result === "cancelled") return m.net === 0 ? "Cancelled · fully refunded" : `Cancelled · ${Math.round((m.stake + m.net) / m.stake * 100)}% refunded`;
   if (!m.joined) return "Awaiting opponent";
   if (!m.settled) return "Opponent playing";
   if (m.result === "draw") return "Draw · refunded";

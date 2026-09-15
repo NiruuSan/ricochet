@@ -18,12 +18,10 @@ export const STAKES: Record<Asset, readonly number[]> = {
 
 export const isStake = (asset: Asset, stake: number) => STAKES[asset].includes(stake);
 
-// Economics, as fractions of one entry. Every current stake gives exact
-// integers; rounding down only matters for legacy gem matches, and the fee is
-// always whatever the payout leaves, so nothing is created or lost.
-export const winnerPayout = (stake: number) => Math.floor((stake * 176) / 100); // 88% of both entries
-export const winnerFee = (stake: number) => stake * 2 - winnerPayout(stake); // 12% of both entries
-export const cancelRefund = (stake: number) => Math.floor((stake * 88) / 100); // entry minus the 12% fee
+// Gem matches are fee-free. Devnet fees are the part of the pot not paid out.
+export const winnerPayout = (stake: number, asset: Asset) => asset === "gems" ? stake * 2 : Math.floor((stake * 176) / 100); // 88% of both entries
+export const winnerFee = (stake: number, asset: Asset) => stake * 2 - winnerPayout(stake, asset); // 12% of both entries
+export const cancelRefund = (stake: number, asset: Asset) => asset === "gems" ? stake : Math.floor((stake * 88) / 100); // entry minus the 12% fee
 
 export type Run = {
   id: string;
@@ -62,7 +60,16 @@ export type Leader = { name: string; avatar: string | null; is_you: number; pnl:
 
 export type LaunchStatus = { mode: string; configured: boolean; mainnetEnabled: boolean; message: string };
 
-export type Profile = { name: string; balance: number; avatar: string | null; created: number };
+export type Profile = { publicId: string; name: string; balance: number; avatar: string | null; created: number };
+export type PublicPlayerProfile = {
+  publicId: string;
+  name: string;
+  avatar: string | null;
+  created: number;
+  isYou: boolean;
+  stats: Record<Asset, { pnl: number; games: number; wins: number }>;
+};
+export type TipReceipt = { id: string; amount: number; recipient: string; created: number };
 
 export type Snapshot = {
   asset: Asset;

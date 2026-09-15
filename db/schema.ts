@@ -6,6 +6,8 @@ export const players = sqliteTable(
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
+    // Stable public recipient identity; never exposes an authentication provider ID.
+    publicId: text("public_id"),
     // Gems: the free in-game currency. Whole units, never tied to real money.
     balance: integer("balance").notNull().default(2000),
     created: integer("created").notNull(),
@@ -14,7 +16,7 @@ export const players = sqliteTable(
     // Key of the player's current picture in `avatars`, if any.
     avatar: text("avatar"),
   },
-  (t) => [check("balance_nonnegative", sql`${t.balance} >= 0`), uniqueIndex("player_name_unique").on(sql`lower(${t.name})`)],
+  (t) => [check("balance_nonnegative", sql`${t.balance} >= 0`), uniqueIndex("player_name_unique").on(sql`lower(${t.name})`), uniqueIndex("player_public_id_unique").on(t.publicId)],
 );
 
 // Profile pictures, already resized by the browser. The key is random, so

@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { ArrowUpFromLine, Check, Copy, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,6 +14,7 @@ type WalletData = {
   /** Finalized SOL at the deposit address that has not been swept into the pool yet. */
   detected?: number;
   transfers: Transfer[];
+  tips?: { id: string; amount: number; created: number; name: string }[];
 } & Partial<Omit<TreasurySnapshot, "configured" | "address" | "balance" | "detected" | "transfers">>;
 
 const OPEN_STATUSES = ["pending", "review"];
@@ -336,6 +338,21 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
                 </TableBody>
               </Table>
             </div>
+          )}
+          {!treasury && !!data.tips?.length && (
+            <section style={{ marginTop: 25 }}>
+              <h3 style={{ marginBottom: 14 }}>Tips · devnet SOL</h3>
+              <div className="table-card">
+                <Table>
+                  <TableHeader><TableRow><TableHead>Tip</TableHead><TableHead>Player</TableHead><TableHead>Amount · SOL</TableHead></TableRow></TableHeader>
+                  <TableBody>{data.tips.map((tip) => <TableRow key={tip.id}>
+                    <TableCell>{tip.amount > 0 ? "Received" : "Sent"}<div className="fine">{new Date(tip.created).toLocaleString()}</div></TableCell>
+                    <TableCell><Link className="lime" href={`/players/${encodeURIComponent(tip.name)}`}>{tip.name}</Link></TableCell>
+                    <TableCell className={tip.amount > 0 ? "lime" : ""}>{tip.amount > 0 ? "+" : ""}{fullSol(tip.amount)}</TableCell>
+                  </TableRow>)}</TableBody>
+                </Table>
+              </div>
+            </section>
           )}
           {treasury && !!data.open?.length && (
             <div style={{ marginTop: 20 }}>

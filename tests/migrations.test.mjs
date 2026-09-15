@@ -31,6 +31,11 @@ await client.batch(
 await migrate(client);
 
 const rows = async (sql) => (await client.execute(sql)).rows.map((r) => ({ ...r }));
+const publicIds = await rows("SELECT public_id FROM players ORDER BY id");
+assert.ok(publicIds.every((p) => /^[a-f0-9]{32}$/.test(p.public_id)), "Existing players receive opaque public IDs");
+assert.equal(new Set(publicIds.map((p) => p.public_id)).size, 3);
+await migrate(client);
+assert.deepEqual(await rows("SELECT public_id FROM players ORDER BY id"), publicIds, "Migration reruns preserve public IDs");
 const players = await rows("SELECT id, name, balance, last_seen, avatar FROM players ORDER BY id");
 assert.deepEqual(
   players.map((p) => [p.id, p.balance, p.last_seen, p.avatar]),

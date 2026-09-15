@@ -9,10 +9,10 @@ for (const uid of ["a", "b"]) c.prepare("INSERT INTO players(id, name, created) 
 assert.equal(balance("a"), 2000, "New profiles start with 2,000 gems");
 c.exec("INSERT INTO matches(id, seed, stake, p1, p2, created) VALUES('m', 1, 100, 'a', 'b', 0)");
 for (const uid of ["a", "b"]) c.prepare("INSERT INTO ledger VALUES(?, ?, 'm', 'entry', -100, 0)").run(uid + "entry", uid);
-for (let i = 0; i < 2; i++) c.exec("INSERT OR IGNORE INTO ledger VALUES('payout', 'a', 'm', 'payout', 176, 0)");
-assert.equal(balance("a"), 2076);
+for (let i = 0; i < 2; i++) c.exec("INSERT OR IGNORE INTO ledger VALUES('payout', 'a', 'm', 'payout', 200, 0)");
+assert.equal(balance("a"), 2100);
 assert.equal(balance("b"), 1900);
-assert.equal(c.prepare("SELECT SUM(balance) AS total FROM players").get().total, 3976);
+assert.equal(c.prepare("SELECT SUM(balance) AS total FROM players").get().total, 4000);
 
 assert.throws(() => c.exec("INSERT INTO ledger VALUES('overdraw', 'b', 'm', 'entry', -99999, 0)"), /CHECK constraint/);
 assert.equal(c.prepare("SELECT 1 FROM ledger WHERE id = 'overdraw'").get(), undefined);
@@ -34,5 +34,5 @@ assert.equal(c.prepare("UPDATE runs SET revision = revision + 1 WHERE id = 'r' A
 assert.deepEqual({ ...c.prepare("SELECT asset, ruleset, cancelled FROM matches WHERE id = 'm'").get() }, { asset: "gems", ruleset: 2, cancelled: 0 });
 assert.throws(() => c.exec("INSERT INTO players(id, name, created) VALUES('c', 'A', 0)"), /UNIQUE/);
 
-console.log("PASS: gem starting balance, 12% per-entry economics, idempotent payouts, conservation, overdraft rejection, tie refunds, one active run, optimistic shot revisions, schema defaults, unique names.");
+console.log("PASS: gem starting balance, fee-free gem payouts, idempotent payouts, conservation, overdraft rejection, tie refunds, one active run, optimistic shot revisions, schema defaults, unique names.");
 close();

@@ -40,8 +40,8 @@ export async function settle(matchId: string) {
   const winner =
     a.forfeit !== b.forfeit ? (a.forfeit ? b.user_id : a.user_id) : a.score === b.score ? null : a.score > b.score ? a.user_id : b.user_id;
   const now = Date.now();
-  const payout = winner ? winnerPayout(m.stake) : m.stake;
-  const fee = winner ? winnerFee(m.stake) : 0;
+  const payout = winner ? winnerPayout(m.stake, m.asset) : m.stake;
+  const fee = winner ? winnerFee(m.stake, m.asset) : 0;
   const recipients = winner ? [winner] : [a.user_id, b.user_id];
   const ops: Statement[] = [];
   if (m.asset === "devnet") {
@@ -81,14 +81,13 @@ export async function settle(matchId: string) {
 /**
  * The creator forfeited before anyone joined. Letting a stranger take the seat
  * would hand them a free win, so the match closes instead. The creator gets
- * their entry back minus the usual 12% fee, which also keeps "forfeit and
- * retry" from being a free way to shop for an easier seed.
+ * their full gem entry back. Devnet entries retain the usual 12% fee.
  */
 async function cancelUnjoined(m: MatchRow, runs: RunRow[]) {
   if (runs.length !== 1 || !runs[0].done || !runs[0].forfeit) return;
   const db = database();
   const uid = runs[0].user_id;
-  const refund = cancelRefund(m.stake);
+  const refund = cancelRefund(m.stake, m.asset);
   const fee = m.stake - refund;
   const now = Date.now();
   // Every ledger insert selects from the match row, so it only applies if this
@@ -129,14 +128,14 @@ export async function settleFinishedMatches(uid: string) {
   for (const { match_id } of pending.results) await settle(match_id);
 }
 
-function netResult(result: MatchResult | null, stake: number) {
+function netResult(result: MatchResult | null, stake: number, fee: number) {
   switch (result) {
     case "win":
-      return winnerPayout(stake) - stake;
+      return stake - fee;
     case "loss":
       return -stake;
     case "cancelled":
-      return cancelRefund(stake) - stake;
+      return fee ? -fee : 0;
     default:
       return 0;
   }
@@ -176,10 +175,10 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
          WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund')
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
   const [player, history, transactions, leaders, active, cash] = await Promise.all([
-    db.prepare("SELECT name, balance, avatar, created FROM players WHERE id = ?").bind(uid).first<Profile>(),
+    db.prepare("SELECT public_id AS publicId, name, balance, avatar, created FROM players WHERE id = ?").bind(uid).first<Profile>(),
     db
       .prepare(
-        `SELECT m.id, m.stake, m.settled, m.created,
+        `SELECT m.id, m.stake, m.fee, m.settled, m.created,
            r.id AS run_id, r.score, r.done, r.forfeit,
            CASE WHEN m.p2 IS NULL THEN 0 ELSE 1 END AS joined,
            CASE WHEN m.p1 = r.user_id THEN p2.name ELSE p1.name END AS opponent,
@@ -199,7 +198,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
          ORDER BY m.created DESC LIMIT 50`,
       )
       .bind(uid, asset)
-      .all<Omit<MatchSummary, "net">>(),
+      .all<Omit<MatchSummary, "net"> & { fee: number }>(),
     db.prepare("SELECT kind, amount, created FROM ledger WHERE user_id = ? ORDER BY created DESC LIMIT 50").bind(uid).all<Snapshot["transactions"][number]>(),
     db.prepare(leaderQuery).bind(uid).all<Snapshot["leaders"][number]>(),
     activeRun(uid),
@@ -211,7 +210,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     cashBalance: cash?.balance ?? 0,
     launch: launchStatus(settings()),
     player: player && { ...player, avatar: avatarUrl(player.avatar) },
-    matches: history.results.map((m) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake) })),
+    matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
     transactions: transactions.results,
     leaders: leaders.results.map((l) => ({ ...l, avatar: avatarUrl(l.avatar) })),
     active,

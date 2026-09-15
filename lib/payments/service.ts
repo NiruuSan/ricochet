@@ -310,11 +310,17 @@ export async function walletSnapshot(uid: string) {
   const wallet = await ensureWallet(uid);
   const account = await ensureCashAccount(uid);
   const db = database();
-  const [balance, transfers, activity, detected] = await Promise.all([
+  const [balance, transfers, activity, detected, tips] = await Promise.all([
     db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(account).first<{ balance: number }>(),
     db.prepare("SELECT * FROM cash_transfers WHERE account_id = ? ORDER BY created DESC LIMIT 50").bind(account).all<Transfer>(),
     db.prepare("SELECT kind, amount, reference, created FROM cash_ledger WHERE account_id = ? ORDER BY created DESC LIMIT 100").bind(account).all(),
     waitingAt(wallet.address),
+    db.prepare(`SELECT l.id, l.amount, l.created, p.name FROM cash_ledger l
+      JOIN cash_ledger other ON other.id = 'tip:' || l.reference || CASE WHEN l.kind = 'tip_sent' THEN ':received' ELSE ':sent' END
+      JOIN cash_accounts a ON a.id = other.account_id
+      JOIN players p ON p.id = a.user_id
+      WHERE l.account_id = ? AND l.kind IN ('tip_sent', 'tip_received')
+      ORDER BY l.created DESC LIMIT 50`).bind(account).all<{ id: string; amount: number; created: number; name: string }>(),
   ]);
   return {
     ...status,
@@ -323,6 +329,7 @@ export async function walletSnapshot(uid: string) {
     detected,
     transfers: transfers.results.map(publicTransfer),
     activity: activity.results,
+    tips: tips.results,
   };
 }
 

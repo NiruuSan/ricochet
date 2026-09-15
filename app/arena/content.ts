@@ -9,11 +9,11 @@ export const FAQ: [question: string, answer: string][] = [
   ],
   [
     "How much does the winner receive?",
-    "The house fee is 12% of each entry, charged only when a match resolves with a winner. The winner receives 88% of the combined entries: for two 1 SOL entries, the payout is 1.76 SOL, the winner’s net profit is 0.76 SOL, and the house receives 0.24 SOL. Gem matches work the same way in gems. All amounts in this development version are gems or devnet test SOL.",
+    "Gem matches have no house fee: the winner receives both entries in full. Two 100-gem entries pay the winner 200 gems, a net profit of 100 gems. In devnet SOL matches, the house fee is 12% of each entry when a match resolves with a winner. The winner receives 88% of the combined entries: for two 1 SOL entries, the payout is 1.76 SOL, the winner’s net profit is 0.76 SOL, and the house receives 0.24 SOL. All amounts in this development version are gems or devnet test SOL.",
   ],
   [
     "What happens in a draw or a forfeit?",
-    "Equal final scores return both entries in full, with no house fee. If one player forfeits, the other wins once their run finishes. If both forfeit, scores decide, with equal scores refunded. If you forfeit before anyone has joined your match, it closes: nobody can take the seat, and your entry is refunded minus the 12% house fee.",
+    "Equal final scores return both entries in full, with no house fee. If one player forfeits, the other wins once their run finishes. If both forfeit, scores decide, with equal scores refunded. If you forfeit before anyone has joined your match, it closes: nobody can take the seat, and your gem entry is refunded in full; devnet SOL entries are refunded minus the 12% house fee.",
   ],
   [
     "How are rounds and extra balls handled?",
@@ -26,6 +26,10 @@ export const FAQ: [question: string, answer: string][] = [
   [
     "What are gems?",
     "Gems are Ricochet’s free in-game currency. Every new profile receives 2,000 gems to enter gem matches. They have no monetary value and cannot be bought, sold, deposited or withdrawn.",
+  ],
+  [
+    "How do I tip another player?",
+    "Open their profile from the leaderboard or a match, or find them by name on the leaderboard. Select Tip, enter a devnet SOL amount, and review the recipient before confirming. Tips move your available Ricochet wallet balance to theirs without a tip fee. Sent and received tips appear in your wallet and do not affect match PNL.",
   ],
   [
     "Can I deposit or withdraw real SOL?",

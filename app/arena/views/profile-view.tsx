@@ -105,6 +105,7 @@ export function ProfileView({ player }: { player: PlayerState }) {
             <Avatar name={profile.name} src={profile.avatar} size={112} />
             <div>
               <h2>{profile.name}</h2>
+              <Link className="lime" href={`/players/${encodeURIComponent(profile.name)}`}>View public profile and all-time PNL</Link>
               <p className="fine">Member since {new Date(profile.created).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</p>
               <div className="row-actions" style={{ marginTop: 14 }}>
                 <button className="btn" disabled={!!saving} onClick={() => fileInput.current?.click()}>

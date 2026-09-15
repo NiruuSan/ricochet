@@ -11,7 +11,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types tests/engine.test.ts && node --experimental-strip-types tests/accounting.test.mjs && node tests/migrations.test.mjs && node --experimental-strip-types tests/matches.test.mjs && node --experimental-strip-types tests/payments.test.mjs",
+    "test": "node --experimental-strip-types tests/engine.test.ts && node --experimental-strip-types tests/accounting.test.mjs && node tests/migrations.test.mjs && node --experimental-strip-types tests/matches.test.mjs && node --experimental-strip-types tests/payments.test.mjs && node --experimental-strip-types tests/profiles-tips.test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs"
   },

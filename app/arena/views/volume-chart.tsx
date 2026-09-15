@@ -85,7 +85,7 @@ function Chart({ points, label, format, divisor }: { points: VolumePoint[]; labe
 
 function VolumeCard({ title, data, period, sol }: { title: string; data?: Partial<Record<Metric, VolumeTotals>>; period: Period; sol?: boolean }) {
   const [metric, setMetric] = useState<Metric>("entries");
-  const available = sol ? METRICS : METRICS.filter(([key]) => key !== "deposits" && key !== "withdrawals");
+  const available = sol ? METRICS : METRICS.filter(([key]) => key !== "deposits" && key !== "withdrawals" && key !== "fees");
   const format = (value: number, key: Metric = metric) => key === "matches" ? `${value.toLocaleString()} matches` : sol ? `${fullSol(value)} SOL` : `${value.toLocaleString()} gems`;
   const selected = data?.[metric];
   const label = METRICS.find(([key]) => key === metric)![1];

@@ -15,6 +15,7 @@ import { LeaderboardView } from "./views/leaderboard-view";
 import { MatchesView } from "./views/matches-view";
 import { PlayView, type Mode } from "./views/play-view";
 import { ProfileView } from "./views/profile-view";
+import { PublicProfileView } from "./views/public-profile-view";
 import { RulesView } from "./views/rules-view";
 import { WalletView } from "./views/wallet-view";
 import { WelcomeView } from "./views/welcome-view";
@@ -28,7 +29,7 @@ const NAVIGATION = [
   { href: "/faq", view: "faq", label: "How to play", Icon: HelpCircle },
 ];
 
-export default function Arena({ view }: { view: View }) {
+export default function Arena({ view, profileName }: { view: View; profileName?: string }) {
   const player = usePlayerData();
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
@@ -65,10 +66,11 @@ export default function Arena({ view }: { view: View }) {
   };
 
   const currentMatch = data.matches.find((m) => m.id === session.run?.match_id);
+  const refundDescription = (session.run?.asset ?? asset) === "gems" ? "refunded in full" : "refunded minus the 12% house fee";
   const forfeitWarning =
     currentMatch && !currentMatch.joined
-      ? "Nobody has joined this match yet, so forfeiting closes it: no one can take the seat, and your entry is refunded minus the 12% house fee. This cannot be undone."
-      : "Forfeiting ends your run. Your entry stays committed; an opponent who completes their run wins. If nobody has joined yet, the match closes and your entry is refunded minus the 12% house fee. This cannot be undone.";
+      ? `Nobody has joined this match yet, so forfeiting closes it: no one can take the seat, and your entry is ${refundDescription}. This cannot be undone.`
+      : `Forfeiting ends your run. Your entry stays committed; an opponent who completes their run wins. If nobody has joined yet, the match closes and your entry is ${refundDescription}. This cannot be undone.`;
 
   return (
     <>
@@ -145,7 +147,7 @@ export default function Arena({ view }: { view: View }) {
         {view === "matches" && <MatchesView player={player} />}
         {view === "leaderboard" && <LeaderboardView player={player} />}
         {view === "wallet" && <WalletView player={player} />}
-        {view === "profile" && <ProfileView player={player} />}
+        {view === "profile" && (profileName ? <PublicProfileView key={profileName} name={profileName} player={player} /> : <ProfileView player={player} />)}
         {(view === "login" || view === "signup") && <AuthView player={player} signup={view === "signup"} />}
         {(view === "faq" || view === "rules") && <RulesView rules={view === "rules"} />}
         {view === "admin" && <AdminView player={player} />}

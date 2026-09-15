@@ -35,7 +35,7 @@ const gemBalance = (uid) => sqlite.prepare("SELECT balance FROM players WHERE id
 const cashBalance = (uid) => sqlite.prepare("SELECT balance FROM cash_accounts WHERE id = ?").get(service.cashAccountId(uid))?.balance ?? 0;
 const matchRow = (id) => sqlite.prepare("SELECT * FROM matches WHERE id = ?").get(id);
 const STAKE = 25;
-const WIN_NET = 44 - STAKE; // 88% of both entries, minus the entry
+const WIN_NET = STAKE; // The gem winner receives the entire two-entry pot.
 
 // New matches record the current ruleset.
 const aliceRun = await matches.startMatch(ALICE, STAKE, "gems");
@@ -45,14 +45,14 @@ assert.equal(gemBalance(ALICE), 2000 - STAKE);
 assert.equal("user_id" in aliceRun, false);
 
 // Forfeiting an unjoined match cancels it: nobody can take the seat, and the
-// creator gets the entry back minus the 12% fee, exactly once.
+// creator gets the full gem entry back, exactly once.
 const cancelled = await matches.playShot(ALICE, aliceRun.id, aliceRun.revision, "forfeit");
 assert.equal(cancelled.done, 1);
 let m = matchRow(aliceRun.match_id);
-assert.deepEqual([m.settled, m.cancelled, m.fee, m.winner, m.p2], [1, 1, 3, null, null]);
-assert.equal(gemBalance(ALICE), 2000 - 3);
+assert.deepEqual([m.settled, m.cancelled, m.fee, m.winner, m.p2], [1, 1, 0, null, null]);
+assert.equal(gemBalance(ALICE), 2000);
 await matches.settle(aliceRun.match_id);
-assert.equal(gemBalance(ALICE), 2000 - 3, "Cancellation refunds once");
+assert.equal(gemBalance(ALICE), 2000, "Cancellation refunds once");
 const bobRun = await matches.startMatch(BOB, STAKE, "gems");
 assert.notEqual(bobRun.match_id, aliceRun.match_id, "A cancelled match cannot be joined");
 
@@ -83,6 +83,8 @@ m = matchRow(bobRun.match_id);
 assert.equal(m.settled, 1);
 assert.equal(m.cancelled, 0);
 assert.equal(m.winner, BOB);
+assert.equal(m.fee, 0, "Gem winners pay no house fee");
+assert.equal(gemBalance(BOB), 2000 + STAKE);
 
 // Snapshots settle only unsettled matches and never expose other players' IDs.
 statements.length = 0;
@@ -102,9 +104,9 @@ assert.equal(snapshot.leaders.find((l) => l.name === "carol").is_you, 0);
 const aliceSnapshot = await matches.playerSnapshot(ALICE, "gems");
 assert.deepEqual(
   aliceSnapshot.matches.map((x) => [x.result, x.net, x.joined]),
-  [["cancelled", -3, 0]],
+  [["cancelled", 0, 0]],
 );
-assert.equal(aliceSnapshot.leaders.find((l) => l.name === "alice").pnl, -3);
+assert.equal(aliceSnapshot.leaders.find((l) => l.name === "alice").pnl, 0);
 assert.equal(aliceSnapshot.isAdmin, false);
 
 // Finished-but-unsettled matches are picked up by the player's next snapshot:

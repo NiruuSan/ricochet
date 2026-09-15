@@ -109,12 +109,12 @@ export function PlayView({ player, session, mode, setMode, stakeIndex, setStakeI
               <strong>{mode === "practice" ? "Free" : amount(stake, asset)}</strong>
             </div>
             <div className="math-line">
-              <span>House fee · 12% each</span>
-              <strong>{mode === "practice" ? "None" : amount(winnerFee(stake) / 2, asset)}</strong>
+              <span>{asset === "gems" ? "House fee" : "House fee · 12% each"}</span>
+              <strong>{mode === "practice" || asset === "gems" ? "None" : amount(winnerFee(stake, asset) / 2, asset)}</strong>
             </div>
             <div className="prize">
               <span style={{ fontSize: 14 }}>{mode === "practice" ? "Play to improve" : "Winner receives"}</span>
-              <b>{mode === "practice" ? "∞ retries" : amount(winnerPayout(stake), asset)}</b>
+              <b>{mode === "practice" ? "∞ retries" : amount(winnerPayout(stake, asset), asset)}</b>
             </div>
             <button className="btn btn-primary full" disabled={busy || flying || inProgress || devnetUnavailable} onClick={onStart}>
               {busy ? "Saving…" : inProgress ? "Your run is in progress" : entryLabel}
@@ -198,7 +198,7 @@ export function PlayView({ player, session, mode, setMode, stakeIndex, setStakeI
                   <UserRound />
                 </div>
               )}
-              <b>{currentMatch?.opponent ?? "Your next challenger"}</b>
+              <b>{currentMatch?.opponent ? <Link className="lime" href={`/players/${encodeURIComponent(currentMatch.opponent)}`}>{currentMatch.opponent}</Link> : "Your next challenger"}</b>
               <p>{currentMatch?.opponent ? "Same seed. Their score stays hidden." : "Play now. Match when they arrive."}</p>
             </div>
             <div className="vs-line">VS</div>

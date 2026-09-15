@@ -68,7 +68,7 @@ export function MatchesView({ player }: { player: PlayerState }) {
                   <TableCell>{amount(m.stake, asset)}</TableCell>
                   <TableCell>{m.score}</TableCell>
                   <TableCell>
-                    {m.opponent ?? (m.result === "cancelled" ? "—" : "Seat open")}
+                    {m.opponent ? <Link className="lime" href={`/players/${encodeURIComponent(m.opponent)}`}>{m.opponent}</Link> : (m.result === "cancelled" ? "-" : "Seat open")}
                     {m.opponent_score !== null && <span className="muted"> · {m.opponent_score}</span>}
                   </TableCell>
                   <TableCell>

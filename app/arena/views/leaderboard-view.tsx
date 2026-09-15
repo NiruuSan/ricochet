@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Trophy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AssetTabs } from "../asset-tabs";
@@ -9,12 +11,18 @@ import type { PlayerState } from "../arena";
 
 export function LeaderboardView({ player }: { player: PlayerState }) {
   const { data, asset, setAsset, loaded } = player;
+  const [name, setName] = useState("");
+  const router = useRouter();
   return (
     <section className="subpage">
       <div className="tag lime" style={{ marginBottom: 12 }}>
         THE SCORE THAT COUNTS
       </div>
       <h1>Meet the angle masters.</h1>
+      <form className="row-actions" style={{ margin: "20px 0" }} onSubmit={(event) => { event.preventDefault(); router.push(`/players/${encodeURIComponent(name.trim())}`); }}>
+        <input className="input" aria-label="Find a player by name" placeholder="Find a player by name" value={name} onChange={(event) => setName(event.target.value)} pattern="[a-zA-Z0-9_]{3,20}" minLength={3} maxLength={20} required style={{ maxWidth: 320 }} />
+        <button className="btn">View profile</button>
+      </form>
       <AssetTabs asset={asset} onChange={setAsset} />
       <p className="muted">Ranked by net profit from settled {asset === "gems" ? "gem" : "devnet SOL"} matches. Entry fees included.</p>
       <div className="table-card">
@@ -30,19 +38,19 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
             </TableHeader>
             <TableBody>
               {data.leaders.map((p, i) => (
-                // Player names are not unique and IDs are never sent, so rank is the key.
-                <TableRow key={i}>
+                // Names are unique; private authentication IDs are never sent.
+                <TableRow key={p.name}>
                   <TableCell>
                     <b className={i === 0 ? "lime" : ""}>{String(i + 1).padStart(2, "0")}</b>
                   </TableCell>
                   <TableCell>
-                    <div className="you-card">
+                    <Link href={`/players/${encodeURIComponent(p.name)}`} className="you-card">
                       <Avatar name={p.name} src={p.avatar} />
                       <b>
                         {p.name}
                         {p.is_you ? " (you)" : ""}
                       </b>
-                    </div>
+                    </Link>
                   </TableCell>
                   <TableCell>{p.games}</TableCell>
                   <TableCell className={p.pnl >= 0 ? "lime" : ""}>
