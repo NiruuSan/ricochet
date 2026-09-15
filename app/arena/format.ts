@@ -31,12 +31,6 @@ export function outcome(m: MatchSummary) {
   return m.result === "win" ? "Victory" : "Defeat";
 }
 
-export const LEDGER_LABELS: Record<string, string> = {
-  entry: "Match entry",
-  payout: "Match payout",
-  refund: "Match refund",
-};
-
 /** Settled profit or loss and victories across a list of matches. */
 export function matchStats(matches: MatchSummary[]) {
   const settled = matches.filter((m) => m.settled);

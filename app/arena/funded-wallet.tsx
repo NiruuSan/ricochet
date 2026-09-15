@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MIN_DEPOSIT, type Transfer, type TreasurySnapshot } from "@/lib/api-types";
 import { request } from "./api";
+import { shortDate } from "./format";
 
 type WalletData = {
   configured: boolean;
@@ -156,11 +157,9 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
         <h2>{treasury ? "Solana house treasury" : "Your Solana wallet"}</h2>
         <span className="demo-tag">DEVNET · TEST SOL</span>
       </div>
-      <p className="muted">
-        {treasury
-          ? "Deposits add SOL to the house. Withdrawals can only spend the house balance; player balances and match pots stay untouchable."
-          : "Fund devnet matches using Solana’s test network. Devnet SOL has no monetary value and is separate from gems."}
-      </p>
+      {treasury && (
+        <p className="muted">Deposits add SOL to the house. Withdrawals can only spend the house balance; player balances and match pots stay untouchable.</p>
+      )}
       {error && (
         <p className="error" role="alert" style={{ marginTop: 15 }}>
           {error}
@@ -232,25 +231,6 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
                 {treasury ? "Treasury deposit address · devnet only" : "Your deposit address · devnet only"}
                 <input readOnly className="input" value={data.address} onFocus={(e) => e.target.select()} />
               </label>
-              <div className="row-actions">
-                <button
-                  className="btn"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(data.address!);
-                      setCopied(true);
-                    } catch {
-                      setError("Select and copy the address above.");
-                    }
-                  }}
-                >
-                  {copied ? <Check /> : <Copy />}
-                  {copied ? "Copied" : "Copy address"}
-                </button>
-                <a className="btn" href={explorer("address", data.address)} target="_blank" rel="noreferrer">
-                  View on explorer <ExternalLink />
-                </a>
-              </div>
               {incoming ? (
                 <p className="callout-inline" role="status">
                   <RefreshCw size={14} className="spin" /> Crediting {fullSol(incoming.amount)} SOL… this takes about 30 seconds.
@@ -264,18 +244,29 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
                   {fullSol(data.detected!)} SOL received, below the 0.001 SOL minimum. Send a little more to credit it.
                 </p>
               ) : (
-                <p className="fine" style={{ marginTop: 12 }}>
-                  Send devnet SOL to this address from any wallet (for example Phantom or Solflare set to devnet, or faucet.solana.com). It is credited
-                  automatically once final, usually within a minute. Minimum 0.001 SOL; the network fee is deducted.
+                <p className="fine" style={{ marginTop: 10 }}>
+                  Send devnet SOL here. It is credited automatically, usually within a minute (minimum 0.001 SOL).
                 </p>
               )}
             </>
           )}
           <div className="wallet-actions">
-            <button className="btn btn-primary" disabled={busy} onClick={() => void deposit()}>
-              <RefreshCw />
-              Check deposit now
-            </button>
+            {data.address && (
+              <button
+                className="btn btn-primary"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(data.address!);
+                    setCopied(true);
+                  } catch {
+                    setError("Select and copy the address above.");
+                  }
+                }}
+              >
+                {copied ? <Check /> : <Copy />}
+                {copied ? "Copied" : "Copy address"}
+              </button>
+            )}
             <button
               className="btn"
               disabled={busy || data.balance <= 0}
@@ -285,59 +276,36 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
               }}
             >
               <ArrowUpFromLine />
-              {treasury ? "Withdraw from treasury" : "Withdraw test SOL"}
+              {treasury ? "Withdraw from treasury" : "Withdraw"}
             </button>
+            {treasury && (
+              <button className="btn" disabled={busy} onClick={() => void deposit()}>
+                <RefreshCw />
+                Check deposit now
+              </button>
+            )}
           </div>
-          <p className="fine">
-            Withdrawal amounts plus network fees are reserved immediately. If a transaction expires without landing, the full reserved amount returns
-            automatically.
-          </p>
           {data.transfers.length > 0 && (
-            <div className="table-card" style={{ marginTop: 25 }}>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Transfer</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Network fee</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Details</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.transfers.map((t) => (
-                    <TableRow key={t.id}>
-                      <TableCell>
-                        {TRANSFER_LABELS[t.kind] ?? t.kind}
-                        <div className="fine">{new Date(t.created).toLocaleString()}</div>
-                      </TableCell>
-                      <TableCell>{fullSol(t.amount)}</TableCell>
-                      <TableCell>{fullSol(t.fee)}</TableCell>
-                      <TableCell>
-                        <b className={t.status === "finalized" ? "lime" : ""}>{STATUS_LABELS[t.status] ?? t.status}</b>
-                        {t.error && !isOpen(t) && (
-                          <p className="fine" style={{ maxWidth: 250, whiteSpace: "normal" }}>
-                            {t.error}
-                          </p>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="row-actions">
-                          <a className="btn" href={explorer("tx", t.signature)} target="_blank" rel="noreferrer" aria-label="View transaction">
-                            <ExternalLink />
-                          </a>
-                          {isOpen(t) && (
-                            <button className="btn" disabled={busy} onClick={() => void act({ action: "reconcile", id: t.id })}>
-                              Recheck
-                            </button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <ul className="transfer-list">
+              {data.transfers.map((t) => (
+                <li key={t.id}>
+                  <div>
+                    <b>{TRANSFER_LABELS[t.kind] ?? t.kind}</b>
+                    <span className="fine">{shortDate(t.created)}</span>
+                  </div>
+                  <strong className={t.kind === "deposit" ? "lime" : ""}>
+                    {t.kind === "deposit" ? "+" : "−"}
+                    {fullSol(t.amount)} SOL
+                  </strong>
+                  <span className={`transfer-status ${t.status}`} title={t.error ?? undefined}>
+                    {STATUS_LABELS[t.status] ?? t.status}
+                  </span>
+                  <a href={explorer("tx", t.signature)} target="_blank" rel="noreferrer" aria-label="View transaction on explorer">
+                    <ExternalLink size={15} />
+                  </a>
+                </li>
+              ))}
+            </ul>
           )}
           {!treasury && !!data.tips?.length && (
             <section style={{ marginTop: 25 }}>
