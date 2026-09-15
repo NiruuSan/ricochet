@@ -1,33 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Lock, RefreshCw } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { AdminOverview, PeriodTotals } from "@/lib/api-types";
+import { Lock } from "lucide-react";
+import type { AdminOverview } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
-import { FundedWallet, fullSol } from "../funded-wallet";
+import { FundedWallet } from "../funded-wallet";
 import { units } from "../format";
 import type { PlayerState } from "../arena";
+import { AdminVolume } from "./volume-chart";
 
 const REFRESH_MS = 15_000;
-const PERIODS = [
-  ["day", "24 hours"],
-  ["week", "7 days"],
-  ["month", "30 days"],
-] as const;
-
-function VolumeRow({ label, totals, format }: { label: string; totals: PeriodTotals; format: (value: number) => string }) {
-  return (
-    <TableRow>
-      <TableCell>{label}</TableCell>
-      {PERIODS.map(([key]) => (
-        <TableCell key={key}>
-          <b>{format(totals[key])}</b>
-        </TableCell>
-      ))}
-    </TableRow>
-  );
-}
 
 export function AdminView({ player }: { player: PlayerState }) {
   const { data, loaded } = player;
@@ -64,9 +46,7 @@ export function AdminView({ player }: { player: PlayerState }) {
     );
   }
 
-  const solAmount = (value: number) => `${fullSol(value)} SOL`;
   const count = (value: number) => units(value, "gems");
-  const gemAmount = (value: number) => `${units(value, "gems")} gems`;
 
   return (
     <section className="subpage">
@@ -113,60 +93,7 @@ export function AdminView({ player }: { player: PlayerState }) {
       )}
       <p className="fine">Online means active in the last minute. Open pages check in every 15 seconds.</p>
 
-      <h2 style={{ margin: "35px 0 20px" }}>Volume</h2>
-      <div className="table-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Devnet SOL</TableHead>
-              {PERIODS.map(([key, label]) => (
-                <TableHead key={key}>{label}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {overview ? (
-              <>
-                <VolumeRow label="Staked in matches" totals={overview.devnet.entries} format={solAmount} />
-                <VolumeRow label="Matches created" totals={overview.devnet.matches} format={count} />
-                <VolumeRow label="Player deposits" totals={overview.devnet.deposits} format={solAmount} />
-                <VolumeRow label="Player withdrawals" totals={overview.devnet.withdrawals} format={solAmount} />
-                <VolumeRow label="House fees earned" totals={overview.devnet.fees} format={solAmount} />
-              </>
-            ) : (
-              <TableRow>
-                <TableCell colSpan={4}>
-                  <RefreshCw size={14} className="spin" /> Loading…
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <div className="table-card" style={{ marginTop: 18 }}>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Gems</TableHead>
-              {PERIODS.map(([key, label]) => (
-                <TableHead key={key}>{label}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {overview && (
-              <>
-                <VolumeRow label="Staked in matches" totals={overview.gems.entries} format={gemAmount} />
-                <VolumeRow label="Matches created" totals={overview.gems.matches} format={count} />
-                <VolumeRow label="House fees" totals={overview.gems.fees} format={gemAmount} />
-              </>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      <p className="fine" style={{ marginTop: 12 }}>
-        Rolling windows ending now. Deposits and withdrawals count once confirmed on-chain.
-      </p>
+      <AdminVolume overview={overview} />
 
       <h2 style={{ marginTop: 35 }}>Treasury</h2>
       <FundedWallet treasury />

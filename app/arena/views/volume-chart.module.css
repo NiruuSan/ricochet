@@ -1,0 +1,32 @@
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 35px 0 20px; }
+.heading h2 { margin: 0; }
+.periods { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--background); }
+.periods button { padding: 9px 16px; border-radius: 8px; color: var(--muted-foreground); font-size: 13px; font-weight: 700; cursor: pointer; }
+.periods button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); }
+.card { padding: 24px; margin-top: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); min-width: 0; }
+.card h3 { margin: 0 0 18px; font-size: 17px; }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.metrics button { text-align: left; padding: 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; min-width: 0; }
+.metrics button span { display: block; color: var(--muted-foreground); font-size: 12px; }
+.metrics button b { display: block; margin-top: 8px; font-size: 16px; overflow-wrap: anywhere; }
+.metrics button[aria-pressed="true"] { border-color: var(--primary); background: #c6f5640a; }
+.metrics button[aria-pressed="true"] b { color: var(--primary); }
+.metrics button:hover, .periods button:hover { background: var(--accent); }
+.periods button[aria-pressed="true"]:hover { background: var(--primary); }
+.metrics button:focus-visible, .periods button:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }
+.caption { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 26px; font-size: 13px; }
+.caption span, .detail { color: var(--muted-foreground); font-size: 12px; }
+.detail { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; min-height: 38px; margin-top: 12px; }
+.detail b { color: var(--foreground); }
+.scroll { overflow-x: auto; }
+.chart { display: block; width: 100%; min-width: 540px; color: var(--primary); }
+.grid { stroke: var(--border); stroke-dasharray: 3 5; }
+.axis { fill: var(--muted-foreground); font-size: 11px; }
+.target { fill: transparent; cursor: crosshair; }
+.target:focus { outline: none; stroke: var(--primary); stroke-width: 1; }
+.loading { min-height: 250px; display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted-foreground); }
+@media (max-width: 600px) {
+  .card { padding: 16px; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .periods button { padding: 9px 13px; }
+}

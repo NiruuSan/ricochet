@@ -197,8 +197,34 @@ const gemEntries = sqlite.prepare("SELECT -SUM(amount) AS n FROM ledger WHERE ki
 assert.equal(overview.gems.entries.month, gemEntries);
 assert.equal(overview.devnet.entries.day, 1_000_000_000);
 assert.equal(overview.devnet.fees.week, 120_000_000);
+for (const asset of ["gems", "devnet"]) {
+  for (const volume of Object.values(overview[asset])) {
+    for (const [period, length] of [["day", 24], ["week", 7], ["month", 30]]) {
+      assert.equal(volume.series[period].length, length);
+      assert.equal(volume.series[period].reduce((sum, point) => sum + point.value, 0), volume[period], "Chart points reconcile to each metric total");
+      assert.equal(volume.series[period].at(-1).end, overview.generated);
+    }
+  }
+}
+
+// Include the start of each rolling window and now, excluding old and future rows.
+const chartNow = overview.generated;
+const DAY = 86_400_000;
+const boundaryTimes = [chartNow - 30 * DAY - 1, chartNow - 30 * DAY, chartNow - 7 * DAY - 1,
+  chartNow - 7 * DAY, chartNow - DAY - 1, chartNow - DAY, chartNow, chartNow + 1];
+for (const [i, created] of boundaryTimes.entries()) {
+  sqlite.prepare("INSERT INTO matches(id, seed, stake, p1, created) VALUES(?, 1, 25, ?, ?)").run(`chart-boundary-${i}`, ALICE, created);
+}
+const chartOverview = await adminOverview(chartNow);
+for (const [period, added] of [["day", 2], ["week", 4], ["month", 6]]) {
+  const volume = chartOverview.gems.matches;
+  assert.equal(volume[period] - overview.gems.matches[period], added, `${period} window boundaries`);
+  assert.equal(volume.series[period].reduce((sum, point) => sum + point.value, 0), volume[period]);
+  assert.equal(volume.series[period][0].value - overview.gems.matches.series[period][0].value, 1, "Start boundary enters the first bucket");
+}
 const later = await adminOverview(t0 + 40 * 86_400_000);
 assert.deepEqual([later.gems.entries.month, later.devnet.entries.month, later.players.online], [0, 0, 0], "Old activity leaves the rolling windows");
+assert.ok(later.gems.matches.series.month.every((point) => point.value === 0), "Empty intervals are zero-filled");
 assert.ok(!JSON.stringify(overview).includes("user-"), "The overview carries no player IDs");
 
 // Fixed-window rate limiting.

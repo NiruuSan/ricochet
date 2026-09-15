@@ -90,11 +90,13 @@ export type Transfer = {
 
 export type Period = "day" | "week" | "month";
 export type PeriodTotals = Record<Period, number>;
+export type VolumePoint = { start: number; end: number; value: number };
+export type VolumeTotals = PeriodTotals & { series: Record<Period, VolumePoint[]> };
 
 export type AdminOverview = {
   players: { registered: number; online: number; offline: number; onlineNames: { name: string; avatar: string | null }[] };
-  devnet: { entries: PeriodTotals; matches: PeriodTotals; deposits: PeriodTotals; withdrawals: PeriodTotals; fees: PeriodTotals };
-  gems: { entries: PeriodTotals; matches: PeriodTotals; fees: PeriodTotals };
+  devnet: { entries: VolumeTotals; matches: VolumeTotals; deposits: VolumeTotals; withdrawals: VolumeTotals; fees: VolumeTotals };
+  gems: { entries: VolumeTotals; matches: VolumeTotals; fees: VolumeTotals };
   generated: number;
 };
 
