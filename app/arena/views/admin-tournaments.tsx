@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { PAYOUT_SHARES, TOURNAMENT_FEE_PERCENT, type AdminTournament, type Asset, type PayoutPreset } from "@/lib/api-types";
 import { request } from "../api";
 import { amount } from "../format";
@@ -202,8 +202,13 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
     };
   }, [load]);
 
-  const act = async (action: "cancel" | "close", t: AdminTournament) => {
-    const question = action === "cancel" ? `Cancel “${t.name}”? Every entry is refunded.` : `End “${t.name}” now and pay out the current standings?`;
+  const act = async (action: "cancel" | "close" | "delete", t: AdminTournament) => {
+    const question =
+      action === "cancel"
+        ? `Cancel “${t.name}”? Every entry is refunded.`
+        : action === "close"
+          ? `End “${t.name}” now and pay out the current standings?`
+          : `Delete “${t.name}” permanently? It disappears from the tournament list, player histories and replays. Payouts, refunds and balances are kept. This cannot be undone.`;
     if (!window.confirm(question)) return;
     setBusy(t.id);
     setError("");
@@ -267,6 +272,11 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
               {(t.status === "registration" || t.status === "live") && (
                 <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy === t.id} onClick={() => void act("cancel", t)}>
                   Cancel
+                </button>
+              )}
+              {(t.status === "settled" || t.status === "cancelled") && (
+                <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy === t.id} onClick={() => void act("delete", t)}>
+                  <Trash2 size={15} /> {busy === t.id ? "Deleting…" : "Delete"}
                 </button>
               )}
             </div>

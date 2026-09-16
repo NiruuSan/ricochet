@@ -471,6 +471,29 @@ export async function cancelTournament(idInput: unknown, now = Date.now()) {
   await db.batch(ops);
 }
 
+/**
+ * Administrator: permanently deletes a finished or cancelled tournament, with
+ * its entries, replay shots and result notifications. Ledger rows are kept, so
+ * balances and accounting are unchanged. The deletion is recorded in the admin
+ * audit log. Live or upcoming tournaments must be cancelled or ended first.
+ */
+export async function deleteTournament(adminUid: string, idInput: unknown, now = Date.now()) {
+  const id = String(idInput ?? "");
+  const t = await loadTournament(id);
+  if (t.status === "scheduled") throw new GameError("Cancel or end this tournament before deleting it.", 409);
+  const db = database();
+  const [, , , deleted] = await db.batch([
+    db.prepare("DELETE FROM run_shots WHERE run_key IN (SELECT 't-' || id FROM tournament_entries WHERE tournament_id = ?)").bind(id),
+    db.prepare("DELETE FROM notifications WHERE id IN (SELECT 'tournament:' || id || ':result' FROM tournament_entries WHERE tournament_id = ?)").bind(id),
+    db.prepare("DELETE FROM tournament_entries WHERE tournament_id = ?").bind(id),
+    db.prepare("DELETE FROM tournaments WHERE id = ? AND status IN ('settled', 'cancelled')").bind(id),
+    db
+      .prepare("INSERT INTO admin_audit(id, admin_id, action, target_user_id, reason, created) VALUES(?, ?, 'tournament_delete', ?, ?, ?)")
+      .bind(crypto.randomUUID(), adminUid, id, `Deleted tournament "${t.name}" (${t.status})`, now),
+  ]);
+  if (!deleted.meta.changes) throw new GameError("Tournament not found.", 404);
+}
+
 /** Administrator: ends a live or upcoming tournament now and pays it out. */
 export async function closeTournamentNow(idInput: unknown, now = Date.now()) {
   const id = String(idInput ?? "");

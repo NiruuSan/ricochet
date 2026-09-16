@@ -3,7 +3,7 @@ import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
 import { PaymentError } from "@/lib/payments/errors";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
-import { adminTournaments, cancelTournament, closeTournamentNow, createTournament } from "@/lib/tournaments";
+import { adminTournaments, cancelTournament, closeTournamentNow, createTournament, deleteTournament } from "@/lib/tournaments";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +29,7 @@ export async function POST(req: Request) {
     if (b.action === "create") return json({ id: await createTournament(b) });
     if (b.action === "cancel") return json({ ok: await cancelTournament(b.id).then(() => true) });
     if (b.action === "close") return json({ ok: await closeTournamentNow(b.id).then(() => true) });
+    if (b.action === "delete") return json({ ok: await deleteTournament(user.userId, b.id).then(() => true) });
     return json({ error: "Unknown action." }, 400);
   } catch (e) {
     if (e instanceof GameError) return json({ error: e.message }, e.status);

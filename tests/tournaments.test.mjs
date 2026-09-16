@@ -234,8 +234,29 @@ try {
   assert.equal(cash(`escrow:tournament:${odd}`), 0);
   assert.equal(totalCash(), oddTotal, "Three-player settlement conserves SOL");
 
+  // Deleting: only finished or cancelled tournaments; ledger rows stay, everything else goes.
+  await assert.rejects(() => t.deleteTournament("admin-user", waiting, now), /Cancel or end/, "A running tournament cannot be deleted");
+  const paidLedger = sqlite.prepare("SELECT COUNT(*) AS n FROM cash_ledger WHERE reference = ?").get(paidId).n;
+  const catCashBefore = cash("u-cat");
+  const paidEntryIds = sqlite.prepare("SELECT id FROM tournament_entries WHERE tournament_id = ?").all(paidId).map((r) => r.id);
+  sqlite.prepare("INSERT OR IGNORE INTO run_shots(run_key, revision, angle, created) VALUES(?, 0, 90, 0)").run(`t-${paidEntryIds[0]}`);
+  await t.deleteTournament("admin-user", paidId, end);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM tournaments WHERE id = ?").get(paidId).n, 0);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM tournament_entries WHERE tournament_id = ?").get(paidId).n, 0);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM run_shots WHERE run_key = ?").get(`t-${paidEntryIds[0]}`).n, 0);
+  assert.equal(sqlite.prepare(`SELECT COUNT(*) AS n FROM notifications WHERE id IN (${paidEntryIds.map(() => "?").join(",")})`).get(...paidEntryIds.map((e) => `tournament:${e}:result`)).n, 0);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM cash_ledger WHERE reference = ?").get(paidId).n, paidLedger, "Ledger rows are kept");
+  assert.equal(cash("u-cat"), catCashBefore, "Balances do not change");
+  assert.ok(!(await t.adminTournaments(end)).some((x) => x.id === paidId));
+  await assert.rejects(() => t.tournamentDetail("u-cat", paidId, end), /not found/);
+  const audit = sqlite.prepare("SELECT admin_id, action, target_user_id, reason FROM admin_audit WHERE action = 'tournament_delete'").get();
+  assert.deepEqual([audit.admin_id, audit.target_user_id, audit.reason], ["admin-user", paidId, 'Deleted tournament "Friday Cup" (settled)']);
+  await assert.rejects(() => t.deleteTournament("admin-user", paidId, end), /not found/, "Deleting twice is a clean 404");
+  await t.deleteTournament("admin-user", freeSol, end);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM tournaments WHERE id = ?").get(freeSol).n, 0, "Cancelled tournaments can be deleted too");
+
   console.log(
-    "PASS: prize presets and splits (fewer players, ties, dust), validation, capacity, one entry each, registration and play windows, same-board runs, conserved SOL with the 12% house share, tie payouts, notifications without player IDs, free gem prizes, refunds when nobody plays, house-funded SOL prizes and idempotent cancellation, early close, automatic end once every entrant has finished, tournament entries in match history and profile PNL.",
+    "PASS: prize presets and splits (fewer players, ties, dust), validation, capacity, one entry each, registration and play windows, same-board runs, conserved SOL with the 12% house share, tie payouts, notifications without player IDs, free gem prizes, refunds when nobody plays, house-funded SOL prizes and idempotent cancellation, early close, admin deletion of finished tournaments (ledger kept, audited), automatic end once every entrant has finished, tournament entries in match history and profile PNL.",
   );
 } finally {
   close();

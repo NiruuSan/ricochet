@@ -18,6 +18,7 @@ export async function adminTwoFactorLookup(name = "", now = Date.now()): Promise
       COALESCE(admin.name, 'Administrator') AS adminName, COALESCE(target.name, 'Former player') AS playerName
     FROM admin_audit a LEFT JOIN players admin ON admin.id = a.admin_id
     LEFT JOIN players target ON target.id = a.target_user_id
+    WHERE a.action <> 'tournament_delete'
     ORDER BY a.created DESC, a.id DESC LIMIT 30`).all<AdminSecuritySnapshot["recent"][number]>();
   let result: AdminSecuritySnapshot["player"] = null;
   if (player) {
