@@ -1,6 +1,6 @@
 import { adminId, database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulate, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
-import type { Asset, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
+import type { Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
@@ -171,7 +171,23 @@ export async function settleFinishedMatches(uid: string) {
   for (const { match_id } of pending.results) await settle(match_id);
 }
 
-function netResult(result: MatchResult | null, stake: number, fee: number) {
+/** Open seats another player could take right now, by currency and entry. Excludes the viewer's own matches. */
+export async function openSeats(viewer: string | null) {
+  const rulesets = SUPPORTED_RULESETS.map(Number).join(", ");
+  const { results } = await database()
+    .prepare(
+      `SELECT asset, stake, COUNT(*) AS n FROM matches
+       WHERE p2 IS NULL AND settled = 0 AND p1 <> COALESCE(?, '') AND ruleset IN (${rulesets}) AND ${JOINABLE}
+       GROUP BY asset, stake`,
+    )
+    .bind(viewer)
+    .all<{ asset: Asset; stake: number; n: number }>();
+  const seats: Record<Asset, Record<number, number>> = { gems: {}, devnet: {} };
+  for (const row of results) seats[row.asset][row.stake] = row.n;
+  return seats;
+}
+
+export function netResult(result: MatchResult | null, stake: number, fee: number) {
   switch (result) {
     case "win":
       return stake - fee;
@@ -200,23 +216,29 @@ export async function touchPlayer(uid: string, now = Date.now()) {
   await database().prepare("UPDATE players SET last_seen = ? WHERE id = ? AND last_seen < ?").bind(now, uid, now - 20_000).run();
 }
 
-export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
-  const db = database();
-  await settleFinishedMatches(uid);
-  const leaderQuery =
+/** Top 50 players by settled match P&L in one currency. `viewer` only marks the viewer's own row; it may be null. */
+export async function leaderboard(viewer: string | null, asset: Asset): Promise<Leader[]> {
+  const sql =
     asset === "gems"
-      ? `SELECT p.name, p.avatar, p.id = ? AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games
+      ? `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games
          FROM players p
          JOIN ledger l ON l.user_id = p.id
          JOIN matches m ON m.id = l.match_id AND m.settled = 1 AND m.asset = 'gems'
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`
-      : `SELECT p.name, p.avatar, p.id = ? AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games
+      : `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games
          FROM players p
          JOIN cash_accounts a ON a.user_id = p.id AND a.network = 'devnet'
          JOIN cash_ledger l ON l.account_id = a.id
          JOIN matches m ON m.id = l.reference AND m.settled = 1 AND m.asset = 'devnet'
          WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund')
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
+  const { results } = await database().prepare(sql).bind(viewer).all<Leader>();
+  return results.map((l) => ({ ...l, avatar: avatarUrl(l.avatar) }));
+}
+
+export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
+  const db = database();
+  await settleFinishedMatches(uid);
   const [player, history, transactions, leaders, active, cash, inbox, tournaments] = await Promise.all([
     db.prepare("SELECT public_id AS publicId, name, balance, avatar, created FROM players WHERE id = ?").bind(uid).first<Profile>(),
     db
@@ -243,7 +265,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
       .bind(uid, asset)
       .all<Omit<MatchSummary, "net"> & { fee: number }>(),
     db.prepare("SELECT kind, amount, created FROM ledger WHERE user_id = ? ORDER BY created DESC LIMIT 50").bind(uid).all<Snapshot["transactions"][number]>(),
-    db.prepare(leaderQuery).bind(uid).all<Snapshot["leaders"][number]>(),
+    leaderboard(uid, asset),
     activeRun(uid),
     db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(uid)).first<{ balance: number }>(),
     listNotifications(uid),
@@ -257,7 +279,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     player: player && { ...player, avatar: avatarUrl(player.avatar) },
     matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
     transactions: transactions.results,
-    leaders: leaders.results.map((l) => ({ ...l, avatar: avatarUrl(l.avatar) })),
+    leaders,
     active,
     isAdmin: !!admin && uid === admin,
     notifications: inbox.items,

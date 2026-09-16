@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset } from "@/lib/api-types";
 import { EMPTY_PLAYER, loadPlayer, type PlayerData } from "./api";
 
@@ -8,7 +8,13 @@ const POLL_MS = 15_000;
 /** The signed-in player's snapshot for the selected currency, kept fresh while they have a profile. */
 export function usePlayerData() {
   // Devnet SOL comes first; players fall back to gems only where Solana is not configured.
-  const [asset, setAsset] = useState<Asset>("devnet");
+  const [asset, setAssetState] = useState<Asset>("devnet");
+  // Only the default choice falls back to gems; a tab the player picks stays picked.
+  const chosenRef = useRef(false);
+  const setAsset = useCallback((next: Asset) => {
+    chosenRef.current = true;
+    setAssetState(next);
+  }, []);
   const [data, setData] = useState<PlayerData>(EMPTY_PLAYER);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState("");
@@ -17,7 +23,7 @@ export function usePlayerData() {
     try {
       const next = await loadPlayer(asset);
       setData({ ...EMPTY_PLAYER, ...next });
-      if (asset === "devnet" && next.launch && !next.launch.configured) setAsset("gems");
+      if (asset === "devnet" && next.launch && !next.launch.configured && !chosenRef.current) setAssetState("gems");
       return next;
     } catch (e) {
       setError((e as Error).message);

@@ -143,8 +143,36 @@ try {
   await t.playTournamentShot(BEN, benRun.id.slice(2), 0, "forfeit", undefined, true, now);
   assert.equal((await watchRun(BEN, annTournamentWatch, 0, now)).player.name, "Ann");
 
+  // The arena lobby: next tournament, last games, open seats, best run and live runs.
+  const { arenaOverview } = await import("../lib/arena.ts");
+  const catArena = await arenaOverview(CAT, now);
+  assert.equal(catArena.tournament.name, "Watch Cup", "A live tournament you still have to play comes first");
+  assert.equal(catArena.openSeats.gems[50], 1, "Dom's open seat is waiting for a rival");
+  assert.deepEqual((await arenaOverview(DOM, now)).openSeats.gems, {}, "Your own open seat is not counted");
+  assert.ok(catArena.bestToday && catArena.bestToday.score > 0);
+  noIds(catArena, "The arena overview");
+  const annArena = await arenaOverview(ANN, now);
+  const annMatch = annArena.recent.find((g) => g.kind === "match");
+  assert.equal(annMatch.title, "Ben");
+  assert.ok(["win", "loss", "draw"].includes(annMatch.outcome));
+  assert.equal(typeof annMatch.net, "number");
+  assert.equal(annMatch.watchId, annWatch);
+  const domRecent = (await arenaOverview(DOM, now)).recent.find((g) => g.id === lone.match_id);
+  assert.deepEqual([domRecent.title, domRecent.outcome, domRecent.net], ["Open seat", "waiting", null], "An open seat is still waiting");
+  const benCup = (await arenaOverview(BEN, now)).recent.find((g) => g.kind === "tournament");
+  assert.deepEqual([benCup.title, benCup.outcome, benCup.rank], ["Watch Cup", "waiting", null], "A finished run in a live tournament awaits results");
+  assert.deepEqual((await arenaOverview(null, now)).recent, [], "Visitors have no results");
+
+  // Visitors see the same leaderboard, with no row marked as theirs and no player IDs.
+  const publicBoard = await matches.leaderboard(null, "gems");
+  const annBoard = await matches.leaderboard(ANN, "gems");
+  assert.ok(publicBoard.length >= 2 && publicBoard.every((row) => row.is_you === 0));
+  assert.deepEqual(publicBoard.map((row) => [row.name, row.pnl]), annBoard.map((row) => [row.name, row.pnl]));
+  assert.equal(annBoard.find((row) => row.name === "Ann").is_you, 1);
+  noIds(publicBoard, "The public leaderboard");
+
   console.log(
-    "PASS: shot log for match and tournament runs (shots, forfeits, stale shots), replays match the server board, open seats hidden, players still on a seed limited to their own run, side switching, polling from a revision, live list rules, history and standings watch links, no player IDs.",
+    "PASS: public leaderboard for visitors. arena overview (tournament pick, last games, open seats, best run). shot log for match and tournament runs (shots, forfeits, stale shots), replays match the server board, open seats hidden, players still on a seed limited to their own run, side switching, polling from a revision, live list rules, history and standings watch links, no player IDs.",
   );
 } finally {
   close();

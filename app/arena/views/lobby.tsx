@@ -1,13 +1,12 @@
 "use client";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Gem, Medal, Target, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Gem, Target, Zap } from "lucide-react";
 import { STAKES, winnerPayout, type Asset } from "@/lib/api-types";
 import { amount, CURRENCY, units } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./screens.module.css";
-import { TournamentCard, useTournaments } from "./tournaments-view";
-import tournamentStyles from "./tournaments.module.css";
-import { LiveNow } from "./live-now";
+import { ArenaDashboard, useArenaOverview } from "./arena-dashboard";
+import dashboard from "./arena-dashboard.module.css";
 
 export type LobbyChoice = "practice" | Asset;
 
@@ -19,17 +18,18 @@ type Props = {
   setStakeIndex: (index: number) => void;
   onFindMatch: (asset: Asset, stake: number) => void;
   busy: boolean;
+  /** Opens the recap of one of the player's matches. */
+  onOpenMatch: (matchId: string) => void;
 };
 
 /** Step one: how to play. Step two, for a 1v1: the entry. */
-export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onFindMatch, busy }: Props) {
+export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onFindMatch, busy, onOpenMatch }: Props) {
   const { data } = player;
   const solConfigured = !!data.launch?.configured;
   const balance = (asset: Asset) => (asset === "gems" ? (data.player?.balance ?? 0) : (data.cashBalance ?? 0));
   const stake = choice ? STAKES[choice][stakeIndex] : 0;
   const affordable = choice ? balance(choice) >= stake : false;
-  const { tournaments, now } = useTournaments();
-  const featured = (tournaments ?? []).filter((t) => t.status === "live" || t.status === "registration").slice(0, 3);
+  const { overview, now } = useArenaOverview();
 
   return (
     <section className={styles.lobby}>
@@ -93,7 +93,10 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
             {STAKES[choice].map((s, i) => (
               <button key={s} className={styles.stakeChoice} aria-pressed={i === stakeIndex} onClick={() => setStakeIndex(i)}>
                 {units(s, choice)}
-                <small>{CURRENCY[choice].toUpperCase()}</small>
+                <small>
+                  {CURRENCY[choice].toUpperCase()}
+                  {!!overview?.openSeats[choice][s] && <span className={dashboard.waiting} title="A rival is waiting at this entry: your match starts right away" />}
+                </small>
               </button>
             ))}
           </div>
@@ -135,25 +138,7 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
         </div>
       )}
 
-      {featured.length > 0 && (
-        <div className={tournamentStyles.section}>
-          <div className={styles.stakeTop}>
-            <h2 style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <Medal size={20} className="lime" /> Tournaments
-            </h2>
-            <Link className="lime" href="/tournaments">
-              All tournaments <ArrowRight size={14} style={{ verticalAlign: -2 }} />
-            </Link>
-          </div>
-          <div className={tournamentStyles.grid} style={{ marginTop: 14 }}>
-            {featured.map((t) => (
-              <TournamentCard key={t.id} t={t} now={now} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <LiveNow />
+      {!choice && <ArenaDashboard overview={overview} now={now} signedIn={!!data.player} onOpenMatch={onOpenMatch} />}
     </section>
   );
 }

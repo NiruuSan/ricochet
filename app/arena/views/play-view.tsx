@@ -154,6 +154,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           setStakeIndex={setStakeIndex}
           onFindMatch={(asset, stake) => void findMatch(asset, stake)}
           busy={busy || !!intro}
+          onOpenMatch={setRecapMatchId}
         />
       ) : (
         <section className={styles.game}>

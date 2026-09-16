@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Gamepad2, HelpCircle, History, Landmark, Medal, Trophy, Wallet, X, Zap } from "lucide-react";
+import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, Medal, Trophy, Wallet, X, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, GemIcon } from "./avatar";
 import { units } from "./format";
@@ -29,7 +29,6 @@ export type PlayerState = ReturnType<typeof usePlayerData>;
 const NAVIGATION = [
   { href: "/", view: "play", label: "Arena", Icon: Gamepad2 },
   { href: "/tournaments", view: "tournaments", label: "Tournaments", Icon: Medal },
-  { href: "/matches", view: "matches", label: "My matches", Icon: History },
   { href: "/leaderboard", view: "leaderboard", label: "Leaderboard", Icon: Trophy },
   { href: "/faq", view: "faq", label: "How to play", Icon: HelpCircle },
 ];

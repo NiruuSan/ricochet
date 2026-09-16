@@ -2,7 +2,7 @@ import { currentUser } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import type { Asset } from "@/lib/api-types";
 import { json, readBody, sameOrigin } from "@/lib/http";
-import { GameError, playerSnapshot, playShot, startMatch, touchPlayer } from "@/lib/matches";
+import { GameError, leaderboard, playerSnapshot, playShot, startMatch, touchPlayer } from "@/lib/matches";
 import { settings } from "@/lib/payments/accounts";
 import { PaymentError } from "@/lib/payments/errors";
 import { launchStatus } from "@/lib/payments/policy";
@@ -16,7 +16,8 @@ export async function GET(req: Request) {
   try {
     const asset: Asset = new URL(req.url).searchParams.get("asset") === "devnet" ? "devnet" : "gems";
     const user = await currentUser();
-    if (!user) return json({ authenticated: false });
+    // Visitors can browse the leaderboard and see whether Solana matches are available.
+    if (!user) return json({ authenticated: false, launch: launchStatus(settings()), leaders: await leaderboard(null, asset) });
     // Tournaments that ended are paid out here too, so results reach players who never open the tournament page.
     const [limited] = await Promise.all([rateLimited("gameRead", user.userId), touchPlayer(user.userId), settleDueTournaments()]);
     if (limited) return json({ error: TOO_MANY_REQUESTS }, 429);

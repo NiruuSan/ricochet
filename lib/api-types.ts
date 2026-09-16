@@ -328,4 +328,38 @@ export type LiveGame = {
   context: string;
 };
 
+/** One of the player's recently finished games, for the arena. */
+export type RecentGame = {
+  kind: "match" | "tournament";
+  /** The match ID, or the tournament ID. */
+  id: string;
+  asset: Asset;
+  /** The opponent's name, or the tournament name. */
+  title: string;
+  avatar: string | null;
+  /** "waiting" until the opponent finishes or the tournament closes. */
+  outcome: "win" | "loss" | "draw" | "cancelled" | "waiting";
+  rank: number | null;
+  players: number | null;
+  score: number;
+  opponentScore: number | null;
+  net: number | null;
+  watchId: string | null;
+  at: number;
+};
+
+/** The best run started in the last 24 hours. */
+export type BestRun = { name: string; avatar: string | null; score: number; asset: Asset; context: string; watchId: string };
+
+/** Everything the arena lobby shows below the game modes. */
+export type ArenaOverview = {
+  tournament: TournamentSummary | null;
+  recent: RecentGame[];
+  online: number;
+  /** Open seats by currency and entry, not counting the viewer's own. */
+  openSeats: Record<Asset, Record<number, number>>;
+  bestToday: BestRun | null;
+  live: LiveGame[];
+};
+
 export type AdminTournament = TournamentSummary & { played: number; finished: number };
