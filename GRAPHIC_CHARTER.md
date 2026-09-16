@@ -150,7 +150,21 @@ Bricks — each color has a light face and a dark shade:
 
 The match intro particles (`match-intro.tsx`) reuse the six brick colors.
 
-### 3.6 Third-party brand colors (sign-in buttons)
+### 3.6 Rank colors (`app/arena/rank-badge.module.css`)
+
+Shield emblem in the tier color with a dark outline; divisions shown as I, II, III. Bouncer uses the Bounce icon.
+
+| Tier | Color | Outline |
+|---|---|---|
+| Iron | `#aeb7c4` | `#4f5968` |
+| Bronze | `#d4ad83` | `#7b5a3a` |
+| Silver | `#dfe6f1` | `#7a8698` |
+| Gold | `#ffd17b` | `#a58042` |
+| Platinum | `#68d9d6` | `#368887` |
+| Diamond | `#9fccfc` | `#5b7fac` |
+| Bouncer | `#c6f564` | `#718e35` |
+
+### 3.7 Third-party brand colors (sign-in buttons)
 
 | Brand | Colors |
 |---|---|

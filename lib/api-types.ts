@@ -1,6 +1,9 @@
 // Response shapes and game economics shared by the API routes and the browser
 // client. Nothing here may carry another player's platform user ID.
 import type { Game } from "./engine";
+import type { PlayerLevel } from "./levels";
+
+export type { PlayerLevel, RankTier } from "./levels";
 
 /** `gems` is the free in-game currency; `devnet` is Solana test-network SOL, in lamports. */
 export type Asset = "gems" | "devnet";
@@ -63,7 +66,7 @@ export type MatchSummary = {
   net: number;
 };
 
-export type Leader = { name: string; avatar: string | null; is_you: number; pnl: number; games: number };
+export type Leader = { name: string; avatar: string | null; is_you: number; pnl: number; games: number; level: PlayerLevel };
 
 export type LaunchStatus = { mode: string; configured: boolean; mainnetEnabled: boolean; message: string };
 
@@ -74,6 +77,8 @@ export type PublicPlayerProfile = {
   avatar: string | null;
   created: number;
   isYou: boolean;
+  /** Rank from devnet SOL wagered; public. */
+  level: PlayerLevel;
   stats: Record<Asset, { pnl: number; games: number; wins: number }>;
 };
 export type TipReceipt = { id: string; amount: number; recipient: string; created: number };

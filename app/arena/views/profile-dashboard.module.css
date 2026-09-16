@@ -20,7 +20,7 @@
 .iconActions { align-self: flex-start; display: flex; gap: 6px; }
 .iconButton { width: 30px; height: 32px; display: grid; place-items: center; border-radius: 7px; color: #cad4e3; }
 .iconButton:hover { background: var(--accent); color: var(--primary); }
-.profileActions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin: 23px 0; }
+.profileActions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin: 18px 0 0; }
 .profileActions > a { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted-foreground); }
 .profileActions .editButton, .editButton { font-size: 12px; color: var(--foreground); background: #222d3d; border: 1px solid #354155; border-radius: 8px; padding: 9px 14px; font-weight: 700; }
 .profileActions :global(.btn) { font-size: 12px; padding: 9px 16px; border-radius: 8px; min-height: 36px; }

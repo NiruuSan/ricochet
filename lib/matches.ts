@@ -1,4 +1,6 @@
 import { adminId, database, type Statement } from "@/db/raw";
+import { wageredSql } from "./experience";
+import { experienceFromWagered, levelFor } from "./levels";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulate, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
 import type { Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
@@ -221,20 +223,20 @@ export async function touchPlayer(uid: string, now = Date.now()) {
 export async function leaderboard(viewer: string | null, asset: Asset): Promise<Leader[]> {
   const sql =
     asset === "gems"
-      ? `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games
+      ? `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id")} AS wagered
          FROM players p
          JOIN ledger l ON l.user_id = p.id
          JOIN matches m ON m.id = l.match_id AND m.settled = 1 AND m.asset = 'gems'
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`
-      : `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games
+      : `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id")} AS wagered
          FROM players p
          JOIN cash_accounts a ON a.user_id = p.id AND a.network = 'devnet'
          JOIN cash_ledger l ON l.account_id = a.id
          JOIN matches m ON m.id = l.reference AND m.settled = 1 AND m.asset = 'devnet'
          WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund')
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
-  const { results } = await database().prepare(sql).bind(viewer).all<Leader>();
-  return results.map((l) => ({ ...l, avatar: avatarUrl(l.avatar) }));
+  const { results } = await database().prepare(sql).bind(viewer).all<Omit<Leader, "level"> & { wagered: number }>();
+  return results.map(({ wagered, ...l }) => ({ ...l, avatar: avatarUrl(l.avatar), level: levelFor(experienceFromWagered(wagered)) }));
 }
 
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {

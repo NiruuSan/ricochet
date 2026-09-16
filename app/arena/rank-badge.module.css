@@ -1,0 +1,24 @@
+/* Player ranks: one colour per tier, set as --rank / --rank-dark. */
+.iron { --rank: #aeb7c4; --rank-dark: #4f5968; }
+.bronze { --rank: #d4ad83; --rank-dark: #7b5a3a; }
+.silver { --rank: #dfe6f1; --rank-dark: #7a8698; }
+.gold { --rank: #ffd17b; --rank-dark: #a58042; }
+.platinum { --rank: #68d9d6; --rank-dark: #368887; }
+.diamond { --rank: #9fccfc; --rank-dark: #5b7fac; }
+.bouncer { --rank: #c6f564; --rank-dark: #718e35; }
+
+.emblem { display: block; flex-shrink: 0; }
+.shield { fill: var(--rank); stroke: var(--rank-dark); stroke-width: 1.2; stroke-linejoin: round; }
+.shine { fill: #ffffff; opacity: .28; }
+.numeral { fill: #0c1018; font: 900 8px Arial, Helvetica, sans-serif; letter-spacing: -.3px; }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px 2px 4px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--rank) 30%, transparent); background: color-mix(in srgb, var(--rank) 10%, transparent); color: var(--rank); font-size: 10px; font-weight: 700; letter-spacing: 0; white-space: nowrap; line-height: 1.4; }
+
+.progress { display: flex; align-items: center; gap: 13px; margin-top: 20px; padding: 12px 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--rank) 22%, #2b3546); background: color-mix(in srgb, var(--rank) 6%, #141c28); }
+.progressBody { flex: 1; min-width: 0; }
+.progressTop { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.progressTop b { color: var(--rank); font-size: 15px; font-weight: 800; letter-spacing: -.2px; }
+.progressTop span { color: var(--muted-foreground); font-size: 11px; white-space: nowrap; }
+.bar { height: 6px; margin: 7px 0 6px; border-radius: 999px; background: #0c1018; overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--rank-dark), var(--rank)); }
+.progress small { display: block; color: #8e9cb1; font-size: 11px; }

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const asset: Asset = new URL(req.url).searchParams.get("asset") === "devnet" ? "devnet" : "gems";
-    const leaders = (await leaderboard(null, asset)).map(({ name, avatar, pnl, games }) => ({ name, avatar, pnl, games }));
+    const leaders = (await leaderboard(null, asset)).map(({ name, avatar, pnl, games, level }) => ({ name, avatar, pnl, games, level }));
     return Response.json(leaders, { headers: { "Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=300" } });
   } catch (e) {
     console.error(e);

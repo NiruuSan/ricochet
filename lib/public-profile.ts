@@ -1,5 +1,6 @@
 import { database } from "@/db/raw";
 import type { Asset, PublicPlayerProfile } from "./api-types";
+import { playerLevel } from "./experience";
 import { avatarUrl, GameError } from "./matches";
 
 type PlayerRow = { id: string; public_id: string; name: string; avatar: string | null; created: number };
@@ -22,7 +23,7 @@ export async function findPlayer(ref: PlayerRef): Promise<PlayerRow> {
 export async function publicProfile(ref: PlayerRef | PlayerRow, viewer?: string): Promise<PublicPlayerProfile> {
   const db = database();
   const player = typeof ref === "object" && "public_id" in ref ? ref : await findPlayer(ref);
-  const [games, gems, devnet] = await Promise.all([
+  const [games, gems, devnet, level] = await Promise.all([
     db.prepare(`SELECT asset, COUNT(*) AS games, SUM(CASE WHEN winner = ? THEN 1 ELSE 0 END) AS wins
       FROM matches WHERE settled = 1 AND (p1 = ? OR p2 = ?) GROUP BY asset`)
       .bind(player.id, player.id, player.id).all<{ asset: Asset; games: number; wins: number }>(),
@@ -34,6 +35,7 @@ export async function publicProfile(ref: PlayerRef | PlayerRow, viewer?: string)
       JOIN matches m ON m.id = l.reference AND m.settled = 1 AND m.asset = 'devnet'
       WHERE a.user_id = ? AND l.kind IN ('match_entry', 'match_payout', 'match_refund')`)
       .bind(player.id).first<{ pnl: number }>(),
+    playerLevel(player.id),
   ]);
   const stats: PublicPlayerProfile["stats"] = {
     gems: { pnl: Number(gems?.pnl ?? 0), games: 0, wins: 0 },
@@ -42,5 +44,5 @@ export async function publicProfile(ref: PlayerRef | PlayerRow, viewer?: string)
   for (const row of games.results) {
     if (row.asset === "gems" || row.asset === "devnet") Object.assign(stats[row.asset], { games: Number(row.games), wins: Number(row.wins) });
   }
-  return { publicId: player.public_id, name: player.name, avatar: avatarUrl(player.avatar), created: player.created, isYou: viewer === player.id, stats };
+  return { publicId: player.public_id, name: player.name, avatar: avatarUrl(player.avatar), created: player.created, isYou: viewer === player.id, level, stats };
 }

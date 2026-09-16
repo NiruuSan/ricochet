@@ -5,6 +5,7 @@ import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Crosshair, Ey
 import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, ProfileStats, PublicPlayerProfile } from "@/lib/api-types";
 import type { PlayerState } from "../arena";
 import { request } from "../api";
+import { RankEmblem, RankProgress } from "../rank-badge";
 import { Avatar } from "../avatar";
 import { fullSol } from "../funded-wallet";
 import { shortId } from "../format";
@@ -202,7 +203,7 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
       <div className={styles.summary}>
         <section className={`${styles.card} ${styles.identityCard}`} aria-label="Player summary">
           <div className={styles.identity}>
-            <div className={styles.avatar}><Avatar name={profile.name} src={own ? player.data.player?.avatar : profile.avatar} size={76} /><span className={styles.badge}><Zap size={13} fill="currentColor" /></span></div>
+            <div className={styles.avatar}><Avatar name={profile.name} src={own ? player.data.player?.avatar : profile.avatar} size={76} /><span className={styles.badge} title={profile.level.name}><RankEmblem tier={profile.level.tier} division={profile.level.division} size={17} /></span></div>
             <div className={styles.nameBlock}><h1>{profile.name}</h1><p>Joined {new Date(profile.created).toLocaleDateString(undefined, { month: "short", year: "numeric" })}<span>·</span>{privateView ? "Your profile" : "Player profile"}</p></div>
             <div className={styles.iconActions}>
               {own && <button className={styles.iconButton} aria-label="Edit profile" title="Edit profile" onClick={onEdit}><Settings2 size={18} /></button>}
@@ -212,6 +213,7 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
               }}>{shared ? <Check size={18} /> : <Share2 size={18} />}</button>
             </div>
           </div>
+          <RankProgress level={profile.level} own={!!profile.isYou} />
           <div className={styles.profileActions}>
             {own ? <><button className={styles.editButton} onClick={onEdit}>Edit profile</button><Link href={`/players/${encodeURIComponent(profile.name)}`}>Public profile <ArrowUpRight size={14} /></Link></> : profile.isYou ? <Link className={styles.editButton} href="/profile">Manage profile</Link> : <TipButton profile={profile} player={player} />}
             {shared && <span className={styles.copied} role="status">Link copied</span>}

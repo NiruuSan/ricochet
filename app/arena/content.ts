@@ -28,6 +28,10 @@ export const FAQ: [question: string, answer: string][] = [
     "Gems are Bounce’s free in-game currency. Every new profile receives 2,000 gems to enter gem matches. They have no monetary value and cannot be bought, sold, deposited or withdrawn.",
   ],
   [
+    "How do ranks work?",
+    "Every 0.01 SOL you wager earns 1 XP, once the match is settled or the tournament has ended. Refunded entries and cancelled matches earn nothing, and gem matches earn no XP. The ranks are Iron, Bronze, Silver, Gold, Platinum and Diamond, each split into 1, 2 and 3, then Bouncer at the top. Bronze 1 starts at 300 XP (3 SOL wagered), Silver 1 at 1,200 XP, Gold 1 at 3,500 XP, Platinum 1 at 10,000 XP, Diamond 1 at 30,000 XP and Bouncer at 100,000 XP (1,000 SOL). XP never goes down, whether you win or lose.",
+  ],
+  [
     "How do I tip another player?",
     "Open their profile from the leaderboard or a match, or find them by name on the leaderboard. Select Tip, enter a devnet SOL amount, and review the recipient before confirming. Tips move your available Bounce wallet balance to theirs without a tip fee. Sent and received tips appear in your wallet and do not affect match PNL.",
   ],
