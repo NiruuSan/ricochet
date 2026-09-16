@@ -8,6 +8,7 @@ import { FundedWallet } from "../funded-wallet";
 import { units } from "../format";
 import type { PlayerState } from "../arena";
 import { AdminTournaments } from "./admin-tournaments";
+import { AdminSecurity } from "./admin-security";
 import tournamentStyles from "./tournaments.module.css";
 import { AdminVolume } from "./volume-chart";
 
@@ -17,7 +18,7 @@ export function AdminView({ player }: { player: PlayerState }) {
   const { data, loaded } = player;
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview" | "tournaments">("overview");
+  const [tab, setTab] = useState<"overview" | "tournaments" | "security">("overview");
 
   useEffect(() => {
     if (!data.isAdmin) return;
@@ -64,8 +65,11 @@ export function AdminView({ player }: { player: PlayerState }) {
         <button aria-pressed={tab === "tournaments"} onClick={() => setTab("tournaments")}>
           Tournaments
         </button>
+        <button aria-pressed={tab === "security"} onClick={() => setTab("security")}>
+          Security
+        </button>
       </div>
-      {tab === "tournaments" ? (
+      {tab === "security" ? <AdminSecurity /> : tab === "tournaments" ? (
         <AdminTournaments solConfigured={!!data.launch?.configured} />
       ) : (
         <>

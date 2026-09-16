@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Equal, Gift, Medal, Trophy, X } from "lucide-react";
+import { Bell, Equal, Gift, Medal, ShieldAlert, Trophy, X } from "lucide-react";
 import type { NotificationItem } from "@/lib/api-types";
 import { request } from "./api";
 import { CURRENCY, units } from "./format";
@@ -20,7 +20,10 @@ function timeAgo(ms: number, now = Date.now()) {
 
 const ordinal = (n: number) => `${n}${[, "st", "nd", "rd"][(n % 100 >> 3) ^ 1 && n % 10] || "th"}`;
 
-function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" | "tournament"; title: string; detail: string } {
+function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" | "tournament" | "security"; title: string; detail: string } {
+  if (n.kind === "security_reset") {
+    return { tone: "security", title: "Your two-factor authentication was reset", detail: `An administrator reset your authenticator. Withdrawals are paused until ${new Date(n.data.holdUntil).toLocaleString()}. Set up two-factor again in your wallet. If you did not request this, contact support.` };
+  }
   if (n.kind === "tip_received") {
     return { tone: "tip", title: `${n.data.from} tipped you`, detail: `+${units(n.data.amount, "devnet")} SOL` };
   }
@@ -43,7 +46,7 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
 }
 
 function Icon({ tone }: { tone: ReturnType<typeof describe>["tone"] }) {
-  const Glyph = tone === "tip" ? Gift : tone === "tournament" ? Medal : tone === "draw" ? Equal : tone === "loss" ? X : Trophy;
+  const Glyph = tone === "security" ? ShieldAlert : tone === "tip" ? Gift : tone === "tournament" ? Medal : tone === "draw" ? Equal : tone === "loss" ? X : Trophy;
   return (
     <span className={`${styles.icon} ${styles[tone]}`}>
       <Glyph size={16} />

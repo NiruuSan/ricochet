@@ -71,6 +71,20 @@
       "when": 1789551195636,
       "tag": "0009_hidden_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1789553363179,
+      "tag": "0010_two_factor",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1789554389533,
+      "tag": "0011_two_factor_recovery_admin",
+      "breakpoints": true
     }
   ]
 }

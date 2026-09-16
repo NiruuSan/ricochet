@@ -5,8 +5,8 @@ import { ArrowUpFromLine, Check, Copy, ExternalLink, RefreshCw, ShieldCheck } fr
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MIN_DEPOSIT, type Transfer, type TreasurySnapshot } from "@/lib/api-types";
-import { signInWith, type SignInProvider } from "../auth-actions";
 import { request, RequestError } from "./api";
+import { CodeInput, TwoFactorPanel, useTwoFactor } from "./two-factor-panel";
 import { shortDate } from "./format";
 
 type WalletData = {
@@ -34,9 +34,10 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
   const path = treasury ? "/api/treasury" : "/api/wallet";
   const [data, setData] = useState<WalletData | null>(null);
   const [error, setError] = useState("");
-  // Set when a withdrawal needs a fresh sign-in with this provider.
-  const [reauth, setReauth] = useState<SignInProvider | null>(null);
   const [notice, setNotice] = useState("");
+  // Withdrawals need the second factor; this is the code typed for the current one.
+  const twoFactor = useTwoFactor();
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [stage, setStage] = useState<"edit" | "confirm">("edit");
@@ -66,7 +67,6 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
   const act = async (body: Record<string, unknown>) => {
     setBusy(true);
     setError("");
-    setReauth(null);
     setNotice("");
     try {
       const result = await request<Record<string, unknown>>(path, body);
@@ -74,7 +74,8 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
       return result;
     } catch (e) {
       setError((e as Error).message);
-      if (e instanceof RequestError && e.code === "REAUTH_REQUIRED") setReauth((e.details?.provider as SignInProvider) ?? "github");
+      // A wrong code may have paused verification; show it.
+      if (e instanceof RequestError && e.code?.startsWith("TWO_FACTOR")) void twoFactor.reload();
       return null;
     } finally {
       setBusy(false);
@@ -140,7 +141,10 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
 
   const withdraw = async () => {
     withdrawalId.current ??= crypto.randomUUID();
-    if (await act({ action: "withdraw", id: withdrawalId.current, amount, destination })) {
+    const sent = await act({ action: "withdraw", id: withdrawalId.current, amount, destination, code });
+    // A code is single-use: whatever happened, the next attempt needs a new one.
+    setCode("");
+    if (sent) {
       setDialogOpen(false);
       setStage("edit");
       withdrawalId.current = null;
@@ -290,6 +294,7 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
               </button>
             )}
           </div>
+          <TwoFactorPanel twoFactor={twoFactor} />
           {data.transfers.length > 0 && (
             <ul className="transfer-list">
               {data.transfers.map((t) => (
@@ -411,21 +416,23 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
                 Amount: <strong>{amount} devnet SOL</strong>
               </p>
               <p className="fine">A network fee of up to 0.001 devnet SOL will be added. Available balance must cover both the transfer and the fee.</p>
+              {twoFactor.status?.enabled ? (
+                <CodeInput value={code} onChange={setCode} autoFocus />
+              ) : (
+                <p className="callout-inline" role="status">
+                  <ShieldCheck size={14} /> Turn on two-factor authentication below the wallet to withdraw.
+                </p>
+              )}
               {error && (
                 <p className="error" role="alert">
                   {error}
                 </p>
               )}
-              {reauth && (
-                <button className="btn full" disabled={busy} onClick={() => void signInWith(reauth, window.location.pathname)}>
-                  <ShieldCheck /> Confirm it&apos;s you, then withdraw again
-                </button>
-              )}
               <div className="row-actions">
                 <button className="btn" disabled={busy} onClick={() => setStage("edit")}>
                   Back
                 </button>
-                <button className="btn btn-primary" disabled={busy} onClick={() => void withdraw()}>
+                <button className="btn btn-primary" disabled={busy || !twoFactor.status?.enabled || !code.trim()} onClick={() => void withdraw()}>
                   {busy ? "Submitting…" : "Confirm transfer"}
                 </button>
               </div>

@@ -1,4 +1,5 @@
 import { PaymentError } from "./errors";
+import { assertWithdrawalsAllowed } from "../security-holds";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { database } from "../../db/raw";
 import { MIN_DEPOSIT, type TreasurySnapshot } from "../api-types";
@@ -76,6 +77,28 @@ export async function ensureWallet(uid: string): Promise<Wallet> {
   return wallet;
 }
 
+/**
+ * Checks what can be checked without the blockchain before a withdrawal spends a
+ * two-factor code: the amount, the address and the available balance.
+ */
+export async function precheckWithdrawal(uid: string, destinationInput: unknown, amountInput: unknown, treasury = false, now = Date.now()) {
+  if (!treasury) await assertWithdrawalsAllowed(uid, now);
+  const amount = parseSol(amountInput);
+  const destination = recipientAddress(destinationInput).toBase58();
+  const db = database();
+  if (await db.prepare("SELECT 1 FROM custody_wallets WHERE address = ?").bind(destination).first()) {
+    throw new PaymentError("Use an external wallet, not a Ricochet deposit or custody address.");
+  }
+  const available = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(treasury ? HOUSE : uid)).first<{ balance: number }>();
+  if (!available || available.balance < amount) throw new PaymentError("Insufficient available balance, including the network fee.");
+}
+
+/** Whether this operation ID already started a transfer for the user (a retry moves no money twice). */
+export async function transferStarted(idInput: unknown, uid: string) {
+  if (typeof idInput !== "string") return false;
+  return !!(await database().prepare("SELECT 1 FROM cash_transfers WHERE id = ? AND user_id = ?").bind(idInput.toLowerCase(), uid).first());
+}
+
 async function replay(id: string, uid: string, kind: string, destination?: string, amount?: number) {
   const t = await database().prepare("SELECT * FROM cash_transfers WHERE id = ?").bind(id).first<Transfer>();
   if (!t) return null;
@@ -131,6 +154,7 @@ export async function beginWithdrawal(uid: string, idInput: unknown, destination
   const kind = treasury ? "treasury" : "withdrawal";
   const prior = await replay(id, uid, kind, destination, amount);
   if (prior) return publicTransfer(prior);
+  if (!treasury) await assertWithdrawalsAllowed(uid);
   const s = settings();
   requireDevnet(s);
   const db = database();
@@ -189,7 +213,13 @@ async function insertTransfer(t: NewTransfer, reserve: boolean) {
   }
   // A source-wallet uniqueness constraint serializes outgoing transactions. The
   // balance trigger and this batch make reservation and outbox creation atomic.
-  await db.batch(ops);
+  try {
+    await db.batch(ops);
+  } catch (e) {
+    // The database guard closes the race with a reset during RPC preparation.
+    if (t.kind === "withdrawal") await assertWithdrawalsAllowed(t.uid, now);
+    throw e;
+  }
 }
 
 /**

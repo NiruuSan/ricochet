@@ -126,6 +126,11 @@
   background: #b6a1fc22;
   color: #c7b7ff;
 }
+.security .icon,
+.icon.security {
+  background: #ffb86b1f;
+  color: #ffb86b;
+}
 .tournament .icon,
 .icon.tournament {
   background: #ffd17b1f;
@@ -221,6 +226,14 @@
   }
 }
 @media (max-width: 720px) {
+  .panel {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: 120px;
+    width: auto;
+    max-height: calc(100dvh - 144px);
+  }
   .toasts {
     right: 16px;
     left: 16px;

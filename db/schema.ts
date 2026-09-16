@@ -265,3 +265,47 @@ export const runShots = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.runKey, t.revision] })],
 );
+
+// Two-factor authentication (TOTP) protecting withdrawals. The secret is
+// encrypted with a key derived from the wallet vault key (lib/two-factor.ts).
+export const twoFactor = sqliteTable("two_factor", {
+  userId: text("user_id").primaryKey(),
+  // AES-GCM ciphertext of the TOTP secret, bound to the user ID.
+  secret: text("secret").notNull(),
+  // 0 while the player is still scanning the QR code; 1 once a code confirmed it.
+  enabled: integer("enabled").notNull().default(0),
+  // Highest TOTP time step accepted, so a code cannot be used twice.
+  lastStep: integer("last_step").notNull().default(0),
+  failures: integer("failures").notNull().default(0),
+  lockedUntil: integer("locked_until").notNull().default(0),
+  created: integer("created").notNull(),
+  enabledAt: integer("enabled_at"),
+});
+
+// Single-use recovery codes, stored as keyed hashes only.
+export const twoFactorRecovery = sqliteTable(
+  "two_factor_recovery",
+  {
+    codeHash: text("code_hash").primaryKey(),
+    userId: text("user_id").notNull(),
+    usedAt: integer("used_at"),
+  },
+  (t) => [index("two_factor_recovery_owner").on(t.userId)],
+);
+
+export const securityHolds = sqliteTable("security_holds", {
+  userId: text("user_id").primaryKey(),
+  reason: text("reason").notNull(),
+  until: integer("until").notNull(),
+  createdBy: text("created_by").notNull(),
+  created: integer("created").notNull(),
+});
+
+export const adminAudit = sqliteTable("admin_audit", {
+  id: text("id").primaryKey(),
+  adminId: text("admin_id").notNull(),
+  action: text("action").notNull(),
+  targetUserId: text("target_user_id").notNull(),
+  reason: text("reason").notNull(),
+  created: integer("created").notNull(),
+}, (t) => [index("admin_audit_recent").on(t.created)]);

@@ -11,6 +11,8 @@ export const LIMITS = {
   treasuryWrite: 60,
   profileWrite: 20,
   tournamentWrite: 30,
+  /** Two-factor setup and changes; wrong codes are also locked out after five tries. */
+  securityWrite: 20,
   /** Public pages polled by visitors and players: arena, spectating, tournaments, profiles. */
   publicRead: 300,
 } as const;

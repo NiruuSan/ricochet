@@ -159,6 +159,7 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
   | { kind: "match_result"; data: MatchNotification }
   | { kind: "tip_received"; data: TipNotification }
   | { kind: "tournament_result"; data: TournamentNotification }
+  | { kind: "security_reset"; data: { holdUntil: number } }
 );
 
 export type Snapshot = {
@@ -377,4 +378,18 @@ export type ArenaOverview = {
   live: LiveGame[];
 };
 
+/** Whether the player protects withdrawals with an authenticator app. */
+export type TwoFactorStatus = {
+  enabled: boolean;
+  recoveryCodesLeft: number;
+  /** Set while too many wrong codes block verification. */
+  lockedUntil: number | null;
+};
+
 export type AdminTournament = TournamentSummary & { played: number; finished: number };
+
+export type SecurityStatus = TwoFactorStatus & { withdrawalHoldUntil: number | null };
+export type AdminSecuritySnapshot = {
+  player: (SecurityStatus & { name: string; enabledAt: number | null }) | null;
+  recent: { id: string; action: string; adminName: string; playerName: string; reason: string; created: number }[];
+};

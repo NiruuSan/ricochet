@@ -1,9 +1,10 @@
-import { administrator, stepUpRequired } from "@/lib/auth-user";
+import { administrator } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { safePaymentError } from "@/lib/payments/errors";
-import { beginDeposit, beginWithdrawal, HOUSE, reconcileOpenTransfers, reconcileTransfer, treasurySnapshot } from "@/lib/payments/service";
+import { beginDeposit, beginWithdrawal, HOUSE, precheckWithdrawal, reconcileOpenTransfers, reconcileTransfer, transferStarted, treasurySnapshot } from "@/lib/payments/service";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
+import { TwoFactorError, verifySecondFactor } from "@/lib/two-factor";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,11 @@ export async function POST(req: Request) {
     // Treasury deposits sweep the house deposit address into the pool and credit the house account.
     if (b.action === "deposit") return json(await beginDeposit(HOUSE, b.id));
     if (b.action === "withdraw") {
-      const stepUp = stepUpRequired(user);
-      if (stepUp) return json(stepUp, 403);
+      // The administrator's own second factor protects treasury withdrawals.
+      if (!(await transferStarted(b.id, user.userId))) {
+        await precheckWithdrawal(user.userId, b.destination, b.amount, true);
+        await verifySecondFactor(user.userId, b.code);
+      }
       return json(await beginWithdrawal(user.userId, b.id, b.destination, b.amount, true));
     }
     if (b.action === "reconcile_all") return json(await reconcileOpenTransfers());
@@ -41,6 +45,7 @@ export async function POST(req: Request) {
     }
     return json({ error: "Unknown action." }, 400);
   } catch (e) {
+    if (e instanceof TwoFactorError) return json({ error: e.message, code: e.code }, e.code === "TWO_FACTOR_REQUIRED" ? 403 : 400);
     return json({ error: safePaymentError(e) }, 400);
   }
 }

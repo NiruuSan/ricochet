@@ -204,6 +204,12 @@ height = 10;
 
 await assert.rejects(() => service.beginWithdrawal("a", crypto.randomUUID(), depositWallet.address, "0.1"), /external wallet/);
 await assert.rejects(() => service.beginWithdrawal("a", crypto.randomUUID(), destination, "100"), /Insufficient/);
+// Checked before a two-factor code is spent: amount format, address, custody addresses, balance.
+await assert.rejects(() => service.precheckWithdrawal("a", destination, "100"), /Insufficient/);
+await assert.rejects(() => service.precheckWithdrawal("a", "not-an-address", "0.1"), /Invalid Solana address/);
+await assert.rejects(() => service.precheckWithdrawal("a", destination, "0.1234567891"), /9 decimal places/);
+await assert.rejects(() => service.precheckWithdrawal("a", depositWallet.address, "0.1"), /external wallet/);
+await service.precheckWithdrawal("a", destination, "0.1");
 fee = null;
 await assert.rejects(() => service.beginWithdrawal("a", crypto.randomUUID(), destination, "0.1"), /network fee/);
 fee = 5000;
