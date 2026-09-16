@@ -2,13 +2,26 @@ import { database } from "@/db/raw";
 import type { Asset, PublicPlayerProfile } from "./api-types";
 import { avatarUrl, GameError } from "./matches";
 
-/** Only display information and settled match statistics are public. */
-export async function publicProfile(name: string, viewer?: string): Promise<PublicPlayerProfile> {
+type PlayerRow = { id: string; public_id: string; name: string; avatar: string | null; created: number };
+
+/** A public name, or `{ id }` for the signed-in player's own profile. */
+export type PlayerRef = string | { id: string };
+
+export async function findPlayer(ref: PlayerRef): Promise<PlayerRow> {
   const db = database();
-  if (!/^[a-zA-Z0-9_]{3,20}$/.test(name)) throw new GameError("Player not found.", 404);
-  const player = await db.prepare("SELECT id, public_id, name, avatar, created FROM players WHERE lower(name) = lower(?)")
-    .bind(name).first<{ id: string; public_id: string; name: string; avatar: string | null; created: number }>();
+  if (typeof ref === "string" && !/^[a-zA-Z0-9_]{3,20}$/.test(ref)) throw new GameError("Player not found.", 404);
+  const player = await (typeof ref === "string"
+    ? db.prepare("SELECT id, public_id, name, avatar, created FROM players WHERE lower(name) = lower(?)").bind(ref)
+    : db.prepare("SELECT id, public_id, name, avatar, created FROM players WHERE id = ?").bind(ref.id)
+  ).first<PlayerRow>();
   if (!player) throw new GameError("Player not found.", 404);
+  return player;
+}
+
+/** Only display information and settled match statistics are public. */
+export async function publicProfile(ref: PlayerRef | PlayerRow, viewer?: string): Promise<PublicPlayerProfile> {
+  const db = database();
+  const player = typeof ref === "object" && "public_id" in ref ? ref : await findPlayer(ref);
   const [games, gems, devnet] = await Promise.all([
     db.prepare(`SELECT asset, COUNT(*) AS games, SUM(CASE WHEN winner = ? THEN 1 ELSE 0 END) AS wins
       FROM matches WHERE settled = 1 AND (p1 = ? OR p2 = ?) GROUP BY asset`)

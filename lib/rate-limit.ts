@@ -2,7 +2,7 @@ import { database } from "@/db/raw";
 
 const WINDOW_MS = 60_000;
 
-/** Per-minute request budgets, keyed by authenticated user. */
+/** Per-minute request budgets, keyed by authenticated user (or client IP for public reads). */
 export const LIMITS = {
   gameRead: 120,
   gameWrite: 120,
@@ -11,6 +11,8 @@ export const LIMITS = {
   treasuryWrite: 60,
   profileWrite: 20,
   tournamentWrite: 30,
+  /** Public pages polled by visitors and players: arena, spectating, tournaments, profiles. */
+  publicRead: 300,
 } as const;
 
 /**

@@ -67,7 +67,8 @@ export function ProfileView({ player }: { player: PlayerState }) {
     }
   };
 
-  if (!profile) {
+  // Your own dashboard loads by itself (as `me`), so it starts before the account snapshot arrives.
+  if (loaded && !profile) {
     return (
       <section className="panel auth-card">
         <UserRound style={{ marginBottom: 20 }} />
@@ -81,7 +82,7 @@ export function ProfileView({ player }: { player: PlayerState }) {
     );
   }
 
-  const draftName = name ?? profile.name;
+  const draftName = name ?? profile?.name ?? "";
   const openEditor = () => {
     setName(null);
     setError("");
@@ -91,7 +92,8 @@ export function ProfileView({ player }: { player: PlayerState }) {
 
   return (
     <>
-      <ProfileDashboard key={profile.name} name={profile.name} player={player} privateView onEdit={openEditor} />
+      <ProfileDashboard name="me" player={player} privateView onEdit={openEditor} />
+      {profile && (
       <Dialog open={editing} onOpenChange={(open) => !saving && setEditing(open)}>
         <DialogContent className="dialog-dark">
           <DialogTitle>Edit profile</DialogTitle>
@@ -164,6 +166,7 @@ export function ProfileView({ player }: { player: PlayerState }) {
           <form id="sign-out-form" action={signOutToLogin} hidden />
         </DialogContent>
       </Dialog>
+      )}
     </>
   );
 }

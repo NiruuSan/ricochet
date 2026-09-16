@@ -1,8 +1,9 @@
+import { after } from "next/server";
 import { currentUser } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import type { Asset } from "@/lib/api-types";
-import { json, readBody, sameOrigin } from "@/lib/http";
-import { GameError, leaderboard, playerSnapshot, playShot, startMatch, touchPlayer } from "@/lib/matches";
+import { clientKey, json, readBody, sameOrigin } from "@/lib/http";
+import { GameError, playerSnapshot, playShot, startMatch, touchPlayer } from "@/lib/matches";
 import { settings } from "@/lib/payments/accounts";
 import { PaymentError } from "@/lib/payments/errors";
 import { launchStatus } from "@/lib/payments/policy";
@@ -16,12 +17,18 @@ export async function GET(req: Request) {
   try {
     const asset: Asset = new URL(req.url).searchParams.get("asset") === "devnet" ? "devnet" : "gems";
     const user = await currentUser();
-    // Visitors can browse the leaderboard and see whether Solana matches are available.
-    if (!user) return json({ authenticated: false, launch: launchStatus(settings()), leaders: await leaderboard(null, asset) });
-    // Tournaments that ended are paid out here too, so results reach players who never open the tournament page.
-    const [limited] = await Promise.all([rateLimited("gameRead", user.userId), touchPlayer(user.userId), settleDueTournaments()]);
+    // Visitors still learn whether Solana matches are available.
+    if (!user) {
+      if (await rateLimited("publicRead", clientKey(req))) return json({ error: TOO_MANY_REQUESTS }, 429);
+      return json({ authenticated: false, launch: launchStatus(settings()) });
+    }
+    const uid = user.userId;
+    // Presence and payouts of ended tournaments (so results reach players who never
+    // open the tournament page) do not change this response: run them afterwards.
+    after(() => Promise.all([touchPlayer(uid), settleDueTournaments()]).catch((e) => console.error(e)));
+    const [limited, snapshot] = await Promise.all([rateLimited("gameRead", uid), playerSnapshot(uid, asset)]);
     if (limited) return json({ error: TOO_MANY_REQUESTS }, 429);
-    return json({ authenticated: true, ...(await playerSnapshot(user.userId, asset)) });
+    return json({ authenticated: true, ...snapshot });
   } catch (e) {
     console.error(e);
     return json({ error: "Unable to load your account. You can still play practice." }, 503);

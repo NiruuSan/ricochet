@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useId, useState, type PointerEvent } from "react";
 import Link from "next/link";
-import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Eye, Gem, History, Medal, Search, Settings2, Share2, TrendingUp, Wallet, Zap } from "lucide-react";
-import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, PublicPlayerProfile } from "@/lib/api-types";
+import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Crosshair, Eye, Flame, Gem, History, Medal, Swords, Search, Settings2, Share2, TrendingUp, Wallet, Zap } from "lucide-react";
+import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, ProfileStats, PublicPlayerProfile } from "@/lib/api-types";
 import type { PlayerState } from "../arena";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -71,6 +71,64 @@ function PnlCard({ performance, asset }: { performance: ProfilePerformance; asse
   </section>;
 }
 
+function StatsSection({ stats, asset }: { stats: ProfileStats; asset: Asset }) {
+  const { matches, runs, tournaments } = stats;
+  const decided = matches.wins + matches.losses;
+  const ratio = matches.losses ? (matches.wins / matches.losses).toFixed(2) : matches.wins ? `${matches.wins}.00` : "—";
+  const pct = (n: number) => (matches.played ? `${(n / matches.played) * 100}%` : "0%");
+  const streak = matches.streak > 0 ? `${matches.streak}W` : matches.streak < 0 ? `${-matches.streak}L` : "—";
+  const whole = (n: number | null) => (n === null ? "—" : n.toLocaleString("en"));
+  return <section className={styles.statsSection} aria-label="Player statistics">
+    <h2 className={styles.historyTitle}>Stats <span className={styles.statsScope}>{asset === "gems" ? "Gems" : "Devnet SOL"} · finished games</span></h2>
+    <div className={styles.statsGrid}>
+      <div className={`${styles.card} ${styles.statsCard}`}>
+        <h3><Swords size={15} /> Matches</h3>
+        <div className={styles.winRate}>
+          <strong>{matches.winRate === null ? "—" : `${Math.round(matches.winRate * 100)}%`}</strong>
+          <span>win rate · {matches.played.toLocaleString("en")} {matches.played === 1 ? "match" : "matches"}</span>
+        </div>
+        <div className={styles.recordBar} role="img" aria-label={`${matches.wins} wins, ${matches.draws} draws, ${matches.losses} losses`}>
+          <span className={styles.barWin} style={{ width: pct(matches.wins) }} />
+          <span className={styles.barDraw} style={{ width: pct(matches.draws) }} />
+          <span className={styles.barLoss} style={{ width: pct(matches.losses) }} />
+        </div>
+        <div className={styles.statTiles}>
+          <div><b className={styles.positive}>{matches.wins}</b><span>Wins</span></div>
+          <div><b className={styles.negative}>{matches.losses}</b><span>Losses</span></div>
+          <div><b>{matches.draws}</b><span>Draws</span></div>
+          <div><b title={decided ? `${matches.wins} wins for ${matches.losses} losses` : undefined}>{ratio}</b><span>W/L ratio</span></div>
+          <div><b className={matches.streak > 0 ? styles.positive : matches.streak < 0 ? styles.negative : ""}>{streak}</b><span>Current streak</span></div>
+          <div><b>{matches.bestWinStreak}</b><span><Flame size={11} /> Best win streak</span></div>
+        </div>
+      </div>
+      <div className={`${styles.card} ${styles.statsCard}`}>
+        <h3><Crosshair size={15} /> Runs</h3>
+        <div className={styles.winRate}>
+          <strong className={styles.positive}>{runs.bestScore.toLocaleString("en")}</strong>
+          <span>best score · {runs.played.toLocaleString("en")} {runs.played === 1 ? "run" : "runs"}</span>
+        </div>
+        <div className={styles.statTiles}>
+          <div><b>{whole(runs.averageScore)}</b><span>Average score</span></div>
+          <div><b>{runs.bestRound ? runs.bestRound : "—"}</b><span>Best round</span></div>
+          <div><b>{runs.clears.toLocaleString("en")}</b><span>Boards cleared</span></div>
+        </div>
+      </div>
+      <div className={`${styles.card} ${styles.statsCard}`}>
+        <h3><Medal size={15} /> Tournaments</h3>
+        <div className={styles.winRate}>
+          <strong>{tournaments.bestRank ? ordinal(tournaments.bestRank) : "—"}</strong>
+          <span>best finish · {tournaments.played.toLocaleString("en")} played</span>
+        </div>
+        <div className={styles.statTiles}>
+          <div><b className={tournaments.wins ? styles.positive : ""}>{tournaments.wins}</b><span>Wins</span></div>
+          <div><b>{tournaments.podiums}</b><span>Podiums</span></div>
+          <div><b>{tournaments.played ? `${Math.round((tournaments.podiums / tournaments.played) * 100)}%` : "—"}</b><span>Podium rate</span></div>
+        </div>
+      </div>
+    </div>
+  </section>;
+}
+
 function MatchRows({ performance, asset }: { performance: ProfilePerformance; asset: Asset }) {
   const [filter, setFilter] = useState<"open" | "settled">("settled");
   const [search, setSearch] = useState("");
@@ -122,10 +180,8 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
   const { asset } = player;
   useEffect(() => {
     let active = true;
-    const load = () => Promise.all([
-      request<PublicPlayerProfile>(`/api/players/${encodeURIComponent(name)}`),
-      request<ProfilePerformance>(`/api/players/${encodeURIComponent(name)}/performance?asset=${asset}`),
-    ]).then(([profile, performance]) => { if (active) { setData({ name, asset, profile, performance }); setError(""); } }, (e: Error) => { if (active) setError(e.message); });
+    const load = () => request<{ profile: PublicPlayerProfile; performance: ProfilePerformance }>(`/api/players/${encodeURIComponent(name)}/dashboard?asset=${asset}`)
+      .then(({ profile, performance }) => { if (active) { setData({ name, asset, profile, performance }); setError(""); } }, (e: Error) => { if (active) setError(e.message); });
     void load();
     const timer = setInterval(() => { if (!document.hidden) void load(); }, 15_000);
     return () => { active = false; clearInterval(timer); };
@@ -168,6 +224,7 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
         </section>
         <PnlCard key={asset} performance={performance} asset={asset} />
       </div>
+      <StatsSection stats={performance.stats} asset={asset} />
       <MatchRows key={asset} performance={performance} asset={asset} />
     </>}
   </section>;

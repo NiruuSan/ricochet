@@ -5,6 +5,7 @@ import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } fro
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
 import { listNotifications, notificationInsert } from "./notifications";
+import { newRowKey, rowsFor } from "./secret-rows";
 import { shotInsert } from "./spectate-shots";
 import { tournamentHistory } from "./tournament-history";
 
@@ -18,7 +19,7 @@ export class GameError extends Error {
 }
 
 type RunRow = { user_id: string; done: number; forfeit: number; score: number };
-type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number };
+type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number; row_key: string | null };
 
 const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, r.clears, m.asset, m.ruleset";
 type RunRecord = Omit<Run, "state"> & { state: string };
@@ -239,7 +240,7 @@ export async function leaderboard(viewer: string | null, asset: Asset): Promise<
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
   const db = database();
   await settleFinishedMatches(uid);
-  const [player, history, transactions, leaders, active, cash, inbox, tournaments] = await Promise.all([
+  const [player, history, active, cash, inbox, tournaments] = await Promise.all([
     db.prepare("SELECT public_id AS publicId, name, balance, avatar, created FROM players WHERE id = ?").bind(uid).first<Profile>(),
     db
       .prepare(
@@ -264,8 +265,6 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
       )
       .bind(uid, asset)
       .all<Omit<MatchSummary, "net"> & { fee: number }>(),
-    db.prepare("SELECT kind, amount, created FROM ledger WHERE user_id = ? ORDER BY created DESC LIMIT 50").bind(uid).all<Snapshot["transactions"][number]>(),
-    leaderboard(uid, asset),
     activeRun(uid),
     db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(uid)).first<{ balance: number }>(),
     listNotifications(uid),
@@ -278,8 +277,6 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     launch: launchStatus(settings()),
     player: player && { ...player, avatar: avatarUrl(player.avatar) },
     matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
-    transactions: transactions.results,
-    leaders,
     active,
     isAdmin: !!admin && uid === admin,
     notifications: inbox.items,
@@ -395,7 +392,7 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
   const rulesets = SUPPORTED_RULESETS.map(Number).join(", ");
   let match = await db
     .prepare(
-      `SELECT id, seed, stake, asset, p1, p2, settled, ruleset FROM matches
+      `SELECT id, seed, stake, asset, p1, p2, settled, ruleset, row_key FROM matches
        WHERE stake = ? AND asset = ? AND p2 IS NULL AND p1 <> ? AND settled = 0
          AND ruleset IN (${rulesets}) AND ${JOINABLE}
        ORDER BY created ASC LIMIT 1`,
@@ -408,11 +405,11 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
   if (match) {
     ops.push(db.prepare(`UPDATE matches SET p2 = ? WHERE id = ? AND p2 IS NULL AND settled = 0 AND ${JOINABLE}`).bind(uid, match.id));
   } else {
-    match = { id: crypto.randomUUID(), seed: crypto.getRandomValues(new Uint32Array(1))[0], stake, asset, p1: uid, p2: null, settled: 0, ruleset: RULESET };
+    match = { id: crypto.randomUUID(), seed: crypto.getRandomValues(new Uint32Array(1))[0], stake, asset, p1: uid, p2: null, settled: 0, ruleset: RULESET, row_key: newRowKey() };
     ops.push(
       db
-        .prepare("INSERT INTO matches(id, seed, stake, asset, p1, created, ruleset) VALUES(?, ?, ?, ?, ?, ?, ?)")
-        .bind(match.id, match.seed, stake, asset, uid, now, RULESET),
+        .prepare("INSERT INTO matches(id, seed, stake, asset, p1, created, ruleset, row_key) VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(match.id, match.seed, stake, asset, uid, now, RULESET, match.row_key),
     );
   }
   // The run and the entry only exist if this player really holds a seat, which
@@ -420,7 +417,7 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
   ops.push(
     db
       .prepare("INSERT INTO runs(id, match_id, user_id, state, created) SELECT ?, ?, ?, ?, ? FROM matches WHERE id = ? AND (p1 = ? OR p2 = ?)")
-      .bind(runId, match.id, uid, JSON.stringify(initial(match.seed)), now, match.id, uid, uid),
+      .bind(runId, match.id, uid, JSON.stringify(initial(match.seed, rowsFor(match.ruleset, match.row_key))), now, match.id, uid, uid),
   );
   if (asset === "devnet") {
     await ensureCashAccount("escrow:" + match.id);
@@ -463,15 +460,17 @@ export async function playShot(
   allowed: Promise<boolean> | boolean = true,
 ): Promise<Run> {
   const db = database();
-  const [row, permitted] = await Promise.all([
+  const [record, permitted] = await Promise.all([
     db
-      .prepare(`SELECT ${PUBLIC_RUN} FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.id = ? AND r.user_id = ?`)
+      .prepare(`SELECT ${PUBLIC_RUN}, m.row_key FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.id = ? AND r.user_id = ?`)
       .bind(String(runIdInput), uid)
-      .first<RunRecord>(),
+      .first<RunRecord & { row_key: string | null }>(),
     allowed,
   ]);
   if (!permitted) throw new GameError("Too many requests. Wait a minute before trying again.", 429);
-  if (!row) throw new GameError("Game not found.", 404);
+  if (!record) throw new GameError("Game not found.", 404);
+  // The row key stays on the server: it is split off before anything is returned.
+  const { row_key: rowKey, ...row } = record;
   if (row.done || row.revision !== revision) throw new GameError("This game changed in another tab. Reload to resume.", 409);
 
   const run = parseRun(row);
@@ -483,7 +482,7 @@ export async function playShot(
     if (!validAngle(angle)) throw new GameError("Invalid aim angle.");
     if (!isSupportedRuleset(run.ruleset)) throw new GameError("This match uses a retired ruleset. It can only be forfeited.", 409);
     try {
-      state = simulate(state, angle, run.ruleset);
+      state = simulate(state, angle, run.ruleset, rowsFor(run.ruleset, rowKey));
     } catch (e) {
       if (e instanceof ShotError) throw new GameError(e.message);
       throw e;

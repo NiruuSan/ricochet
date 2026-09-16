@@ -73,7 +73,16 @@ assert.deepEqual(carolRun.state, bobRun.state);
 const bobBoard = { ...bobRun.state, bricks: [0, 1, 2, 3, 4, 5, 6].map((col) => ({ col, row: 7, hp: 1 })) };
 sqlite.prepare("UPDATE runs SET state = ? WHERE id = ?").run(JSON.stringify(bobBoard), bobRun.id);
 const shot = await matches.playShot(BOB, bobRun.id, bobRun.revision, "shot", 73);
-assert.deepEqual(shot.state, engine.simulate(bobBoard, 73, engine.RULESET));
+// Ruleset 6: the server adds the row from the match's secret key; the browser's
+// copy of the shot is identical except for that row, and the key never leaves the server.
+const { secretRows } = await import("../lib/secret-rows.ts");
+const rowKey = matchRow(bobRun.match_id).row_key;
+assert.match(rowKey, /^[0-9a-f]{64}$/);
+assert.deepEqual(shot.state, engine.simulate(bobBoard, 73, engine.RULESET, secretRows(rowKey)));
+const browserView = engine.simulate(bobBoard, 73, engine.RULESET);
+assert.deepEqual(browserView.bricks, shot.state.bricks.filter((b) => b.row !== 7));
+assert.deepEqual(bobRun.state.bricks.map((b) => b.col), secretRows(rowKey)(1), "The first row comes from the key too");
+for (const value of [bobRun, carolRun, shot, await matches.playerSnapshot(BOB, "gems")]) assert.ok(!JSON.stringify(value).includes(rowKey), "The row key is never returned");
 assert.ok(shot.state.score > 0);
 await assert.rejects(() => matches.playShot(BOB, bobRun.id, bobRun.revision, "shot", 73), (e) => e instanceof matches.GameError && e.status === 409);
 await assert.rejects(() => matches.playShot(BOB, bobRun.id, shot.revision, "shot", 3), /Invalid aim angle/);
@@ -99,15 +108,17 @@ assert.equal(bobMatch.joined, 1);
 assert.equal(bobMatch.result, "win");
 assert.equal(bobMatch.net, WIN_NET);
 assert.equal(bobMatch.opponent_score, 0);
-assert.equal(snapshot.leaders.find((l) => l.name === "bob").is_you, 1);
-assert.equal(snapshot.leaders.find((l) => l.name === "bob").pnl, WIN_NET);
-assert.equal(snapshot.leaders.find((l) => l.name === "carol").is_you, 0);
+const bobLeaders = await matches.leaderboard(BOB, "gems");
+assert.equal(bobLeaders.find((l) => l.name === "bob").is_you, 1);
+assert.equal(bobLeaders.find((l) => l.name === "bob").pnl, WIN_NET);
+assert.equal(bobLeaders.find((l) => l.name === "carol").is_you, 0);
+assert.equal("leaders" in snapshot, false, "The leaderboard is served separately, not in every snapshot");
 const aliceSnapshot = await matches.playerSnapshot(ALICE, "gems");
 assert.deepEqual(
   aliceSnapshot.matches.map((x) => [x.result, x.net, x.joined]),
   [["cancelled", 0, 0]],
 );
-assert.equal(aliceSnapshot.leaders.find((l) => l.name === "alice").pnl, 0);
+assert.equal((await matches.leaderboard(ALICE, "gems")).find((l) => l.name === "alice").pnl, 0);
 assert.equal(aliceSnapshot.isAdmin, false);
 
 // Finished-but-unsettled matches are picked up by the player's next snapshot:
@@ -151,7 +162,7 @@ await matches.playShot(CAROL, devnetRun.id, devnetRun.revision, "forfeit");
 assert.equal(cashBalance(CAROL), 880_000_000);
 assert.equal(cashBalance(service.HOUSE), 120_000_000);
 assert.equal(cashBalance("escrow:" + devnetRun.match_id), 0);
-const devnetLeaders = (await matches.playerSnapshot(CAROL, "devnet")).leaders;
+const devnetLeaders = await matches.leaderboard(CAROL, "devnet");
 assert.equal(devnetLeaders.find((l) => l.name === "carol").pnl, -120_000_000);
 
 // A rate-limited shot is rejected before anything is written.

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset, Run } from "@/lib/api-types";
-import { GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, step, W, type Flight, type Game } from "@/lib/engine";
+import { GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, seedRows, step, W, type Flight, type Game } from "@/lib/engine";
 import { gameAction } from "./api";
 import { drawBoard } from "./board-canvas";
 
@@ -28,6 +28,11 @@ type Options = {
  * watched is already the result: the next shot is playable immediately while
  * saves go out one at a time, in order. If a save fails, the board returns to
  * the last shot the server confirmed.
+ *
+ * Ruleset 6 hides future rows: only the server can generate them. Those shots
+ * are sent the moment they are launched. The balls fly on the board the player
+ * already has, and the server's reply (with the new row) is almost always back
+ * before they land; if not, the row drops in as soon as it arrives.
  */
 export function useGameSession({ onSaved, onError }: Options) {
   const [game, setGameState] = useState<Game>(() => initial(SHOWCASE_SEED));
@@ -40,6 +45,8 @@ export function useGameSession({ onSaved, onError }: Options) {
   const [busy, setBusy] = useState(false);
   /** Shots are still being saved in the background. Never blocks play. */
   const [syncing, setSyncing] = useState(false);
+  /** The balls landed and the next row is on its way from the server (ruleset 6). */
+  const [awaitingRow, setAwaitingRow] = useState(false);
   const [liveScore, setLiveScore] = useState(0);
   /** Boards cleared in the current practice run; a match run carries its own count. */
   const [practiceClears, setPracticeClears] = useState(0);
@@ -134,12 +141,14 @@ export function useGameSession({ onSaved, onError }: Options) {
     flightRef.current = null;
     busyRef.current = false;
     setFlying(false);
+    setAwaitingRow(false);
     setRun(confirmed);
     setGame(confirmed.state);
   }, [setGame, setRun]);
 
   const saveShot = useCallback(
-    (runId: string, revision: number, shotAngle: number, predicted: Game) => {
+    /** `predicted` is the board this tab expects; null when the server supplies part of it (hidden rows). */
+    (runId: string, revision: number, shotAngle: number, predicted: Game | null, onConfirmed?: (saved: Run) => void) => {
       pendingSavesRef.current++;
       setSyncing(true);
       saveChainRef.current = saveChainRef.current.then(async () => {
@@ -148,7 +157,8 @@ export function useGameSession({ onSaved, onError }: Options) {
           if (saveFailedRef.current) return;
           const { run: saved } = await gameAction<{ run: Run }>({ action: "shot", runId, revision, angle: shotAngle });
           confirmedRef.current = saved;
-          if (!sameState(saved.state, predicted)) mismatchRef.current = true;
+          if (predicted && !sameState(saved.state, predicted)) mismatchRef.current = true;
+          if (!disposedRef.current) onConfirmed?.(saved);
           if (saved.done && !disposedRef.current) onSaved();
         } catch (e) {
           saveFailedRef.current = true;
@@ -182,10 +192,14 @@ export function useGameSession({ onSaved, onError }: Options) {
     if (busyRef.current || !startedRef.current || gameRef.current.over) return;
     const currentRun = runRef.current;
     const shotAngle = angleRef.current;
+    // Practice rows come from its own seed; a match run uses its ruleset, and from
+    // ruleset 6 the browser has no row source at all.
+    const ruleset = currentRun?.ruleset ?? RULESET;
+    const hiddenRows = !!currentRun && ruleset >= 6;
     let f: Flight;
     try {
       // A match replays with its own ruleset so the animation matches the server.
-      f = launch(gameRef.current, shotAngle, currentRun?.ruleset ?? RULESET);
+      f = launch(gameRef.current, shotAngle, ruleset, currentRun ? undefined : seedRows(gameRef.current.seed));
     } catch (e) {
       onError((e as Error).message);
       return;
@@ -196,9 +210,37 @@ export function useGameSession({ onSaved, onError }: Options) {
     setLiveScore(gameRef.current.score);
     flightRef.current = f;
 
+    // Hidden rows: send the shot now, and show the server's board once the balls land.
+    let confirmed: Run | null = null;
+    let landed = false;
+    const adopt = (saved: Run) => {
+      if (runRef.current?.id !== saved.id || flightRef.current) return;
+      busyRef.current = false;
+      setAwaitingRow(false);
+      setRun(saved);
+      setGame(saved.state);
+    };
+    if (hiddenRows) {
+      saveShot(currentRun.id, currentRun.revision, shotAngle, null, (saved) => {
+        confirmed = saved;
+        if (landed) adopt(saved);
+      });
+    }
+
     const finish = () => {
       flightRef.current = null;
       setFlying(false);
+      if (hiddenRows) {
+        landed = true;
+        if (confirmed) {
+          adopt(confirmed);
+        } else {
+          // Everything but the new row is known: show it while the row is on its way.
+          setAwaitingRow(true);
+          setGame(f.game);
+        }
+        return;
+      }
       busyRef.current = false;
       if (currentRun) {
         const next = f.game;
@@ -310,6 +352,7 @@ export function useGameSession({ onSaved, onError }: Options) {
     flightRef.current = null;
     busyRef.current = false;
     setFlying(false);
+    setAwaitingRow(false);
     setStarted(false);
     setRun(null);
     setGame(initial(SHOWCASE_SEED));
@@ -353,6 +396,7 @@ export function useGameSession({ onSaved, onError }: Options) {
     flying,
     busy,
     syncing,
+    awaitingRow,
     liveScore,
     clears: run ? (run.clears ?? 0) : practiceClears,
     attachCanvas,

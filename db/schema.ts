@@ -16,7 +16,12 @@ export const players = sqliteTable(
     // Key of the player's current picture in `avatars`, if any.
     avatar: text("avatar"),
   },
-  (t) => [check("balance_nonnegative", sql`${t.balance} >= 0`), uniqueIndex("player_name_unique").on(sql`lower(${t.name})`), uniqueIndex("player_public_id_unique").on(t.publicId)],
+  (t) => [
+    check("balance_nonnegative", sql`${t.balance} >= 0`),
+    uniqueIndex("player_name_unique").on(sql`lower(${t.name})`),
+    uniqueIndex("player_public_id_unique").on(t.publicId),
+    index("player_presence").on(t.lastSeen),
+  ],
 );
 
 // Profile pictures, already resized by the browser. The key is random, so
@@ -49,10 +54,17 @@ export const matches = sqliteTable(
     // Engine ruleset both runs are simulated with (see lib/engine.ts). Rows that
     // predate this column were created under ruleset 2.
     ruleset: integer("ruleset").notNull().default(2),
+    // Ruleset 6+: secret key new rows are generated from (lib/secret-rows.ts). Never sent to a browser.
+    rowKey: text("row_key"),
     // 1 when the creator forfeited before anyone joined; see lib/matches.ts.
     cancelled: integer("cancelled").notNull().default(0),
   },
-  (t) => [index("match_queue").on(t.stake, t.settled, t.p2, t.created)],
+  (t) => [
+    index("match_queue").on(t.stake, t.settled, t.p2, t.created),
+    // A player's matches, from either seat.
+    index("match_p1").on(t.p1, t.created),
+    index("match_p2").on(t.p2, t.created),
+  ],
 );
 
 export const runs = sqliteTable(
@@ -74,6 +86,7 @@ export const runs = sqliteTable(
     uniqueIndex("one_run_per_player_match").on(t.matchId, t.userId),
     uniqueIndex("one_active_run_per_player").on(t.userId).where(sql`${t.done}=0`),
     index("runs_history").on(t.userId, t.created),
+    index("runs_recent").on(t.created),
   ],
 );
 
@@ -87,7 +100,7 @@ export const ledger = sqliteTable(
     amount: integer("amount").notNull(),
     created: integer("created").notNull(),
   },
-  (t) => [index("ledger_user").on(t.userId, t.created)],
+  (t) => [index("ledger_user").on(t.userId, t.created), index("ledger_match").on(t.matchId)],
 );
 
 // On-chain balances never share the demo-credit tables.
@@ -128,7 +141,7 @@ export const cashLedger = sqliteTable(
     reference: text("reference").notNull(),
     created: integer("created").notNull(),
   },
-  (t) => [index("cash_ledger_account").on(t.accountId, t.created)],
+  (t) => [index("cash_ledger_account").on(t.accountId, t.created), index("cash_ledger_reference").on(t.reference)],
 );
 
 export const transfers = sqliteTable(
@@ -205,6 +218,8 @@ export const tournaments = sqliteTable(
     places: integer("places").notNull(),
     seed: integer("seed").notNull(),
     ruleset: integer("ruleset").notNull(),
+    // Ruleset 6+: secret key new rows are generated from. Never sent to a browser.
+    rowKey: text("row_key"),
     startsAt: integer("starts_at").notNull(),
     endsAt: integer("ends_at").notNull(),
     // scheduled → settled | cancelled

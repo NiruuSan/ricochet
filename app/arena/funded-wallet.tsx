@@ -5,7 +5,8 @@ import { ArrowUpFromLine, Check, Copy, ExternalLink, RefreshCw, ShieldCheck } fr
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MIN_DEPOSIT, type Transfer, type TreasurySnapshot } from "@/lib/api-types";
-import { request } from "./api";
+import { signInWith, type SignInProvider } from "../auth-actions";
+import { request, RequestError } from "./api";
 import { shortDate } from "./format";
 
 type WalletData = {
@@ -33,6 +34,8 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
   const path = treasury ? "/api/treasury" : "/api/wallet";
   const [data, setData] = useState<WalletData | null>(null);
   const [error, setError] = useState("");
+  // Set when a withdrawal needs a fresh sign-in with this provider.
+  const [reauth, setReauth] = useState<SignInProvider | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -63,6 +66,7 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
   const act = async (body: Record<string, unknown>) => {
     setBusy(true);
     setError("");
+    setReauth(null);
     setNotice("");
     try {
       const result = await request<Record<string, unknown>>(path, body);
@@ -70,6 +74,7 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
       return result;
     } catch (e) {
       setError((e as Error).message);
+      if (e instanceof RequestError && e.code === "REAUTH_REQUIRED") setReauth((e.details?.provider as SignInProvider) ?? "github");
       return null;
     } finally {
       setBusy(false);
@@ -410,6 +415,11 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
                 <p className="error" role="alert">
                   {error}
                 </p>
+              )}
+              {reauth && (
+                <button className="btn full" disabled={busy} onClick={() => void signInWith(reauth, window.location.pathname)}>
+                  <ShieldCheck /> Confirm it&apos;s you, then withdraw again
+                </button>
               )}
               <div className="row-actions">
                 <button className="btn" disabled={busy} onClick={() => setStage("edit")}>

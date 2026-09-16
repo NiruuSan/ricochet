@@ -10,6 +10,7 @@ import {
   portableSinCos,
   random,
   RULESET,
+  seedRows,
   ShotError,
   simulate,
   step,
@@ -135,7 +136,7 @@ for (let angle = 8; angle <= 172; angle += 0.25) {
 const straightUp = launch(initial(5), 90, 3);
 assert.equal(straightUp.balls[0].vx, 0);
 assert.equal(straightUp.balls[0].vy, -4.5);
-assert.equal(RULESET, 5);
+assert.equal(RULESET, 6);
 // Frozen ruleset 3 outcome: changing it would break replays of live matches.
 let v3 = initial(777);
 for (const angle of [33.3, 90, 147.25, 61.5, 12]) if (!v3.over) v3 = simulate(v3, angle, 3);
@@ -194,6 +195,53 @@ let v5 = initial(777);
 for (const angle of [33.3, 90, 147.25, 61.5, 12, 75, 100, 45, 130, 88]) if (!v5.over) v5 = simulate(v5, angle, 5);
 assert.equal(createHash("sha256").update(JSON.stringify(v5)).digest("hex").slice(0, 16), "000ddf6fe9859939");
 console.log("PASS: ruleset 5 sharp corners deflect the ball, shared corners stay flat, frozen replay.");
+
+// Ruleset 6: same physics as ruleset 5, but new rows only come from an explicit
+// row source. Without one (the browser) the board simply gets no new row.
+{
+  const { secretRows, newRowKey, rowsFor } = await import("../lib/secret-rows.ts");
+  const angles = [33.3, 90, 147.25, 61.5, 12, 75, 100, 45, 130, 88];
+  let v5board = initial(777);
+  let v6board = initial(777, seedRows(777));
+  for (const angle of angles) {
+    if (v5board.over) break;
+    v5board = simulate(v5board, angle, 5);
+    v6board = simulate(v6board, angle, 6, seedRows(777));
+  }
+  assert.deepEqual(v6board, v5board, "With the same rows, ruleset 6 plays exactly like ruleset 5");
+
+  const key = newRowKey();
+  const rows = secretRows(key);
+  const hidden = initial(777, rows);
+  const server = simulate(hidden, 70, 6, rows);
+  const browser = simulate(hidden, 70, 6);
+  assert.equal(server.round, 2);
+  assert.deepEqual(browser.bricks, server.bricks.filter((b) => !(b.row === 7)), "Without the key, the browser sees everything but the new row");
+  assert.deepEqual(server.bricks.filter((b) => b.row === 7).map((b) => b.col), rows(2));
+  assert.deepEqual({ ...browser, bricks: [] }, { ...server, bricks: [] }, "Score, balls, landing and round match; only the row is missing");
+  assert.ok(server.bricks.filter((b) => b.row === 7).every((b) => b.hp === brickHp(2, 6)));
+
+  // Rows: deterministic per key, different across keys, unique columns, 1–7 bricks, spread over every count and column.
+  assert.deepEqual(secretRows(key)(9), rows(9));
+  const other = secretRows(newRowKey());
+  let differs = 0;
+  const counts = new Set<number>();
+  const columns = new Array(7).fill(0);
+  for (let round = 1; round <= 400; round++) {
+    const r = rows(round);
+    if (JSON.stringify(r) !== JSON.stringify(other(round))) differs++;
+    assert.ok(r.length >= 1 && r.length <= 7 && new Set(r).size === r.length && r.every((c) => Number.isInteger(c) && c >= 0 && c < 7));
+    counts.add(r.length);
+    for (const c of r) columns[c]++;
+  }
+  assert.ok(differs > 350, "Another key gives other rows");
+  assert.equal(counts.size, 7);
+  assert.ok(Math.min(...columns) > 0.6 * Math.max(...columns), "Columns are used evenly");
+  assert.equal(rowsFor(5, null), undefined, "Earlier rulesets keep seed rows");
+  assert.throws(() => rowsFor(6, null), /row key/, "A ruleset 6 board never plays without its key");
+  assert.throws(() => secretRows("short"), /Invalid row key/);
+}
+console.log("PASS: ruleset 6 hidden rows (server-only secret rows, identical physics, browser sees no future row).");
 
 // Work budget: a shot that costs too much is rejected rather than burning CPU.
 // 8,000 balls on a shallow angle each fly for ~1,700 ticks: about 14M ball-steps.

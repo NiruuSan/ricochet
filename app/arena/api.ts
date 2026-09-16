@@ -1,12 +1,12 @@
 import type { Asset, Snapshot } from "@/lib/api-types";
 
-export type PlayerData = Pick<Snapshot, "matches" | "transactions" | "leaders" | "active"> &
+export type PlayerData = Pick<Snapshot, "matches" | "active"> &
   Partial<Pick<Snapshot, "cashBalance" | "launch" | "player" | "isAdmin" | "notifications" | "unreadNotifications" | "tournaments">> & { authenticated?: boolean };
 
-export const EMPTY_PLAYER: PlayerData = { matches: [], transactions: [], leaders: [], active: null };
+export const EMPTY_PLAYER: PlayerData = { matches: [], active: null };
 
 export class RequestError extends Error {
-  constructor(message: string, readonly status: number, readonly code?: string) { super(message); }
+  constructor(message: string, readonly status: number, readonly code?: string, readonly details?: Record<string, unknown>) { super(message); }
 }
 
 export async function request<T>(path: string, body?: unknown): Promise<T> {
@@ -20,7 +20,7 @@ export async function request<T>(path: string, body?: unknown): Promise<T> {
   } catch {
     // Non-JSON responses (for example a gateway error page) fall through below.
   }
-  if (!response.ok || !data) throw new RequestError(data?.error || "Something went wrong. Please try again.", response.status, data?.code);
+  if (!response.ok || !data) throw new RequestError(data?.error || "Something went wrong. Please try again.", response.status, data?.code, data ?? undefined);
   return data;
 }
 

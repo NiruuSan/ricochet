@@ -36,7 +36,8 @@ const noIds = (value, label) => {
 /** Replays logged shots from the start, as the spectator client does. */
 function replay(data) {
   let board = structuredClone(data.start);
-  for (const shot of data.shots) board = shot.angle === null ? { ...board, over: true } : engine.simulate(board, shot.angle, data.ruleset);
+  const rows = (round) => data.rows[round - 1] ?? [];
+  for (const shot of data.shots) board = shot.angle === null ? { ...board, over: true } : engine.simulate(board, shot.angle, data.ruleset, rows);
   return board;
 }
 
@@ -60,6 +61,9 @@ try {
   );
   assert.equal(own.replayable, true);
   assert.deepEqual(replay(own), own.state, "Logged shots replay to the server's board");
+  assert.equal(own.rows.length, own.state.round, "Spectators get the rows of rounds already reached, and no later ones");
+  const matchKey = sqlite.prepare("SELECT row_key FROM matches WHERE id = ?").get(ann.match_id).row_key;
+  assert.ok(!JSON.stringify(own).includes(matchKey), "The row key is never sent to spectators");
 
   // A stale shot is rejected and logs nothing.
   await assert.rejects(() => matches.playShot(ANN, ann.id, ann.revision - 1, "shot", 90), /another tab/);

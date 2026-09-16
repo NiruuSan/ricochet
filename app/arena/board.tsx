@@ -13,8 +13,8 @@ type Props = {
 };
 
 export function Board({ session, mini = false, startLabel, startDisabled, onStart }: Props) {
-  const { game, started, flying, busy, syncing, liveScore, speed, attachCanvas } = session;
-  const locked = flying || busy;
+  const { game, started, flying, busy, syncing, awaitingRow, liveScore, speed, attachCanvas } = session;
+  const locked = flying || busy || awaitingRow;
   return (
     <div className="board-shell">
       <div className="board-head">
@@ -89,7 +89,7 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
       </div>
       <div className="board-bottom">
         <span>
-          {busy ? "Saving…" : flying ? "Let it bounce." : started ? "Aim anywhere above the line." : "472 × 612 · 7 columns · 9 rows"}
+          {busy ? "Saving…" : flying ? "Let it bounce." : awaitingRow ? "Next row incoming…" : started ? "Aim anywhere above the line." : "472 × 612 · 7 columns · 9 rows"}
           {syncing && !game.over && <span className="sync-dot" title="Saving your shots in the background" />}
         </span>
         <button aria-label="Toggle animation speed" className="icon-btn" onClick={() => session.toggleSpeed()}>

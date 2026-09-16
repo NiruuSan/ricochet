@@ -14,8 +14,13 @@
 // Ruleset 5: ruleset 4, plus sharp corners. A ball that clips the exposed corner
 //            of a brick reflects off the rounded corner, so its path can be
 //            deflected at any angle instead of only flipping one axis.
-export const RULESET = 5;
-export const SUPPORTED_RULESETS: readonly number[] = [2, 3, 4, 5];
+// Ruleset 6: ruleset 5 physics, with hidden rows. Earlier rulesets derive every
+//            new row from the seed the browser holds, so a player could compute
+//            all future rows and plan a perfect run offline. From ruleset 6 the
+//            server generates rows from a secret key (lib/secret-rows.ts) and
+//            the browser only learns a row when the round that spawns it is over.
+export const RULESET = 6;
+export const SUPPORTED_RULESETS: readonly number[] = [2, 3, 4, 5, 6];
 export const isSupportedRuleset = (ruleset: number) => SUPPORTED_RULESETS.includes(ruleset);
 
 export const W = 472;
@@ -44,6 +49,9 @@ export type Game = {
   over: boolean;
   bonus: boolean;
 };
+/** The columns of the row spawned at the start of a round. */
+export type RowSource = (round: number) => number[];
+
 export type Ball = { x: number; y: number; vx: number; vy: number; delay: number; done: boolean };
 export type Flight = {
   game: Game;
@@ -59,6 +67,8 @@ export type Flight = {
   order: Brick[];
   /** Brick indices (into `order`) per grid cell, or null when bricks lie off-grid. */
   cells: number[][] | null;
+  /** Where new rows come from; see `spawn`. */
+  rows?: RowSource;
 };
 
 export class ShotError extends Error {}
@@ -85,20 +95,35 @@ export function brickHp(round: number, ruleset = RULESET) {
   return round <= RULESET4_HP.length ? RULESET4_HP[round - 1] : RULESET4_HP.at(-1)! + 4 * (round - RULESET4_HP.length);
 }
 
-export function spawn(g: Game, ruleset = RULESET) {
-  const rng = random(g.seed ^ Math.imul(g.round, 2654435761));
-  const count = 1 + Math.floor(rng() * 7);
-  const cols = [0, 1, 2, 3, 4, 5, 6];
-  for (let i = 6; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [cols[i], cols[j]] = [cols[j], cols[i]];
-  }
-  for (const col of cols.slice(0, count)) g.bricks.push({ col, row: 7, hp: brickHp(g.round, ruleset) });
+/** Rows derived from a public seed: every ruleset before 6, and practice. */
+export function seedRows(seed: number): RowSource {
+  return (round) => {
+    const rng = random(seed ^ Math.imul(round, 2654435761));
+    const count = 1 + Math.floor(rng() * 7);
+    const cols = [0, 1, 2, 3, 4, 5, 6];
+    for (let i = 6; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [cols[i], cols[j]] = [cols[j], cols[i]];
+    }
+    return cols.slice(0, count);
+  };
 }
 
-export function initial(seed: number): Game {
+/**
+ * Adds the round's new row. With a row source, that decides the columns. Without
+ * one, rulesets before 6 use the seed; ruleset 6 adds nothing: the browser does
+ * not know the row, and takes it from the server's copy of the board.
+ */
+export function spawn(g: Game, ruleset = RULESET, rows?: RowSource) {
+  const cols = rows ? rows(g.round) : ruleset < 6 ? seedRows(g.seed)(g.round) : null;
+  if (!cols) return;
+  for (const col of cols) g.bricks.push({ col, row: 7, hp: brickHp(g.round, ruleset) });
+}
+
+/** A new board. Pass the row source of a ruleset 6 match; otherwise the first row comes from the seed. */
+export function initial(seed: number, rows?: RowSource): Game {
   const g: Game = { seed, round: 1, score: 0, balls: 1, x: W / 2, bricks: [], over: false, bonus: false };
-  spawn(g);
+  spawn(g, RULESET, rows ?? seedRows(seed));
   return g;
 }
 
@@ -150,7 +175,7 @@ export function validAngle(angle: unknown): angle is number {
   return typeof angle === "number" && Number.isFinite(angle) && angle >= MIN_ANGLE && angle <= MAX_ANGLE;
 }
 
-export function launch(g: Game, angle: number, ruleset = RULESET): Flight {
+export function launch(g: Game, angle: number, ruleset = RULESET, rows?: RowSource): Flight {
   if (!isSupportedRuleset(ruleset)) throw new ShotError("This match uses a retired ruleset. It can only be forfeited.");
   if (g.over || !validAngle(angle)) throw new ShotError(`Aim between ${MIN_ANGLE}° and ${MAX_ANGLE}°.`);
   const game = structuredClone(g);
@@ -166,6 +191,7 @@ export function launch(g: Game, angle: number, ruleset = RULESET): Flight {
     ballSteps: 0,
     order: game.bricks.slice(),
     cells: buildCells(game.bricks),
+    rows,
   };
 }
 
@@ -349,7 +375,7 @@ function finishRound(f: Flight) {
   g.over = g.bricks.some((b) => b.row <= 1);
   if (!g.over) {
     g.round++;
-    spawn(g, f.ruleset);
+    spawn(g, f.ruleset, f.rows);
   }
 }
 
@@ -399,8 +425,8 @@ export function step(f: Flight) {
   if (f.balls.every((b) => b.done)) finishRound(f);
 }
 
-export function simulate(g: Game, angle: number, ruleset = RULESET) {
-  const f = launch(g, angle, ruleset);
+export function simulate(g: Game, angle: number, ruleset = RULESET, rows?: RowSource) {
+  const f = launch(g, angle, ruleset, rows);
   while (!f.done && !f.aborted) step(f);
   if (f.aborted) throw new ShotError("Shot exceeded the simulation limit. Try another angle.");
   return f.game;

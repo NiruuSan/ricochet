@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, Medal, Trophy, Wallet, X, Zap } from "lucide-react";
@@ -10,19 +11,20 @@ import { Notifications } from "./notifications";
 import { useGameSession } from "./use-game-session";
 import type { View } from "./views";
 import { usePlayerData } from "./use-player-data";
-import { AdminView } from "./views/admin-view";
-import { AuthView } from "./views/auth-view";
-import { LeaderboardView } from "./views/leaderboard-view";
-import { MatchesView } from "./views/matches-view";
-import { PlayView } from "./views/play-view";
-import { ProfileView } from "./views/profile-view";
-import { PublicProfileView } from "./views/public-profile-view";
-import { RulesView } from "./views/rules-view";
-import { TournamentDetailView } from "./views/tournament-detail-view";
-import { TournamentsView } from "./views/tournaments-view";
-import { WatchView } from "./views/watch-view";
-import { WalletView } from "./views/wallet-view";
-import { WelcomeView } from "./views/welcome-view";
+// Each page only downloads the view it shows; the others load when you navigate to them.
+const AdminView = dynamic(() => import("./views/admin-view").then((m) => m.AdminView));
+const AuthView = dynamic(() => import("./views/auth-view").then((m) => m.AuthView));
+const LeaderboardView = dynamic(() => import("./views/leaderboard-view").then((m) => m.LeaderboardView));
+const MatchesView = dynamic(() => import("./views/matches-view").then((m) => m.MatchesView));
+const PlayView = dynamic(() => import("./views/play-view").then((m) => m.PlayView));
+const ProfileView = dynamic(() => import("./views/profile-view").then((m) => m.ProfileView));
+const PublicProfileView = dynamic(() => import("./views/public-profile-view").then((m) => m.PublicProfileView));
+const RulesView = dynamic(() => import("./views/rules-view").then((m) => m.RulesView));
+const TournamentDetailView = dynamic(() => import("./views/tournament-detail-view").then((m) => m.TournamentDetailView));
+const TournamentsView = dynamic(() => import("./views/tournaments-view").then((m) => m.TournamentsView));
+const WatchView = dynamic(() => import("./views/watch-view").then((m) => m.WatchView));
+const WalletView = dynamic(() => import("./views/wallet-view").then((m) => m.WalletView));
+const WelcomeView = dynamic(() => import("./views/welcome-view").then((m) => m.WelcomeView));
 
 export type PlayerState = ReturnType<typeof usePlayerData>;
 

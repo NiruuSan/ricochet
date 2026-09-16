@@ -1,5 +1,6 @@
 import { database } from "@/db/raw";
-import { initial, type Game } from "./engine";
+import { initial, seedRows, type Game, type RowSource } from "./engine";
+import { rowsFor } from "./secret-rows";
 import type { Asset, LiveGame, WatchData, WatchShot, WatchSide } from "./api-types";
 import { avatarUrl, GameError } from "./matches";
 import { tournamentStatus } from "./tournament-history";
@@ -33,6 +34,7 @@ type MatchRunRow = {
   ruleset: number;
   stake: number;
   seed: number;
+  row_key: string | null;
   p2: string | null;
   settled: number;
 };
@@ -51,6 +53,7 @@ type EntryRow = {
   ruleset: number;
   entry_fee: number;
   seed: number;
+  row_key: string | null;
   status: string;
   starts_at: number;
   ends_at: number;
@@ -65,6 +68,15 @@ async function shotsFor(runKey: string, since: number) {
   return { shots: rows.results, logged: count?.n ?? 0 };
 }
 
+/**
+ * The board before the first shot and the rows of every round reached so far.
+ * Rows of later rounds are never revealed.
+ */
+function board(seed: number, ruleset: number, rowKey: string | null, state: Game) {
+  const source: RowSource = rowsFor(ruleset, rowKey) ?? seedRows(seed);
+  return { start: initial(seed, source), rows: Array.from({ length: state.round }, (_, i) => source(i + 1)) };
+}
+
 const player = async (uid: string, viewer: string | null) => {
   const p = await database().prepare("SELECT name, avatar FROM players WHERE id = ?").bind(uid).first<{ name: string; avatar: string | null }>();
   return { name: p?.name ?? "Player", avatar: avatarUrl(p?.avatar ?? null), isYou: uid === viewer };
@@ -75,7 +87,7 @@ async function watchMatchRun(viewer: string | null, runId: string, since: number
   const runs = await db
     .prepare(
       `SELECT r.id, r.user_id, r.state, r.revision, r.score, r.done, r.forfeit,
-         m.id AS match_id, m.asset, m.ruleset, m.stake, m.seed, m.p2, m.settled
+         m.id AS match_id, m.asset, m.ruleset, m.stake, m.seed, m.row_key, m.p2, m.settled
        FROM runs r JOIN matches m ON m.id = r.match_id
        WHERE r.match_id = (SELECT match_id FROM runs WHERE id = ?)`,
     )
@@ -90,6 +102,7 @@ async function watchMatchRun(viewer: string | null, runId: string, since: number
   if (blocked && target.user_id !== viewer) throw new GameError("Finish your own run before watching this match.", 403);
 
   const key = matchWatchId(target.id);
+  const state = JSON.parse(target.state) as Game;
   const [{ shots, logged }, who, sides] = await Promise.all([
     shotsFor(key, since),
     player(target.user_id, viewer),
@@ -110,13 +123,13 @@ async function watchMatchRun(viewer: string | null, runId: string, since: number
     stake: target.stake,
     tournament: null,
     player: who,
-    state: JSON.parse(target.state) as Game,
+    state,
     revision: target.revision,
     score: target.score,
     done: !!target.done,
     forfeit: !!target.forfeit,
     final: settled,
-    start: initial(target.seed),
+    ...board(target.seed, target.ruleset, target.row_key, state),
     shots,
     replayable: logged === target.revision,
     sides,
@@ -128,7 +141,7 @@ async function watchTournamentRun(viewer: string | null, entryId: string, since:
   const target = await db
     .prepare(
       `SELECT e.id, e.user_id, e.state, e.revision, e.score, e.done, e.forfeit,
-         t.id AS tournament_id, t.name, t.asset, t.ruleset, t.entry_fee, t.seed, t.status, t.starts_at, t.ends_at
+         t.id AS tournament_id, t.name, t.asset, t.ruleset, t.entry_fee, t.seed, t.row_key, t.status, t.starts_at, t.ends_at
        FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id
        WHERE e.id = ?`,
     )
@@ -146,6 +159,7 @@ async function watchTournamentRun(viewer: string | null, entryId: string, since:
     if (mine && !mine.done) throw new GameError("Finish your own run in this tournament before watching the others.", 403);
   }
   const key = entryWatchId(target.id);
+  const state = JSON.parse(target.state!) as Game;
   const [{ shots, logged }, who] = await Promise.all([shotsFor(key, since), player(target.user_id, viewer)]);
   return {
     watchId: key,
@@ -155,13 +169,13 @@ async function watchTournamentRun(viewer: string | null, entryId: string, since:
     stake: target.entry_fee,
     tournament: { id: target.tournament_id, name: target.name },
     player: who,
-    state: JSON.parse(target.state) as Game,
+    state,
     revision: target.revision,
     score: target.score,
     done: !!target.done,
     forfeit: !!target.forfeit,
     final,
-    start: initial(target.seed),
+    ...board(target.seed, target.ruleset, target.row_key, state),
     shots,
     replayable: logged === target.revision,
     sides: [],

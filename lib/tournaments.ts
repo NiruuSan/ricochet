@@ -16,6 +16,7 @@ import { avatarUrl, GameError } from "./matches";
 import { notificationInsert } from "./notifications";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { parseSol, requireDevnet } from "./payments/policy";
+import { newRowKey, rowsFor } from "./secret-rows";
 import { shotInsert } from "./spectate-shots";
 import { tournamentStatus } from "./tournament-history";
 
@@ -43,6 +44,8 @@ type TournamentRow = {
   places: number;
   seed: number;
   ruleset: number;
+  /** Secret row key (ruleset 6+). Never leaves the server. */
+  row_key: string | null;
   starts_at: number;
   ends_at: number;
   status: "scheduled" | "settled" | "cancelled";
@@ -146,10 +149,10 @@ export async function createTournament(input: TournamentInput, now = Date.now())
   const ops: Statement[] = [
     db
       .prepare(
-        `INSERT INTO tournaments(id, name, asset, entry_fee, prize, payout, places, seed, ruleset, starts_at, ends_at, created)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tournaments(id, name, asset, entry_fee, prize, payout, places, seed, ruleset, row_key, starts_at, ends_at, created)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(id, name, asset, entryFee, prize, payout, places, crypto.getRandomValues(new Uint32Array(1))[0], RULESET, startsAt, endsAt, now),
+      .bind(id, name, asset, entryFee, prize, payout, places, crypto.getRandomValues(new Uint32Array(1))[0], RULESET, newRowKey(), startsAt, endsAt, now),
   ];
   if (asset === "devnet" && !paid) {
     await Promise.all([ensureCashAccount(HOUSE), ensureCashAccount(escrowOwner(id))]);
@@ -258,7 +261,7 @@ export async function startTournamentRun(uid: string, idInput: unknown, now = Da
   if (!entry) throw new GameError("You are not registered for this tournament.", 403);
   if (entry.done) throw new GameError("You have already played your run in this tournament.", 409);
   if (!entry.state) {
-    await db.prepare("UPDATE tournament_entries SET state = ?, started = ? WHERE id = ? AND state IS NULL").bind(JSON.stringify(initial(t.seed)), now, entry.id).run();
+    await db.prepare("UPDATE tournament_entries SET state = ?, started = ? WHERE id = ? AND state IS NULL").bind(JSON.stringify(initial(t.seed, rowsFor(t.ruleset, t.row_key))), now, entry.id).run();
     entry = (await load())!;
   }
   return toRun(t, entry);
@@ -278,12 +281,12 @@ export async function playTournamentShot(
   const [row, permitted] = await Promise.all([
     db
       .prepare(
-        `SELECT e.*, t.asset, t.ruleset, t.status AS t_status, t.starts_at, t.ends_at
+        `SELECT e.*, t.asset, t.ruleset, t.row_key, t.status AS t_status, t.starts_at, t.ends_at
          FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id
          WHERE e.id = ? AND e.user_id = ?`,
       )
       .bind(String(entryIdInput), uid)
-      .first<EntryRow & { asset: Asset; ruleset: number; t_status: TournamentRow["status"]; starts_at: number; ends_at: number }>(),
+      .first<EntryRow & { asset: Asset; ruleset: number; row_key: string | null; t_status: TournamentRow["status"]; starts_at: number; ends_at: number }>(),
     allowed,
   ]);
   if (!permitted) throw new GameError("Too many requests. Wait a minute before trying again.", 429);
@@ -301,7 +304,7 @@ export async function playTournamentShot(
     if (!validAngle(angle)) throw new GameError("Invalid aim angle.");
     if (!isSupportedRuleset(row.ruleset)) throw new GameError("This tournament uses a retired ruleset.", 409);
     try {
-      state = simulate(state, angle, row.ruleset);
+      state = simulate(state, angle, row.ruleset, rowsFor(row.ruleset, row.row_key));
     } catch (e) {
       if (e instanceof ShotError) throw new GameError(e.message);
       throw e;

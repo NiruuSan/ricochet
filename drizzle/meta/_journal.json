@@ -57,6 +57,20 @@
       "when": 1789511655810,
       "tag": "0007_spectator_shots",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789549536797,
+      "tag": "0008_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789551195636,
+      "tag": "0009_hidden_rows",
+      "breakpoints": true
     }
   ]
 }

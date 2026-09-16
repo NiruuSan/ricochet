@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types tests/engine.test.ts && node --experimental-strip-types tests/accounting.test.mjs && node tests/migrations.test.mjs && node --experimental-strip-types tests/matches.test.mjs && node --experimental-strip-types tests/payments.test.mjs && node --experimental-strip-types tests/profiles-tips.test.mjs && node --experimental-strip-types tests/tournaments.test.mjs && node --experimental-strip-types tests/spectate.test.mjs && node --experimental-strip-types tests/deployment.test.mjs",
+    "test": "node --experimental-strip-types tests/engine.test.ts && node --experimental-strip-types tests/accounting.test.mjs && node tests/migrations.test.mjs && node --experimental-strip-types tests/matches.test.mjs && node --experimental-strip-types tests/payments.test.mjs && node --experimental-strip-types tests/profiles-tips.test.mjs && node --experimental-strip-types tests/tournaments.test.mjs && node --experimental-strip-types tests/spectate.test.mjs && node --experimental-strip-types tests/security.test.mjs && node --experimental-strip-types tests/profile-stats.test.mjs && node --experimental-strip-types tests/deployment.test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs"
   },
@@ -24,7 +24,7 @@
     "clsx": "2.1.1",
     "drizzle-orm": "0.45.2",
     "lucide-react": "^1.31.0",
-    "next": "16.2.6",
+    "next": "16.3.4",
     "next-auth": "5.0.0-beta.32",
     "radix-ui": "^1.6.7",
     "react": "19.2.6",
@@ -38,7 +38,7 @@
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.3.4",
     "tailwindcss": "4.2.1",
     "tw-animate-css": "^1.4.0",
     "typescript": "5.9.3"

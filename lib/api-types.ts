@@ -87,8 +87,23 @@ export type ProfileMatch = {
   /** Spectator link to this player's run: joined matches and started tournament runs. */
   watchId: string | null;
 };
+/** Finished competition only: settled matches and paid-out tournaments, in one currency. */
+export type ProfileStats = {
+  matches: {
+    played: number; wins: number; losses: number; draws: number;
+    /** Wins over settled matches, 0–1; null before the first one. */
+    winRate: number | null;
+    /** Positive: consecutive wins up to the latest match; negative: consecutive losses. */
+    streak: number;
+    bestWinStreak: number;
+  };
+  runs: { played: number; bestScore: number; averageScore: number | null; bestRound: number; clears: number };
+  tournaments: { played: number; wins: number; podiums: number; bestRank: number | null };
+};
+
 export type ProfilePerformance = {
   asset: Asset; generated: number; openEntries: number; bestWin: number; played: number;
+  stats: ProfileStats;
   history: ProfileMatch[];
   series: Record<PnlRange, { total: number; points: { at: number; value: number }[] }>;
 };
@@ -152,8 +167,6 @@ export type Snapshot = {
   launch: LaunchStatus;
   player: Profile | null;
   matches: MatchSummary[];
-  transactions: { kind: string; amount: number; created: number }[];
-  leaders: Leader[];
   active: Run | null;
   isAdmin: boolean;
   notifications: NotificationItem[];
@@ -306,6 +319,8 @@ export type WatchData = {
   final: boolean;
   /** The board before the first shot. */
   start: Game;
+  /** The columns of each round's row, for rounds already reached (index 0 is round 1). */
+  rows: number[][];
   /** Logged shots from the requested revision on, in order. */
   shots: WatchShot[];
   /** Every shot since the start is logged, so the run can be replayed from the beginning. */

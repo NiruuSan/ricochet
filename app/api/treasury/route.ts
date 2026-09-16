@@ -1,4 +1,4 @@
-import { administrator } from "@/lib/auth-user";
+import { administrator, stepUpRequired } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { safePaymentError } from "@/lib/payments/errors";
@@ -28,7 +28,11 @@ export async function POST(req: Request) {
     const b = parsed.body;
     // Treasury deposits sweep the house deposit address into the pool and credit the house account.
     if (b.action === "deposit") return json(await beginDeposit(HOUSE, b.id));
-    if (b.action === "withdraw") return json(await beginWithdrawal(user.userId, b.id, b.destination, b.amount, true));
+    if (b.action === "withdraw") {
+      const stepUp = stepUpRequired(user);
+      if (stepUp) return json(stepUp, 403);
+      return json(await beginWithdrawal(user.userId, b.id, b.destination, b.amount, true));
+    }
     if (b.action === "reconcile_all") return json(await reconcileOpenTransfers());
     if (b.action === "reconcile" && typeof b.id === "string") {
       const transfer = await database().prepare("SELECT user_id FROM cash_transfers WHERE id = ?").bind(b.id).first<{ user_id: string }>();

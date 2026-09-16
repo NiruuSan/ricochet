@@ -92,6 +92,23 @@
 .empty p { font-size: 13px; color: var(--muted-foreground); }
 .loading { min-height: 318px; display: grid; place-items: center; color: var(--muted-foreground); font-size: 13px; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.statsSection { margin-top: 23px; }
+.statsScope { margin-left: 8px; font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--muted-foreground); }
+.statsGrid { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 20px; }
+.statsCard { display: flex; flex-direction: column; gap: 16px; }
+.statsCard h3 { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; color: #b6c3d7; }
+.statsCard h3 svg { color: var(--primary); }
+.winRate strong { display: block; font-size: 34px; letter-spacing: -1.2px; line-height: 1.05; }
+.winRate span { display: block; margin-top: 4px; color: var(--muted-foreground); font-size: 12px; }
+.recordBar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: #242d3d; }
+.recordBar span { display: block; height: 100%; }
+.barWin { background: var(--primary); }
+.barDraw { background: #7d8aa0; }
+.barLoss { background: #ff809f; }
+.statTiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 12px; margin-top: auto; }
+.statTiles > div { min-width: 0; }
+.statTiles b { display: block; font-size: 19px; letter-spacing: -.4px; line-height: 1.2; }
+.statTiles span { display: flex; align-items: center; gap: 4px; margin-top: 3px; color: var(--muted-foreground); font-size: 11px; }
 @media (max-width: 1050px) {
   .summary { gap: 14px; }
   .card { padding: 19px; }
@@ -126,3 +143,5 @@
 }
 .watchLink { display: inline-flex; align-items: center; gap: 4px; color: var(--primary); font-weight: 700; }
 .watchLink:hover { text-decoration: underline; }
+@media (max-width: 1050px) { .statsGrid { grid-template-columns: 1fr 1fr; } .statsGrid > :first-child { grid-column: 1 / -1; } }
+@media (max-width: 760px) { .statsGrid { grid-template-columns: 1fr; } .winRate strong { font-size: 28px; } }

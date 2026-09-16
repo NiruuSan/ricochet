@@ -1,4 +1,4 @@
-import { currentUser } from "@/lib/auth-user";
+import { currentUser, stepUpRequired } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { safePaymentError } from "@/lib/payments/errors";
@@ -32,7 +32,11 @@ export async function POST(req: Request) {
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
     const b = parsed.body;
     if (b.action === "deposit") return json(await beginDeposit(user.userId, b.id));
-    if (b.action === "withdraw") return json(await beginWithdrawal(user.userId, b.id, b.destination, b.amount));
+    if (b.action === "withdraw") {
+      const stepUp = stepUpRequired(user);
+      if (stepUp) return json(stepUp, 403);
+      return json(await beginWithdrawal(user.userId, b.id, b.destination, b.amount));
+    }
     if (b.action === "reconcile" && typeof b.id === "string") return json(await reconcileTransfer(b.id, user.userId));
     return json({ error: "Unknown wallet action." }, 400);
   } catch (e) {

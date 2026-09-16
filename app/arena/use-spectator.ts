@@ -102,7 +102,7 @@ export function useSpectator(watchId: string) {
     }
     let f: Flight;
     try {
-      f = launch(gameRef.current, shot.angle, server.ruleset);
+      f = launch(gameRef.current, shot.angle, server.ruleset, (round) => server.rows[round - 1] ?? []);
     } catch {
       return snap();
     }

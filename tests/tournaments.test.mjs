@@ -72,6 +72,12 @@ try {
   const runs = {};
   for (const uid of ["u-ann", "u-ben", "u-cat"]) runs[uid] = await t.startTournamentRun(uid, paidId, live);
   assert.deepEqual(runs["u-ann"].state, runs["u-ben"].state, "Every entrant plays the same board");
+  const tournamentKey = sqlite.prepare("SELECT row_key FROM tournaments WHERE id = ?").get(paidId).row_key;
+  const { secretRows } = await import("../lib/secret-rows.ts");
+  assert.deepEqual(runs["u-ann"].state.bricks.map((b) => b.col), secretRows(tournamentKey)(1), "Tournament rows come from the tournament's secret key");
+  for (const value of [runs, await t.listTournaments("u-ann", live), await t.tournamentDetail("u-ann", paidId, live), await t.adminTournaments(live)]) {
+    assert.ok(!JSON.stringify(value).includes(tournamentKey), "The tournament row key is never returned");
+  }
   assert.equal(runs["u-ann"].tournamentId, paidId);
   const setScore = (uid, score) => sqlite.prepare("UPDATE tournament_entries SET score = ?, state = json_set(state, '$.score', ?) WHERE tournament_id = ? AND user_id = ?").run(score, score, paidId, uid);
   setScore("u-ann", 40);

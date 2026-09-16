@@ -37,7 +37,9 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMatchId, tournamentId, clearTournament }: Props) {
   const { data, setAsset, setError, refresh } = player;
-  const { game, run, started, flying, busy, syncing, angle, clears } = session;
+  const { game, run, started, flying, syncing, angle, clears } = session;
+  // Waiting for the server's next row counts as busy: no shot or forfeit until it lands.
+  const busy = session.busy || session.awaitingRow;
   const [choice, setChoice] = useState<Asset | null>(null);
   const [stakeIndex, setStakeIndex] = useState(1);
   const [intro, setIntro] = useState<Intro | null>(null);
