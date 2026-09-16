@@ -47,7 +47,7 @@ function PnlCard({ performance, asset }: { performance: ProfilePerformance; asse
     <div className={`${styles.pnlValue} ${value < 0 ? styles.negative : ""}`}>{signed(value, asset)} <span>{currency(asset)}</span></div>
     <div className={styles.chartMeta}>
       <span>{selected ? new Date(selected.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : RANGES.find(([key]) => key === range)![2]}</span>
-      <span className={styles.watermark}><Zap size={15} fill="currentColor" /> ricochet.</span>
+      <span className={styles.watermark}><img src="/brand/bounce-white.svg" alt="Bounce" width={65} height={16} /></span>
     </div>
     <div className={styles.chartWrap}>
       {/* The drawing stretches to the box, so pointer positions map straight onto the viewBox; strokes keep their width. */}

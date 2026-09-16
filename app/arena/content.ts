@@ -1,6 +1,6 @@
 export const FAQ: [question: string, answer: string][] = [
   [
-    "How does Ricochet work?",
+    "How does Bounce work?",
     "Choose an entry amount, then aim your balls at the bricks. Every hit adds one point. Your opponent plays the same seed, with identical brick spawns and starting conditions. The higher final score wins.",
   ],
   [
@@ -25,11 +25,11 @@ export const FAQ: [question: string, answer: string][] = [
   ],
   [
     "What are gems?",
-    "Gems are Ricochet’s free in-game currency. Every new profile receives 2,000 gems to enter gem matches. They have no monetary value and cannot be bought, sold, deposited or withdrawn.",
+    "Gems are Bounce’s free in-game currency. Every new profile receives 2,000 gems to enter gem matches. They have no monetary value and cannot be bought, sold, deposited or withdrawn.",
   ],
   [
     "How do I tip another player?",
-    "Open their profile from the leaderboard or a match, or find them by name on the leaderboard. Select Tip, enter a devnet SOL amount, and review the recipient before confirming. Tips move your available Ricochet wallet balance to theirs without a tip fee. Sent and received tips appear in your wallet and do not affect match PNL.",
+    "Open their profile from the leaderboard or a match, or find them by name on the leaderboard. Select Tip, enter a devnet SOL amount, and review the recipient before confirming. Tips move your available Bounce wallet balance to theirs without a tip fee. Sent and received tips appear in your wallet and do not affect match PNL.",
   ],
   [
     "Can I deposit or withdraw real SOL?",

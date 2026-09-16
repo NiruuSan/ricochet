@@ -366,8 +366,8 @@ export function useGameSession({ onSaved, onError }: Options) {
     Promise.resolve(
       context.registerTool(
         {
-          name: "read_ricochet_game",
-          title: "Read Ricochet game",
+          name: "read_bounce_game",
+          title: "Read Bounce game",
           description: "Read the current displayed round, score, ball count and aim. Does not launch a shot or enter a match.",
           inputSchema: { type: "object", properties: {}, additionalProperties: false },
           annotations: { readOnlyHint: true },

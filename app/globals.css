@@ -140,24 +140,12 @@ h3 {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 27px;
-  font-weight: 900;
-  letter-spacing: -1.2px;
+  flex-shrink: 0;
 }
-.brand-icon {
-  width: 35px;
-  height: 35px;
-  display: grid;
-  place-items: center;
-  color: #0c1018;
-  background: #c6f564;
-  transform: rotate(-8deg);
-  border-radius: 9px;
-}
-.brand-icon svg {
-  width: 25px;
-  height: 25px;
+.brand img {
+  display: block;
+  width: 147px;
+  height: auto;
 }
 .navigation {
   display: flex;
@@ -911,8 +899,8 @@ h3 {
     flex-wrap: wrap;
     gap: 16px;
   }
-  .brand {
-    font-size: 24px;
+  .brand img {
+    width: 126px;
   }
   .navigation {
     order: 3;

@@ -29,7 +29,7 @@ try {
 
   // Enrolment: a pending secret, an otpauth URI and a QR code.
   const setup = await tf.beginTwoFactorSetup(UID, "Neil", now);
-  assert.match(setup.uri, /^otpauth:\/\/totp\/Ricochet%3ANeil\?secret=[A-Z2-7]{32}&issuer=Ricochet&algorithm=SHA1&digits=6&period=30$/);
+  assert.match(setup.uri, /^otpauth:\/\/totp\/Bounce%3ANeil\?secret=[A-Z2-7]{32}&issuer=Bounce&algorithm=SHA1&digits=6&period=30$/);
   assert.match(setup.qr, /^data:image\/svg\+xml;base64,/);
   assert.ok(Buffer.from(setup.qr.split(",")[1], "base64").toString().startsWith("<svg"), "The QR code is a plain SVG");
   const stored = sqlite.prepare("SELECT secret, enabled FROM two_factor WHERE user_id = ?").get(UID);

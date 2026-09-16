@@ -64,7 +64,7 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
     <Dialog open={open} onOpenChange={(value) => { if (!inFlight.current) setOpen(value); }}>
       <DialogContent className="dialog-dark">
         <DialogTitle>{receipt ? "Tip sent" : `Tip ${profile.name}`}</DialogTitle>
-        <DialogDescription>Send devnet SOL from your available Ricochet balance directly to this player’s balance. No tip fee. Test funds only.</DialogDescription>
+        <DialogDescription>Send devnet SOL from your available Bounce balance directly to this player’s balance. No tip fee. Test funds only.</DialogDescription>
         {error && <div className="error" role="alert">{error}</div>}
         {receipt ? <>
           <p className="success" role="status">Sent {fullSol(receipt.amount)} devnet SOL to {receipt.recipient}.</p>

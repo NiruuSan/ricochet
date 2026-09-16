@@ -36,7 +36,7 @@ export function AdminSecurity() {
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      <p className="muted">Help a player who lost their authenticator and recovery codes. Verify their identity outside Ricochet before resetting access.</p>
+      <p className="muted">Help a player who lost their authenticator and recovery codes. Verify their identity outside Bounce before resetting access.</p>
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="success" role="status">{notice}</p>}
       <form className={styles.panel} onSubmit={async (e) => {

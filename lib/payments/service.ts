@@ -87,7 +87,7 @@ export async function precheckWithdrawal(uid: string, destinationInput: unknown,
   const destination = recipientAddress(destinationInput).toBase58();
   const db = database();
   if (await db.prepare("SELECT 1 FROM custody_wallets WHERE address = ?").bind(destination).first()) {
-    throw new PaymentError("Use an external wallet, not a Ricochet deposit or custody address.");
+    throw new PaymentError("Use an external wallet, not a Bounce deposit or custody address.");
   }
   const available = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(treasury ? HOUSE : uid)).first<{ balance: number }>();
   if (!available || available.balance < amount) throw new PaymentError("Insufficient available balance, including the network fee.");
@@ -159,7 +159,7 @@ export async function beginWithdrawal(uid: string, idInput: unknown, destination
   requireDevnet(s);
   const db = database();
   if (await db.prepare("SELECT 1 FROM custody_wallets WHERE address = ?").bind(destination).first()) {
-    throw new PaymentError("Use an external wallet, not a Ricochet deposit or custody address.");
+    throw new PaymentError("Use an external wallet, not a Bounce deposit or custody address.");
   }
   const connection = await devnetConnection(s.SOLANA_RPC_URL!);
   const pool = await ensureWallet(POOL);

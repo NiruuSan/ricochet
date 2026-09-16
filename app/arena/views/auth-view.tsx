@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, Zap } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { STARTING_GEMS } from "@/lib/api-types";
 import { signInWith, type SignInProvider } from "../../auth-actions";
 import { gameAction } from "../api";
@@ -74,9 +74,7 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
 
   return (
     <section className="panel auth-card">
-      <span className="brand-icon" style={{ marginBottom: 25 }}>
-        <Zap />
-      </span>
+      <img src="/brand/bounce-icon-rotated.svg" alt="Bounce" width={52} height={52} style={{ display: "block", marginBottom: 22 }} />
       <h1>{data.player ? "You’re in." : signup ? "Find your player name." : "Welcome back."}</h1>
       <p className="muted" style={{ marginTop: 15 }}>
         {data.player ? `Ready for another run, ${data.player.name}?` : "One account. Your matches, your scores, your next great bounce."}

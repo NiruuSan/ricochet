@@ -1,4 +1,4 @@
-# Ricochet — handoff for the next developer
+# Bounce — handoff for the next developer
 
 This file briefs whoever continues the work (human or AI). Read it fully before changing code.
 
@@ -16,7 +16,7 @@ The required admin-side recovery task in §7 is implemented and included with th
 
 The sections below retain the original task brief for reference; §7 is no longer pending.
 
-## 1. What Ricochet is
+## 1. What Bounce is
 
 An async 1v1 brick-breaker. Players aim, balls bounce, bricks break. Modes:
 

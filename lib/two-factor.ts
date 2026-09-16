@@ -21,7 +21,7 @@ const DRIFT_STEPS = 1;
 export const MAX_FAILURES = 5;
 export const LOCK_MS = 15 * 60_000;
 const RECOVERY_CODES = 10;
-const ISSUER = "Ricochet";
+const ISSUER = "Bounce";
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
 export type TwoFactorErrorCode = "TWO_FACTOR_REQUIRED" | "TWO_FACTOR_INVALID" | "TWO_FACTOR_LOCKED" | "TWO_FACTOR_STATE";

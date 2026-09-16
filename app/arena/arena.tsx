@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, Medal, Trophy, Wallet, X, Zap } from "lucide-react";
+import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, Medal, Trophy, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, GemIcon } from "./avatar";
 import { units } from "./format";
@@ -98,11 +98,8 @@ export default function Arena({ view, profileName, initialMatchId, initialTourna
   return (
     <>
       <header className="topbar">
-        <Link href="/welcome" className="brand" aria-label="Ricochet home">
-          <span className="brand-icon">
-            <Zap fill="currentColor" />
-          </span>
-          ricochet<span className="lime">.</span>
+        <Link href="/welcome" className="brand" aria-label="Bounce home">
+          <img src="/brand/bounce-white.svg" alt="Bounce" width={147} height={36} />
         </Link>
         <nav className="navigation" aria-label="Main navigation">
           {NAVIGATION.map(({ href, view: key, label, Icon }) => (
@@ -183,7 +180,7 @@ export default function Arena({ view, profileName, initialMatchId, initialTourna
         {(view === "faq" || view === "rules") && <RulesView rules={view === "rules"} />}
         {view === "admin" && <AdminView player={player} />}
         <footer className="foot">
-          <span>© {new Date().getFullYear()} Ricochet · A good angle changes everything.</span>
+          <span>© {new Date().getFullYear()} Bounce · A good angle changes everything.</span>
           <div className="links">
             <Link href="/rules">Game rules</Link>
             <Link href="/faq">Q&A</Link>
