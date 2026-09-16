@@ -132,7 +132,7 @@ export async function createTournament(input: TournamentInput, now = Date.now())
   const payout = input.payout;
   if (!isPreset(payout)) throw new GameError("Choose how the prize is split.");
   const places = Number(input.places);
-  if (!Number.isInteger(places) || places < 2 || places > MAX_PLACES || places % 2) throw new GameError(`Places must be an even number between 2 and ${MAX_PLACES}.`);
+  if (!Number.isInteger(places) || places < 2 || places > MAX_PLACES) throw new GameError(`Places must be a whole number between 2 and ${MAX_PLACES}.`);
   if (PAYOUT_SHARES[payout].length > places) throw new GameError(`Paying the top ${PAYOUT_SHARES[payout].length} needs at least that many places.`);
   const paid = input.entry === "paid";
   if (!paid && input.entry !== "free") throw new GameError("Choose a paid or free entry.");

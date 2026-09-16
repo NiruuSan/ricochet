@@ -44,7 +44,10 @@ try {
 
   // Validation.
   const base = { name: "Friday Cup", asset: "devnet", entry: "paid", entryFee: "0.1", payout: "top3", places: 4, startsAt: now + 10 * MIN, endsAt: now + 70 * MIN };
-  await assert.rejects(() => t.createTournament({ ...base, places: 3 }, now), /even number/);
+  for (const places of [1, 2.5, 1001, "invalid"]) {
+    await assert.rejects(() => t.createTournament({ ...base, places }, now), /whole number between 2 and 1000/);
+  }
+  await assert.rejects(() => t.createTournament({ ...base, places: 2 }, now), /top 3/);
   await assert.rejects(() => t.createTournament({ ...base, payout: "top10" }, now), /top 10/);
   await assert.rejects(() => t.createTournament({ ...base, endsAt: base.startsAt + MIN }, now), /5 minutes/);
   await assert.rejects(() => t.createTournament({ ...base, startsAt: now - 10 * MIN }, now), /future/);
@@ -204,6 +207,32 @@ try {
   const annWaiting = await t.startTournamentRun("u-ann", waiting, quickLive);
   await t.playTournamentShot("u-ann", annWaiting.id.slice(2), 0, "forfeit", undefined, true, quickLive);
   assert.equal(sqlite.prepare("SELECT status FROM tournaments WHERE id = ?").get(waiting).status, "scheduled");
+
+  // Odd capacity: all three seats can be filled, a fourth is refused without a
+  // debit, and the last of three completed runs settles the full pot correctly.
+  const odd = await t.createTournament({ ...base, name: "Three Player Cup", places: 3 }, now);
+  const oddPlayers = players.slice(0, 3);
+  const oddBalances = oddPlayers.map(cash);
+  const oddTotal = totalCash();
+  const oddHouse = cash(HOUSE);
+  for (const uid of oddPlayers) await t.registerForTournament(uid, odd, now + MIN);
+  const rejectedBalance = cash("u-dom");
+  await assert.rejects(() => t.registerForTournament("u-dom", odd, now + MIN), /filled up/);
+  assert.equal(cash("u-dom"), rejectedBalance, "An odd capacity limit never charges the extra player");
+  const oddDetail = await t.tournamentDetail(null, odd, now + MIN);
+  assert.deepEqual([oddDetail.places, oddDetail.entrants, oddDetail.pot, oddDetail.maxPot], [3, 3, 264_000_000, 264_000_000]);
+  for (const [i, uid] of oddPlayers.entries()) {
+    const run = await t.startTournamentRun(uid, odd, live);
+    sqlite.prepare("UPDATE tournament_entries SET score = ?, state = json_set(state, '$.score', ?) WHERE id = ?").run(30 - i * 10, 30 - i * 10, run.id.slice(2));
+    await t.playTournamentShot(uid, run.id.slice(2), 0, "forfeit", undefined, true, live);
+  }
+  const oddResult = await t.tournamentDetail(null, odd, live);
+  assert.equal(oddResult.status, "settled");
+  assert.deepEqual(oddResult.standings.map((s) => [s.rank, s.payout]), [[1, 132_000_000], [2, 79_200_000], [3, 52_800_000]]);
+  assert.deepEqual(oddPlayers.map((uid, i) => cash(uid) - oddBalances[i]), [32_000_000, -20_800_000, -47_200_000]);
+  assert.equal(cash(HOUSE) - oddHouse, 36_000_000);
+  assert.equal(cash(`escrow:tournament:${odd}`), 0);
+  assert.equal(totalCash(), oddTotal, "Three-player settlement conserves SOL");
 
   console.log(
     "PASS: prize presets and splits (fewer players, ties, dust), validation, capacity, one entry each, registration and play windows, same-board runs, conserved SOL with the 12% house share, tie payouts, notifications without player IDs, free gem prizes, refunds when nobody plays, house-funded SOL prizes and idempotent cancellation, early close, automatic end once every entrant has finished, tournament entries in match history and profile PNL.",

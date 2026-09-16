@@ -124,8 +124,8 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
         </label>
       )}
       <label className="field">
-        Places · even number
-        <input className="input" type="number" min={2} max={1000} step={2} value={places} onChange={(e) => setPlaces(e.target.value)} required />
+        Places
+        <input className="input" type="number" min={2} max={1000} step={1} value={places} onChange={(e) => setPlaces(e.target.value)} required />
       </label>
       <div className={`field ${styles.full}`}>
         Prize split
