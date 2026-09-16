@@ -8,7 +8,6 @@ export const metadata: Metadata = {
   title,
   description,
   applicationName: "Bounce",
-  icons: { icon: "/favicon.svg", apple: "/apple-icon.png" },
   openGraph: { title, description, siteName: "Bounce", type: "website" },
   twitter: { card: "summary_large_image", title, description },
 };

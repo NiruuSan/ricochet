@@ -21,7 +21,7 @@ Source of truth in code: theme tokens in `app/globals.css` (`:root`), game color
 | `bounce-white.svg` | Lime icon + white wordmark (562×138) | Dark backgrounds — **default on the site** (top bar, profile watermark) |
 | `bounce-dark.svg` | Lime icon + `#0C1018` wordmark | Light backgrounds |
 | `bounce-black.svg` | Lime icon + black wordmark | Light backgrounds, print |
-| `bounce-icon.svg` | Lime icon alone (138×138) | Favicon (`public/favicon.svg`), avatars, app icons |
+| `bounce-icon.svg` | Lime icon alone (138×138) | Favicon (`app/icon.svg`), avatars, app icons |
 | `bounce-icon-rotated.svg` | Lime icon tilted ≈ -9.5° (159×159) | Playful accents (sign-in card) |
 | `bounce-icon-512.png` | Lime icon, white glyph (512×512) | Android / install icon (web manifest) |
 | `app/apple-icon.png` | Lime icon, white glyph (180×180) | iPhone home screen |
