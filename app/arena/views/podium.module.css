@@ -1,0 +1,76 @@
+/* Top-three podium shared by the leaderboard and tournament standings. */
+.podium { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 36px; padding-top: 12px; }
+.podiumCard { position: relative; flex: 1; min-width: 0; overflow: hidden; border: 1px solid #303b4f; border-radius: 16px; background: linear-gradient(140deg, #1b2432, #121a27); padding: 20px 23px 0; }
+.podiumCard:hover { transform: translateY(-4px); border-color: #607047; }
+.podiumTop { display: flex; justify-content: space-between; align-items: center; gap: 8px; position: relative; color: #a7b7cd; }
+.podiumTop > span { display: flex; align-items: center; gap: 7px; font-size: 9px; letter-spacing: 1.4px; font-weight: 800; }
+.podiumTop > svg { opacity: .65; width: 16px; height: 16px; }
+.podiumIdentity { position: relative; display: flex; align-items: center; flex-direction: column; padding: 24px 0 21px; }
+.podiumAvatar { position: relative; padding: 5px; border: 1px solid #6d82974d; border-radius: 21px; }
+.podiumAvatar :global(.avatar) { border-radius: 15px; background: #b4c8e71a; color: #c1d0e7; }
+.podiumAvatar > span:last-child { position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); background: #bbcde6; color: #111b2a; font-size: 10px; font-weight: 900; padding: 2px 8px; border: 3px solid #182130; border-radius: 8px; }
+.podiumIdentity h2 { margin-top: 20px; max-width: 100%; font-size: 21px; letter-spacing: -.6px; text-align: center; overflow-wrap: anywhere; }
+.podiumMeta { display: flex; gap: 8px; align-items: center; color: #92a0b3; font-size: 11px; margin-top: 6px; }
+.podiumProfit { position: relative; border-top: 1px solid #94abc31a; padding: 17px 0 20px; text-align: center; }
+.podiumProfit > span { display: block; color: #91a0b3; font-size: 9px; font-weight: 700; letter-spacing: 1.7px; margin-bottom: 5px; }
+.podiumProfit strong { display: block; font-size: clamp(22px, 2.4vw, 31px); font-variant-numeric: tabular-nums; letter-spacing: -1px; overflow-wrap: anywhere; }
+.podiumProfit small { font-size: 11px; font-weight: 500; letter-spacing: 0; color: #97a6ba; }
+.podiumWatermark { position: absolute; right: -10px; top: 14px; font-size: 158px; line-height: 1; letter-spacing: -12px; font-weight: 900; color: #a9bdd305; user-select: none; }
+.place1 { order: 2; border-color: #879c465e; background: radial-gradient(ellipse at 50% 5%, #c6f56416, transparent 75%), linear-gradient(145deg, #1b241d, #151d22); }
+.place1 .podiumTop { color: var(--primary); }
+.place1 .podiumIdentity { padding-top: 33px; padding-bottom: 30px; }
+.place1 .podiumAvatar { border-color: #c6f5644d; box-shadow: 0 0 32px #c6f5640a; }
+.place1 .podiumAvatar :global(.avatar) { background: #c6f56421; color: var(--primary); }
+.place1 .podiumAvatar > span:last-child { background: var(--primary); border-color: #232d24; }
+.place1 .podiumProfit strong { color: var(--primary); }
+.place1 .podiumWatermark { color: #c6f56408; }
+.place2 { order: 1; }
+.place3 { order: 3; border-color: #7b634a5c; background: linear-gradient(145deg, #26211f, #181c25); }
+.place3 .podiumTop { color: #d4ad83; }
+.place3 .podiumAvatar { border-color: #d4ad8338; }
+.place3 .podiumAvatar :global(.avatar) { background: #d4ad8315; color: #d4ad83; }
+.place3 .podiumAvatar > span:last-child { background: #d4ad83; border-color: #272422; }
+@media (min-width: 761px) { .podiumCard:only-child { max-width: 420px; margin: 0 auto; } }
+.you { color: var(--primary); background: #c6f56415; border: 1px solid #c6f56426; padding: 1px 5px; border-radius: 4px; font-size: 8px; font-weight: 700; letter-spacing: .5px; }
+.podiumProfit strong.negative { color: #ff91a0; }
+.podiumCard { transition: transform .2s, border-color .2s; }
+@media (max-width: 1000px) {
+  .podiumCard { padding-left: 16px; padding-right: 16px; }
+  .podiumIdentity h2 { font-size: 18px; }
+}
+@media (max-width: 760px) {
+  .podium { gap: 10px; margin-bottom: 28px; }
+  .podiumCard { padding: 15px 10px 0; }
+  .podiumTop > span { font-size: 8px; letter-spacing: .7px; }
+  .podiumTop > svg { display: none; }
+  .podiumTop > span > svg { width: 12px; }
+  .podiumIdentity h2 { font-size: 15px; }
+  .podiumProfit strong { font-size: 23px; }
+  .podiumProfit small { display: block; font-size: 10px; margin-top: 3px; }
+  .podiumMeta { font-size: 10px; flex-wrap: wrap; justify-content: center; }
+  .podiumWatermark { font-size: 120px; }
+}
+@media (max-width: 520px) {
+  .podium { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 0; }
+  .place1 { order: 0; grid-column: 1 / -1; padding: 16px 20px 0; }
+  .place1 .podiumIdentity { padding: 17px 0 18px; }
+  .place1 .podiumIdentity h2 { font-size: 23px; margin-top: 15px; }
+  .place1 .podiumProfit { padding: 13px 0 16px; }
+  .place1 .podiumProfit strong { font-size: 30px; }
+  .place1 .podiumProfit small { display: inline; }
+  .place1 .podiumWatermark { font-size: 190px; top: 30px; }
+  .podiumCard:only-child { grid-column: 1 / -1; }
+  .podiumTop > span { font-size: 8px; }
+  .podiumTop > svg { display: block; }
+  .podiumIdentity { padding: 19px 0 15px; }
+  .podiumAvatar :global(.avatar) { width: 45px !important; height: 45px !important; font-size: 16px !important; border-radius: 12px; }
+  .place1 .podiumAvatar :global(.avatar) { width: 62px !important; height: 62px !important; font-size: 22px !important; }
+  .podiumAvatar { border-radius: 17px; }
+  .podiumIdentity h2 { font-size: 15px; margin-top: 16px; }
+  .podiumProfit { padding: 12px 0 15px; }
+  .podiumProfit strong { font-size: 23px; }
+  .podiumProfit > span { font-size: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .podiumCard:hover { transform: none; }
+}

@@ -9,6 +9,7 @@ import { request } from "../api";
 import { CURRENCY, signedAmount } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./leaderboard.module.css";
+import { Podium } from "./podium";
 
 type Board = Omit<Leader, "is_you">;
 type CachedBoard = { rows: Board[]; updated: number };
@@ -17,21 +18,6 @@ const boards: Partial<Record<Asset, CachedBoard>> = {};
 const PAGE_SIZE = 10;
 const profileHref = (name: string) => `/players/${encodeURIComponent(name)}`;
 const count = (n: number) => n.toLocaleString("en");
-
-function Podium({ rows, asset, me }: { rows: Board[]; asset: Asset; me?: string }) {
-  return <div className={styles.podium} aria-label="Top three players">
-    {rows.slice(0, 3).map((p, i) => <Link key={p.name} href={profileHref(p.name)} className={`${styles.podiumCard} ${styles[`place${i + 1}`]}`}>
-      <span className={styles.podiumWatermark} aria-hidden>{String(i + 1).padStart(2, "0")}</span>
-      <div className={styles.podiumTop}><span>{i === 0 ? <Crown size={15} /> : <Trophy size={14} />}{i === 0 ? "LEADING THE PACK" : i === 1 ? "SECOND PLACE" : "THIRD PLACE"}</span><ArrowUpRight size={16} aria-hidden /></div>
-      <div className={styles.podiumIdentity}>
-        <div className={styles.podiumAvatar}><Avatar name={p.name} src={p.avatar} size={62} /><span>#{i + 1}</span></div>
-        <h2>{p.name}</h2>
-        <span className={styles.podiumMeta}>{count(p.games)} settled {p.games === 1 ? "match" : "matches"}{p.name === me && <span className={styles.you}>YOU</span>}</span>
-      </div>
-      <div className={styles.podiumProfit}><span>NET PROFIT</span><strong className={p.pnl < 0 ? styles.negative : undefined}>{signedAmount(p.pnl, asset)} <small>{CURRENCY[asset]}</small></strong></div>
-    </Link>)}
-  </div>;
-}
 
 export function LeaderboardView({ player }: { player: PlayerState }) {
   const { data, asset, setAsset } = player;
@@ -92,7 +78,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
     </div>
 
     {error && <div className={styles.error} role="alert"><Info size={17} /><span>{rows ? "Could not refresh. Showing the last available standings." : error}</span><button onClick={refresh} disabled={refreshing}>Try again</button></div>}
-    {rows?.length ? <Podium rows={rows} asset={asset} me={me} /> : !rows && !error ? <div className={styles.podiumSkeleton} role="status" aria-label="Loading leaderboard"><div /><div /><div /><span className={styles.srOnly}>Loading leaderboard…</span></div> : null}
+    {rows?.length ? <Podium entries={rows.slice(0, 3).map((p, i) => ({ name: p.name, avatar: p.avatar, href: profileHref(p.name), rank: i + 1, meta: `${count(p.games)} settled ${p.games === 1 ? "match" : "matches"}`, valueLabel: "NET PROFIT", value: signedAmount(p.pnl, asset), unit: CURRENCY[asset], negative: p.pnl < 0, isYou: p.name === me }))} /> : !rows && !error ? <div className={styles.podiumSkeleton} role="status" aria-label="Loading leaderboard"><div /><div /><div /><span className={styles.srOnly}>Loading leaderboard…</span></div> : null}
 
     <div className={styles.contentGrid}>
       <section className={styles.standings} id="standings" aria-labelledby="standings-title">

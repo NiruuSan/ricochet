@@ -8,6 +8,7 @@ import { Avatar } from "../avatar";
 import { amount } from "../format";
 import type { PlayerState } from "../arena";
 import { entryLabel, headlinePot, ordinal, PAYOUT_LABELS, STATUS_LABELS, timing } from "../tournament-format";
+import { Podium } from "./podium";
 import styles from "./tournaments.module.css";
 
 const REFRESH_MS = 10_000;
@@ -65,6 +66,8 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
 
   const you = t.you;
   const signedIn = !!player.data.player;
+  // Players who have played, in standings order; tied players keep their shared rank.
+  const podium = t.standings.filter((s) => s.started && s.rank !== null).slice(0, 3);
   const full = t.entrants >= t.places;
   let action: React.ReactNode;
   if (t.status === "registration") {
@@ -168,6 +171,29 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
 
       <div className={styles.section}>
         <h2>{t.status === "settled" ? "Final standings" : "Standings"}</h2>
+        {podium.length > 0 && (
+          <div style={{ marginTop: 22 }}>
+            <Podium
+              label="Tournament top three"
+              titles={t.status === "settled" ? ["CHAMPION", "SECOND PLACE", "THIRD PLACE"] : t.status === "cancelled" ? ["TOP SCORE", "SECOND", "THIRD"] : ["IN THE LEAD", "SECOND PLACE", "THIRD PLACE"]}
+              entries={podium.map((s) => ({
+                name: s.name,
+                avatar: s.avatar,
+                href: `/players/${encodeURIComponent(s.name)}`,
+                rank: s.rank!,
+                meta: s.payout
+                  ? `${t.status === "settled" ? "Won" : "Projected"} ${amount(s.payout, t.asset)}`
+                  : !s.done
+                    ? "Still playing"
+                    : "Outside the prizes",
+                valueLabel: "SCORE",
+                value: s.score.toLocaleString("en"),
+                unit: "pts",
+                isYou: s.isYou,
+              }))}
+            />
+          </div>
+        )}
         {t.standings.length ? (
           <div style={{ overflowX: "auto" }}>
             <table className={styles.table}>
