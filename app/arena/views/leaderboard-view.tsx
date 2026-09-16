@@ -2,103 +2,158 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Trophy } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AssetTabs } from "../asset-tabs";
+import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crown, Gem, Info, RefreshCw, Search, Sparkles, Swords, Trophy, Wallet, X } from "lucide-react";
 import { Avatar } from "../avatar";
 import type { Asset, Leader } from "@/lib/api-types";
 import { request } from "../api";
 import { CURRENCY, signedAmount } from "../format";
 import type { PlayerState } from "../arena";
+import styles from "./leaderboard.module.css";
 
 type Board = Omit<Leader, "is_you">;
-// Kept between visits, so returning to the page or switching tabs shows the last board instantly.
-const boards: Partial<Record<Asset, Board[]>> = {};
+type CachedBoard = { rows: Board[]; updated: number };
+// Keep the last standings visible between visits and currency changes.
+const boards: Partial<Record<Asset, CachedBoard>> = {};
+const PAGE_SIZE = 10;
+const profileHref = (name: string) => `/players/${encodeURIComponent(name)}`;
+const count = (n: number) => n.toLocaleString("en");
+
+function Podium({ rows, asset, me }: { rows: Board[]; asset: Asset; me?: string }) {
+  return <div className={styles.podium} aria-label="Top three players">
+    {rows.slice(0, 3).map((p, i) => <Link key={p.name} href={profileHref(p.name)} className={`${styles.podiumCard} ${styles[`place${i + 1}`]}`}>
+      <span className={styles.podiumWatermark} aria-hidden>{String(i + 1).padStart(2, "0")}</span>
+      <div className={styles.podiumTop}><span>{i === 0 ? <Crown size={15} /> : <Trophy size={14} />}{i === 0 ? "LEADING THE PACK" : i === 1 ? "SECOND PLACE" : "THIRD PLACE"}</span><ArrowUpRight size={16} aria-hidden /></div>
+      <div className={styles.podiumIdentity}>
+        <div className={styles.podiumAvatar}><Avatar name={p.name} src={p.avatar} size={62} /><span>#{i + 1}</span></div>
+        <h2>{p.name}</h2>
+        <span className={styles.podiumMeta}>{count(p.games)} settled {p.games === 1 ? "match" : "matches"}{p.name === me && <span className={styles.you}>YOU</span>}</span>
+      </div>
+      <div className={styles.podiumProfit}><span>NET PROFIT</span><strong className={p.pnl < 0 ? styles.negative : undefined}>{signedAmount(p.pnl, asset)} <small>{CURRENCY[asset]}</small></strong></div>
+    </Link>)}
+  </div>;
+}
 
 export function LeaderboardView({ player }: { player: PlayerState }) {
   const { data, asset, setAsset } = player;
-  const [name, setName] = useState("");
-  const [leaders, setLeaders] = useState<Partial<Record<Asset, Board[]>>>(() => ({ ...boards }));
-  const [error, setError] = useState("");
+  const router = useRouter();
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
+  const [leaders, setLeaders] = useState<Partial<Record<Asset, CachedBoard>>>(() => ({ ...boards }));
+  const [errors, setErrors] = useState<Partial<Record<Asset, string>>>({});
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
     let active = true;
-    const load = (which: Asset) =>
-      request<Board[]>(`/api/leaderboard?asset=${which}`).then(
-        (next) => {
-          boards[which] = next;
-          if (active) setLeaders((current) => ({ ...current, [which]: next }));
-        },
-        (e: Error) => active && which === asset && setError(e.message),
-      );
+    const load = (which: Asset) => request<Board[]>(`/api/leaderboard?asset=${which}`).then(
+      (rows) => {
+        const next = { rows, updated: Date.now() };
+        boards[which] = next;
+        if (active) {
+          setLeaders((current) => ({ ...current, [which]: next }));
+          setErrors((current) => ({ ...current, [which]: "" }));
+        }
+      },
+      (e: Error) => { if (active) setErrors((current) => ({ ...current, [which]: e.message })); },
+    ).finally(() => { if (active && which === asset) setRefreshing(false); });
     void load(asset);
-    // Warm the other tab too, so switching is instant.
     const other = asset === "gems" ? "devnet" : "gems";
     if (!boards[other]) void load(other);
-    return () => {
-      active = false;
-    };
-  }, [asset]);
-  const rows = leaders[asset];
+    return () => { active = false; };
+  }, [asset, refreshKey]);
+
+  const board = leaders[asset];
+  const rows = board?.rows;
+  const error = errors[asset];
   const me = data.player?.name;
-  const router = useRouter();
-  return (
-    <section className="subpage">
-      <div className="tag lime" style={{ marginBottom: 12 }}>
-        THE SCORE THAT COUNTS
+  const myIndex = me ? rows?.findIndex((p) => p.name === me) ?? -1 : -1;
+  const mine = myIndex >= 0 ? rows?.[myIndex] : undefined;
+  const query = search.trim().toLowerCase();
+  const filtered = rows?.map((p, i) => ({ ...p, rank: i + 1 })).filter((p) => p.name.toLowerCase().includes(query)) ?? [];
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pages - 1);
+  const visible = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+  const validProfileName = /^[a-zA-Z0-9_]{3,20}$/.test(search.trim());
+  const refresh = () => { setRefreshing(true); setRefreshKey((n) => n + 1); };
+
+  return <section className={styles.page}>
+    <header className={styles.hero}>
+      <div><div className={styles.eyebrow}><span />THE LEADERBOARD</div><h1>Good angles.<br /><span>Great company.</span></h1><p>Every match leaves a mark. Meet the players making theirs.</p></div>
+      <Link href="/" className={`btn btn-primary ${styles.playButton}`}>Take your shot <ArrowUpRight /></Link>
+    </header>
+
+    <div className={styles.boardBar}>
+      <div className={styles.currencyTabs} role="group" aria-label="Leaderboard currency">
+        {(["devnet", "gems"] as const).map((which) => <button key={which} aria-pressed={asset === which} onClick={() => { setAsset(which); setPage(0); }}>
+          {which === "devnet" ? <Wallet size={16} /> : <Gem size={16} />}{which === "devnet" ? "Devnet SOL" : "Gems"}
+        </button>)}
       </div>
-      <h1>Meet the angle masters.</h1>
-      <form className="row-actions" style={{ margin: "20px 0" }} onSubmit={(event) => { event.preventDefault(); router.push(`/players/${encodeURIComponent(name.trim())}`); }}>
-        <input className="input" aria-label="Find a player by name" placeholder="Find a player by name" value={name} onChange={(event) => setName(event.target.value)} pattern="[a-zA-Z0-9_]{3,20}" minLength={3} maxLength={20} required style={{ maxWidth: 320 }} />
-        <button className="btn">View profile</button>
-      </form>
-      <AssetTabs asset={asset} onChange={setAsset} />
-      <p className="muted">Ranked by net profit from settled {asset === "gems" ? "gem" : "devnet SOL"} matches. Entry fees included.</p>
-      <div className="table-card">
-        {rows?.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Rank</TableHead>
-                <TableHead>Player</TableHead>
-                <TableHead>Settled matches</TableHead>
-                <TableHead>Net P&L · {CURRENCY[asset]}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((p, i) => (
-                // Names are unique; private authentication IDs are never sent.
-                <TableRow key={p.name}>
-                  <TableCell>
-                    <b className={i === 0 ? "lime" : ""}>{String(i + 1).padStart(2, "0")}</b>
-                  </TableCell>
-                  <TableCell>
-                    <Link href={`/players/${encodeURIComponent(p.name)}`} className="you-card">
-                      <Avatar name={p.name} src={p.avatar} />
-                      <b>
-                        {p.name}
-                        {p.name === me ? " (you)" : ""}
-                      </b>
-                    </Link>
-                  </TableCell>
-                  <TableCell>{p.games}</TableCell>
-                  <TableCell className={p.pnl >= 0 ? "lime" : ""}>
-                    <b>{signedAmount(p.pnl, asset)}</b>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <div className="empty-big">
-            <Trophy />
-            <h2>The top spot is wide open.</h2>
-            <p>{error || (rows ? "Rankings appear when the first matches settle. No bots, no invented champions." : "Loading the leaderboard…")}</p>
-            <Link href="/" className="btn btn-primary" style={{ marginTop: 15 }}>
-              Enter the arena <ArrowRight />
-            </Link>
+      <div className={styles.boardScope}><span>ALL TIME</span><span>TOP 50</span></div>
+    </div>
+
+    {error && <div className={styles.error} role="alert"><Info size={17} /><span>{rows ? "Could not refresh. Showing the last available standings." : error}</span><button onClick={refresh} disabled={refreshing}>Try again</button></div>}
+    {rows?.length ? <Podium rows={rows} asset={asset} me={me} /> : !rows && !error ? <div className={styles.podiumSkeleton} role="status" aria-label="Loading leaderboard"><div /><div /><div /><span className={styles.srOnly}>Loading leaderboard…</span></div> : null}
+
+    <div className={styles.contentGrid}>
+      <section className={styles.standings} id="standings" aria-labelledby="standings-title">
+        <div className={styles.standingsHeading}>
+          <div><h2 id="standings-title">The standings <span>{rows ? count(rows.length) : "—"}</span></h2><p>Ranked by net profit. Earned in the arena.</p></div>
+          <button className={styles.refresh} aria-label="Refresh standings" disabled={refreshing} onClick={refresh}><RefreshCw size={16} className={refreshing ? styles.spinning : undefined} /></button>
+        </div>
+        <form className={styles.search} onSubmit={(event) => { event.preventDefault(); if (validProfileName) router.push(profileHref(search.trim())); }}>
+          <Search size={17} aria-hidden />
+          <input aria-label="Find a player" placeholder="Find a player…" value={search} maxLength={20} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+          {search && <button type="button" aria-label="Clear search" onClick={() => { setSearch(""); setPage(0); }}><X size={15} /></button>}
+          <button className={styles.profileSearch} disabled={!validProfileName} title="Open a profile by its exact public name">View profile <ArrowUpRight size={14} /></button>
+        </form>
+
+        {rows && rows.length > 0 && filtered.length > 0 ? <>
+          <div className={styles.tableWrap}><table className={styles.table}>
+            <caption className={styles.srOnly}>All-time {CURRENCY[asset]} standings ranked by net profit from settled matches</caption>
+            <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" className={styles.matchesColumn}>Matches</th><th scope="col">Net profit <ArrowDown size={12} aria-hidden /></th><th scope="col" className={styles.arrowColumn}><span className={styles.srOnly}>Profile</span></th></tr></thead>
+            <tbody>{visible.map((p) => <tr key={p.name} className={p.name === me ? styles.myRow : undefined}>
+              <td><span className={`${styles.rank} ${p.rank <= 3 ? styles[`rank${p.rank}`] : ""}`}>{p.rank === 1 ? <Crown size={16} aria-label="First place" /> : String(p.rank).padStart(2, "0")}</span></td>
+              <td><Link href={profileHref(p.name)} className={styles.playerLink}><Avatar name={p.name} src={p.avatar} size={36} /><span><b>{p.name}{p.name === me && <small className={styles.you}>YOU</small>}</b><small className={styles.mobileMatches}>{count(p.games)} {p.games === 1 ? "match" : "matches"}</small></span></Link></td>
+              <td className={styles.matchesColumn}>{count(p.games)}</td>
+              <td className={styles.profit}><strong className={p.pnl > 0 ? styles.positive : p.pnl < 0 ? styles.negative : styles.neutral}>{signedAmount(p.pnl, asset)}</strong><span>{CURRENCY[asset]}</span></td>
+              <td className={styles.arrowColumn}><Link href={profileHref(p.name)} aria-label={`View ${p.name}'s profile`}><ArrowUpRight size={16} /></Link></td>
+            </tr>)}</tbody>
+          </table></div>
+          <div className={styles.tableFooter}><span aria-live="polite">{currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length} players</span>
+            {pages > 1 && <nav className={styles.pagination} aria-label="Standings pages"><button aria-label="Previous page" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></button><span>{currentPage + 1} / {pages}</span><button aria-label="Next page" disabled={currentPage === pages - 1} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></button></nav>}
           </div>
-        )}
-      </div>
-    </section>
-  );
+        </> : !rows && !error ? <div className={styles.loadingRows} role="status"><span className={styles.srOnly}>Loading standings…</span>{[0, 1, 2, 3, 4].map((n) => <div key={n}><i /><span /><b /></div>)}</div> : <div className={styles.empty}>
+          {query && rows?.length ? <Search size={28} /> : <Trophy size={32} />}
+          <h3>{!rows && error ? "A short timeout." : query && rows?.length ? "No players found." : "The first spot could be yours."}</h3>
+          <p>{!rows && error ? "The standings are unavailable right now. Try refreshing in a moment." : query && rows?.length ? "Try another name, or open their profile directly. This board shows the top 50 players." : "Finish a 1v1 match to join the standings. Every climb starts with one good shot."}</p>
+          {query && rows?.length ? <button className="btn" onClick={() => { setSearch(""); setPage(0); }}>Clear search</button> : !error && <Link href="/" className="btn btn-primary">Enter the arena <ArrowRight /></Link>}
+        </div>}
+        {board && <div className={styles.updated}>Updated {new Date(board.updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<span>·</span>Settled 1v1 matches only</div>}
+      </section>
+
+      <aside className={styles.sidebar}>
+        <section className={styles.personalCard}>
+          <div className={styles.cardLabel}><Swords size={15} />YOUR NEXT MOVE</div>
+          {mine ? <>
+            <div className={styles.myIdentity}><Avatar name={mine.name} src={mine.avatar} size={42} /><div><b>{mine.name}</b><span>Your place in the pack</span></div></div>
+            <div className={styles.myRank}>#{myIndex + 1}<span>of {rows!.length} ranked players</span></div>
+            <div className={styles.myProfit}><span>Net profit</span><b className={mine.pnl < 0 ? styles.negative : styles.positive}>{signedAmount(mine.pnl, asset)} {CURRENCY[asset]}</b></div>
+            <a className={styles.positionLink} href="#standings" onClick={() => { setSearch(""); setPage(Math.floor(myIndex / PAGE_SIZE)); }}>Find my position <ArrowRight size={15} /></a>
+          </> : <>
+            <div className={styles.orbit} aria-hidden><span /><Trophy size={30} /><span /></div>
+            <h2>Aim for your<br />name up here.</h2>
+            <p>{!rows ? "One good angle can change the game. Your next match is waiting." : me ? `Build your net profit in ${asset === "gems" ? "gem" : "devnet SOL"} matches to reach the top 50.` : "Find your angle, challenge a player, and start your climb."}</p>
+          </>}
+          <Link href="/" className={`btn btn-primary ${styles.cardCta}`}>Play a match <ArrowUpRight size={16} /></Link>
+        </section>
+        <section className={styles.explainer}>
+          <div className={styles.cardLabel}><Sparkles size={15} />HOW THE RANKS WORK</div>
+          <h3>Profit is the score.</h3><p>Your match payouts minus your entries. The higher your net profit, the higher you climb.</p>
+          <ul><li>All-time results, top 50 players</li><li>Only settled 1v1 matches count</li><li>Separate boards for SOL and gems</li></ul>
+          <Link href="/rules">Get to know the game <ArrowUpRight size={14} /></Link>
+        </section>
+      </aside>
+    </div>
+    <p className={styles.footnote}><Info size={13} />{asset === "devnet" ? "Devnet SOL is test currency with no monetary value." : "Gems are free in-game currency with no monetary value."}</p>
+  </section>;
 }
