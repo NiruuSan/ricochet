@@ -14,7 +14,7 @@ import {
   type TournamentStanding,
   type TournamentSummary,
 } from "./api-types";
-import { AUTOMATION_DETECTED, avatarUrl, GameError, reportSigned, SHOT_HISTORY_SQL, type ShotGuard, type ShotHistory } from "./matches";
+import { AUTOMATION_DETECTED, avatarUrl, GameError, recordedFindings, reportSigned, SHOT_HISTORY_SQL, type ShotGuard, type ShotHistory } from "./matches";
 import { shotKeyFor } from "./shot-key";
 import { notificationInsert } from "./notifications";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
@@ -321,12 +321,12 @@ export async function playTournamentShot(
     if (guard.proof) {
       const signed = reportSigned(runKey, row.revision, angle, guard);
       const findings = inspectShot({ proof: guard.proof, signed, ruleset: row.ruleset, now, previousShotAt: row.previous_at, previousTicks: row.previous_ticks, timingStrikes: row.timing_strikes });
-      if (findings.some((f) => f.level === "proof")) {
+      if (row.anti_cheat_on && findings.some((f) => f.level === "proof")) {
         const { disqualify } = await import("./anti-cheat");
         await disqualify(uid, runKey, findings, now);
         throw new GameError(AUTOMATION_DETECTED, 403);
       }
-      signals.push(...findings.map((f) => signalInsert(db, uid, runKey, f, now)));
+      signals.push(...recordedFindings(findings, !!row.anti_cheat_on).map((f) => signalInsert(db, uid, runKey, f, now)));
     }
     try {
       ({ game: state, ticks } = simulateShot(before, angle, row.ruleset, rowsFor(row.ruleset, row.row_key)));

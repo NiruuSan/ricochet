@@ -1,6 +1,6 @@
 import { database, type Statement } from "@/db/raw";
 import { aimFeatures, evaluateShots, FINDING_LABELS, qualityThreshold, STATS, type AimTrail } from "./anti-cheat-rules";
-import { playerShotStats, populationQuality, suspensionOps } from "./anti-cheat";
+import { antiCheatEnabled, playerShotStats, populationQuality, suspensionOps } from "./anti-cheat";
 import type { Finding } from "./anti-cheat-rules";
 import { GameError } from "./matches";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
@@ -37,6 +37,8 @@ export type CheatCase = {
   balances: { sol: number; gems: number };
 };
 export type AntiCheatOverview = {
+  /** Whether automatic sanctions are on. */
+  enabled: boolean;
   cases: CheatCase[];
   /** Players with a watch signal in the last 30 days who are not suspended. */
   watchlist: CheatCase[];
@@ -134,7 +136,7 @@ async function caseFor(row: CaseRow, now: number, threshold: number): Promise<Ch
 
 export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOverview> {
   const db = database();
-  const [cases, recent, watched, population] = await Promise.all([
+  const [cases, recent, watched, population, enabled] = await Promise.all([
     db
       .prepare(
         `SELECT s.user_id, p.name, s.status, s.source, s.reason, s.created, s.reviewed_at, s.note
@@ -159,9 +161,11 @@ export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOver
       .bind(now - MONTH)
       .all<CaseRow>(),
     populationQuality(now),
+    antiCheatEnabled(),
   ]);
   const threshold = qualityThreshold(population);
   return {
+    enabled,
     cases: await Promise.all(cases.results.map((row) => caseFor(row, now, threshold))),
     watchlist: await Promise.all(
       watched.results.map((row) => caseFor({ ...row, reason: row.reason.split(",").map((kind) => FINDING_LABELS[kind] ?? kind).join("; ") }, now, threshold)),

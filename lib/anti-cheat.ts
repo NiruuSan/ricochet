@@ -27,6 +27,32 @@ import { weekStart } from "./weekly-race";
 
 export const SYSTEM = "system";
 
+/** app_settings key of the anti-cheat switch; on unless an administrator turned it off. */
+export const ANTI_CHEAT_KEY = "anti_cheat_enabled";
+/** SQL: 1 while automatic sanctions are on. */
+export const ANTI_CHEAT_ON_SQL = `COALESCE((SELECT value FROM app_settings WHERE key = '${ANTI_CHEAT_KEY}'), 'true') = 'true'`;
+
+export async function antiCheatEnabled() {
+  return !!(await database().prepare(`SELECT ${ANTI_CHEAT_ON_SQL} AS on_`).first<{ on_: number }>())?.on_;
+}
+
+/**
+ * Administrator: turns automatic sanctions on or off. While off, every check
+ * still runs and its findings are recorded, but nobody is suspended or loses a
+ * match automatically. Existing suspensions and manual decisions are unchanged.
+ */
+export async function setAntiCheatEnabled(adminUid: string, enabled: boolean, now = Date.now()) {
+  const db = database();
+  await db.batch([
+    db
+      .prepare("INSERT INTO app_settings(key, value, updated_by, updated) VALUES(?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by, updated = excluded.updated")
+      .bind(ANTI_CHEAT_KEY, enabled ? "true" : "false", adminUid, now),
+    db
+      .prepare("INSERT INTO admin_audit(id, admin_id, action, target_user_id, reason, created) VALUES(?, ?, 'anti_cheat_toggle', 'anti-cheat', ?, ?)")
+      .bind(crypto.randomUUID(), adminUid, enabled ? "Automatic sanctions turned on" : "Automatic sanctions turned off", now),
+  ]);
+}
+
 /** SQL: whether `player` (an SQL expression for a player ID) may not play or move money. */
 export const suspendedSql = (player: string) => `EXISTS (SELECT 1 FROM player_suspensions WHERE user_id = ${player} AND status IN ('suspended', 'banned'))`;
 
@@ -194,7 +220,16 @@ export async function evaluatePlayer(uid: string, now = Date.now()) {
   const [shots, population, matches] = await Promise.all([playerShotStats(uid, now), populationQuality(now), recentSolMatches(uid)]);
   const qualities = shots.map((s) => s.quality).filter((q): q is number => q !== null);
   const findings = [...evaluateShots(shots), ...evaluateQuality(qualities, qualityThreshold(population))];
-  if (findings.length) await suspendForStats(uid, findings, now);
+  if (findings.length) {
+    if (await antiCheatEnabled()) await suspendForStats(uid, findings, now);
+    else {
+      // Switched off: keep the evidence, at most once a day per kind, without suspending.
+      const db = database();
+      const seen = await db.prepare("SELECT kind FROM cheat_signals WHERE user_id = ? AND level = 'stat' AND created >= ?").bind(uid, now - 24 * 60 * 60_000).all<{ kind: string }>();
+      const fresh = findings.filter((f) => !seen.results.some((row) => row.kind === f.kind));
+      if (fresh.length) await db.batch(fresh.map((f) => signalInsert(db, uid, null, { ...f, detail: { ...f.detail, sanctioned: false } }, now)));
+    }
+  }
   // A jump in results is only put on the admin's watchlist, at most once a week.
   const watch = evaluateTrend(matches);
   if (watch.length) {

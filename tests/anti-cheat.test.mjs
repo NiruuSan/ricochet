@@ -229,6 +229,30 @@ try {
   sqlite.prepare("INSERT INTO runs(id, match_id, user_id, state, score, done, created, finished) VALUES('cat-race-run', 'cat-race', ?, '{}', 9999, 1, 0, ?)").run(ids.cat, Date.now());
   assert.ok(!(await race.weeklyRace()).standings.some((s) => s.name === "cat"));
 
+  // --- The switch: with sanctions off, checks still run and are recorded -----
+  assert.equal(await antiCheat.antiCheatEnabled(), true, "On by default");
+  await antiCheat.setAntiCheatEnabled("admin-user", false);
+  assert.equal(await antiCheat.antiCheatEnabled(), false);
+  sqlite.prepare("INSERT INTO players(id, name, created) VALUES('ac-eli-private', 'eli', 0)").run();
+  await ensureCashAccount("ac-eli-private");
+  sqlite.prepare("INSERT INTO cash_ledger VALUES('fund-eli', ?, 'fixture', ?, 'fixture', 0)").run(cashAccountId("ac-eli-private"), 10 * SOL);
+  const eliRun = await matches.startMatch("ac-eli-private", SOL / 20, "devnet");
+  const eliSaved = await matches.playShot("ac-eli-private", eliRun.id, eliRun.revision, "shot", 75, true, signed(eliRun, 75, { extra: { webdriver: true } }));
+  assert.equal(eliSaved.revision, 1, "A detected shot is accepted while sanctions are off");
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM player_suspensions WHERE user_id = 'ac-eli-private'").get().n, 0);
+  const eliSignal = sqlite.prepare("SELECT kind, level, detail FROM cheat_signals WHERE user_id = 'ac-eli-private'").get();
+  assert.deepEqual([eliSignal.kind, eliSignal.level, JSON.parse(eliSignal.detail).sanctioned], ["automation_browser", "proof", false], "The proof is kept, marked as not sanctioned");
+  for (let i = 0; i < 45; i++) {
+    sqlite.prepare("INSERT INTO shot_analysis(run_key, revision, user_id, aim_ms, gain, best_gain, best_share, created) VALUES('eli-run', ?, 'ac-eli-private', ?, 30, 30, 0.02, ?)").run(i, 650 + (i % 2) * 5, Date.now() - i);
+  }
+  assert.deepEqual((await antiCheat.evaluatePlayer("ac-eli-private")).map((f) => f.kind), ["superhuman_precision", "mechanical_rhythm"]);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM player_suspensions WHERE user_id = 'ac-eli-private'").get().n, 0, "Statistics do not suspend while off");
+  await antiCheat.evaluatePlayer("ac-eli-private");
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM cheat_signals WHERE user_id = 'ac-eli-private' AND level = 'stat'").get().n, 2, "Repeated evaluations do not flood the signals");
+  await antiCheat.setAntiCheatEnabled("admin-user", true);
+  await assert.rejects(() => matches.playShot("ac-eli-private", eliSaved.id, eliSaved.revision, "shot", 80, true, signed(eliSaved, 80, { extra: { webdriver: true } })), (e) => e.status === 403, "Back on: sanctions apply again");
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'anti_cheat_toggle'").get().n, 2);
+
   // --- Administrator ---------------------------------------------------------
   const overview = await admin.antiCheatOverview();
   const botCase = overview.cases.find((c) => c.name === "bot");
@@ -263,10 +287,10 @@ try {
   await admin.adminSuspend("admin-user", "ben", "Reported by several players");
   assert.equal(suspension(ids.ben).source, "admin");
   await assert.rejects(() => matches.playShot(ids.ben, benRun.id, benSaved.revision, "shot", 90, true, signed(benSaved, 90)), (e) => e.status === 403, "A suspension stops a run mid-match");
-  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%'").get().n, 3);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%' AND action <> 'anti_cheat_toggle'").get().n, 3);
 
   console.log(
-    "PASS: anti-cheat (report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
+    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
   );
 } finally {
   close();

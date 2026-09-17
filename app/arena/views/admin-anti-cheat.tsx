@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Ban, Eye, RotateCcw, ShieldAlert, UserX } from "lucide-react";
+import { Ban, Eye, Power, RotateCcw, ShieldAlert, UserX } from "lucide-react";
 import type { AntiCheatOverview, CheatCase, CheatSignalView } from "@/lib/anti-cheat-admin";
 import { request } from "../api";
 import { units } from "../format";
@@ -200,9 +200,35 @@ export function AdminAntiCheat() {
   return (
     <>
       <section className={styles.panel}>
-        <h2 style={{ fontSize: 20, display: "flex", alignItems: "center", gap: 8 }}>
-          <ShieldAlert size={20} /> Anti-cheat
-        </h2>
+        <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <h2 style={{ fontSize: 20, display: "flex", alignItems: "center", gap: 8 }}>
+            <ShieldAlert size={20} /> Anti-cheat
+          </h2>
+          {data && (
+            <button
+              className="btn"
+              role="switch"
+              aria-checked={data.enabled}
+              disabled={busy}
+              style={data.enabled ? { borderColor: "#c6f564", color: "#c6f564" } : { borderColor: "#ff8091", color: "#ffb2bf" }}
+              onClick={() =>
+                void act(
+                  { action: "toggle", enabled: !data.enabled },
+                  data.enabled
+                    ? "Turn off automatic sanctions? Checks keep running and are recorded, but nobody is suspended or loses a match automatically until you turn them back on."
+                    : "Turn automatic sanctions back on?",
+                )
+              }
+            >
+              <Power size={15} /> {data.enabled ? "Sanctions on" : "Sanctions off"}
+            </button>
+          )}
+        </div>
+        {data && !data.enabled && (
+          <p className="error" role="status" style={{ marginTop: 12 }}>
+            Automatic sanctions are off. Detections are still recorded below, marked as not sanctioned. Existing suspensions still apply.
+          </p>
+        )}
         <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
           Technical proof (automation browser, scripted input, skipped animations) suspends a player at once and hands their unsettled matches to their opponents. Statistical signals
           (superhuman precision or rhythm on SOL shots) suspend for your review. Suspended players cannot play, withdraw or tip until you lift or ban.

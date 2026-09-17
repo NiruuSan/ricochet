@@ -2,9 +2,9 @@ import { adminId, database, type Statement } from "@/db/raw";
 import { wageredSql } from "./experience";
 import { experienceFromWagered, levelFor } from "./levels";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
-import { inspectShot, reportMessage, SUSPENDED_MESSAGE, type AimTrail, type ShotProof } from "./anti-cheat-rules";
+import { inspectShot, reportMessage, SUSPENDED_MESSAGE, type AimTrail, type Finding, type ShotProof } from "./anti-cheat-rules";
 import { shotKeyFor, validSignature } from "./shot-key";
-import { analyzeShot, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
+import { analyzeShot, ANTI_CHEAT_ON_SQL, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
 import type { Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
@@ -47,8 +47,13 @@ export const reportSigned = (runKey: string, revision: number, angle: number, gu
 export const SHOT_HISTORY_SQL = (key: string) => `
   (SELECT s.created FROM run_shots s WHERE s.run_key = ${key} ORDER BY s.revision DESC LIMIT 1) AS previous_at,
   (SELECT s.ticks FROM run_shots s WHERE s.run_key = ${key} ORDER BY s.revision DESC LIMIT 1) AS previous_ticks,
-  (SELECT COUNT(*) FROM cheat_signals c WHERE c.run_key = ${key} AND c.kind = 'timing') AS timing_strikes`;
-export type ShotHistory = { previous_at: number | null; previous_ticks: number | null; timing_strikes: number };
+  (SELECT COUNT(*) FROM cheat_signals c WHERE c.run_key = ${key} AND c.kind = 'timing') AS timing_strikes,
+  ${ANTI_CHEAT_ON_SQL} AS anti_cheat_on`;
+export type ShotHistory = { previous_at: number | null; previous_ticks: number | null; timing_strikes: number; anti_cheat_on: number };
+
+/** Findings to record for a shot: with the anti-cheat off, proof is kept as evidence and marked as not sanctioned. */
+export const recordedFindings = (findings: Finding[], sanctioning: boolean) =>
+  sanctioning ? findings : findings.map((f) => (f.level === "proof" ? { ...f, detail: { ...f.detail, sanctioned: false } } : f));
 type RunRecord = Omit<Run, "state"> & { state: string };
 const parseRun = (row: RunRecord): Run => ({ ...row, state: JSON.parse(row.state) as Game, shotKey: shotKeyFor(`m-${row.id}`) });
 
@@ -548,7 +553,7 @@ export async function playShot(
   if (!permitted) throw new GameError("Too many requests. Wait a minute before trying again.", 429);
   if (!record) throw new GameError("Game not found.", 404);
   // The row key and the anti-cheat history stay on the server.
-  const { row_key: rowKey, suspended, previous_at, previous_ticks, timing_strikes, ...row } = record;
+  const { row_key: rowKey, suspended, previous_at, previous_ticks, timing_strikes, anti_cheat_on, ...row } = record;
   if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
   if (row.done || row.revision !== revision) throw new GameError("This game changed in another tab. Reload to resume.", 409);
 
@@ -567,12 +572,12 @@ export async function playShot(
     if (guard.proof) {
       const signed = reportSigned(runKey, run.revision, angle, guard);
       const findings = inspectShot({ proof: guard.proof, signed, ruleset: run.ruleset, now, previousShotAt: previous_at, previousTicks: previous_ticks, timingStrikes: timing_strikes });
-      if (findings.some((f) => f.level === "proof")) {
+      if (anti_cheat_on && findings.some((f) => f.level === "proof")) {
         const { disqualify } = await import("./anti-cheat");
         await disqualify(uid, runKey, findings, now);
         throw new GameError(AUTOMATION_DETECTED, 403);
       }
-      signals.push(...findings.map((f) => signalInsert(db, uid, runKey, f, now)));
+      signals.push(...recordedFindings(findings, !!anti_cheat_on).map((f) => signalInsert(db, uid, runKey, f, now)));
     }
     try {
       ({ game: state, ticks } = simulateShot(state, angle, run.ruleset, rowsFor(run.ruleset, rowKey)));

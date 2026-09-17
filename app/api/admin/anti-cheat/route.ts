@@ -1,4 +1,5 @@
 import { administrator } from "@/lib/auth-user";
+import { setAntiCheatEnabled } from "@/lib/anti-cheat";
 import { adminBan, adminLift, adminSuspend, antiCheatOverview } from "@/lib/anti-cheat-admin";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
     if (b.action === "suspend") return json({ ok: await adminSuspend(user.userId, b.name, b.note).then(() => true) });
     if (b.action === "lift") return json({ ok: await adminLift(user.userId, b.name, b.note).then(() => true) });
     if (b.action === "ban") return json({ seized: await adminBan(user.userId, b.name, b.note) });
+    if (b.action === "toggle" && typeof b.enabled === "boolean") return json({ enabled: await setAntiCheatEnabled(user.userId, b.enabled).then(() => b.enabled) });
     return json({ error: "Unknown action." }, 400);
   } catch (e) {
     if (e instanceof GameError) return json({ error: e.message }, e.status);
