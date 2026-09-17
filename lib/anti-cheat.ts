@@ -21,6 +21,7 @@ import { GameError } from "./matches";
 import { PaymentError } from "./payments/errors";
 import { rowsFor } from "./secret-rows";
 import { weekStart } from "./weekly-race";
+import { TRAP, trappedShot, type Trap } from "./ghost-trap";
 
 // Anti-cheat sanctions and analysis. The checks themselves are in
 // lib/anti-cheat-rules.ts.
@@ -145,6 +146,8 @@ export async function analyzeShot(input: {
   rowKey: string | null;
   aimMs: number | null;
   aim?: AimTrail | null;
+  /** The ghost trap shown with this board, if any. */
+  trap?: Trap | null;
   evaluate: boolean;
   now?: number;
 }) {
@@ -169,22 +172,24 @@ export async function analyzeShot(input: {
   const bestGain = Math.max(chosen.gain, ...gains);
   const bestShare = gains.length ? gains.filter((g) => g >= bestGain).length / gains.length : 1;
   const quality = qualityPercentile(chosen.value, sampled.map((s) => s.value));
+  const trapped = input.trap ? (trappedShot(input.trap, input.before, input.angle, input.ruleset, quality) ? 1 : 0) : null;
   const db = database();
   await db
-    .prepare("INSERT OR IGNORE INTO shot_analysis(run_key, revision, user_id, aim_ms, aim_moves, gain, best_gain, best_share, quality, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .bind(input.runKey, input.revision, input.uid, input.aimMs, input.aim ? aimMoves(input.aim) : null, chosen.gain, bestGain, bestShare, quality, now)
+    .prepare("INSERT OR IGNORE INTO shot_analysis(run_key, revision, user_id, aim_ms, aim_moves, gain, best_gain, best_share, quality, trapped, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(input.runKey, input.revision, input.uid, input.aimMs, input.aim ? aimMoves(input.aim) : null, chosen.gain, bestGain, bestShare, quality, trapped, now)
     .run();
+  if (trapped !== null) await evaluateTraps(input.uid, input.runKey, now);
   if (input.evaluate) await evaluatePlayer(input.uid, now);
 }
 
 export async function playerShotStats(uid: string, now = Date.now()) {
   const { results } = await database()
     .prepare(
-      `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs, aim_moves AS aimMoves, quality FROM shot_analysis
+      `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs, aim_moves AS aimMoves, quality, trapped FROM shot_analysis
        WHERE user_id = ? AND created >= ? ORDER BY created DESC, revision DESC LIMIT ?`,
     )
     .bind(uid, now - STATS.windowMs, STATS.maxShots)
-    .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null; aimMoves: number | null; quality: number | null }>();
+    .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null; aimMoves: number | null; quality: number | null; trapped: number | null }>();
   return results;
 }
 
@@ -241,6 +246,39 @@ export async function evaluatePlayer(uid: string, now = Date.now()) {
     if (!recent) await db.batch(watch.map((f) => signalInsert(db, uid, null, f, now)));
   }
   return [...findings, ...watch];
+}
+
+/**
+ * Ghost traps: over a player's last trap rounds, repeatedly aiming at bricks that
+ * only the game data shows means the player is not playing from the screen.
+ * It suspends for review rather than sanctioning on the spot: no board is ever
+ * changed for the player, but chance alone can explain one or two of them.
+ */
+export async function evaluateTraps(uid: string, runKey: string | null, now = Date.now()) {
+  if (await isSuspended(uid)) return [];
+  const db = database();
+  const { results } = await db
+    .prepare("SELECT trapped FROM shot_analysis WHERE user_id = ? AND trapped IS NOT NULL AND created >= ? ORDER BY created DESC, revision DESC LIMIT ?")
+    .bind(uid, now - STATS.windowMs, TRAP.window)
+    .all<{ trapped: number }>();
+  const trapped = results.filter((r) => r.trapped).length;
+  const detail = { trapped, trapRounds: results.length };
+  if (trapped >= TRAP.suspectTrapped) {
+    const finding: Finding = { kind: "ghost_trap", level: "stat", detail };
+    if (await antiCheatEnabled()) await suspendForStats(uid, [finding], now);
+    else {
+      const seen = await db.prepare("SELECT 1 FROM cheat_signals WHERE user_id = ? AND kind = 'ghost_trap' AND created >= ?").bind(uid, now - 24 * 60 * 60_000).first();
+      if (!seen) await db.batch([signalInsert(db, uid, runKey, { ...finding, detail: { ...detail, sanctioned: false } }, now)]);
+    }
+    return [finding];
+  }
+  if (trapped >= TRAP.watchTrapped) {
+    const finding: Finding = { kind: "ghost_trap_watch", level: "watch", detail };
+    const seen = await db.prepare("SELECT 1 FROM cheat_signals WHERE user_id = ? AND kind = 'ghost_trap_watch' AND created >= ?").bind(uid, now - 7 * 24 * 60 * 60_000).first();
+    if (!seen) await db.batch([signalInsert(db, uid, runKey, finding, now)]);
+    return [finding];
+  }
+  return [];
 }
 
 export { suspensionOps };

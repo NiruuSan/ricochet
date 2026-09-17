@@ -298,6 +298,8 @@ export function evaluateShots(shots: AnalyzedShot[]): Finding[] {
 }
 
 export const FINDING_LABELS: Record<string, string> = {
+  ghost_trap: "Repeatedly aimed at bricks only the game data shows (ghost traps)",
+  ghost_trap_watch: "Aimed at bricks only the game data shows",
   forged_report: "Shot report edited after signing (request rewritten)",
   synthetic_aim: "Aim moved by script-made events",
   tampered_client: "Game page functions replaced (extension or script)",

@@ -126,6 +126,13 @@ function CaseCard({ item, busy, onAction }: { item: CheatCase; busy: boolean; on
           <span className={styles.muted}>Average percentile among all angles · flagged from {percent(item.stats.qualityThreshold)}</span>
         </div>
         <div className={styles.stat}>
+          <small className={styles.muted}>GHOST TRAPS</small>
+          <b style={{ color: item.stats.traps.trapped ? "#ff8091" : undefined }}>
+            {item.stats.traps.trapped} / {item.stats.traps.rounds}
+          </b>
+          <span className={styles.muted}>Rounds with ghost bricks, and shots aimed at them. A person aims at what they see.</span>
+        </div>
+        <div className={styles.stat}>
           <small className={styles.muted}>AIM TRAJECTORIES</small>
           <b>{item.stats.aim.trails ? `${item.stats.aim.samples} pts · ${item.stats.aim.reversals} turns` : "—"}</b>
           <span className={styles.muted}>

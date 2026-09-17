@@ -45,6 +45,8 @@ export type Run = {
   tournamentId?: string;
   /** Signs this run's shot reports (lib/shot-key.ts). Only ever sent to the run's player. */
   shotKey?: string;
+  /** Removes the ghost bricks from `state` together with `shotKey` (lib/ghost-bricks.ts). */
+  sync?: number;
 };
 
 export type MatchResult = "win" | "loss" | "draw" | "cancelled";

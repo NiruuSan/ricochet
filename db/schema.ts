@@ -85,6 +85,8 @@ export const runs = sqliteTable(
     clears: integer("clears").notNull().default(0),
     // When the run ended; places the score in a weekly race.
     finished: integer("finished"),
+    // JSON ghost trap of the current round (lib/ghost-trap.ts); never part of the real board.
+    trap: text("trap"),
   },
   (t) => [
     uniqueIndex("one_run_per_player_match").on(t.matchId, t.userId),
@@ -254,6 +256,8 @@ export const tournamentEntries = sqliteTable(
     payout: integer("payout").notNull().default(0),
     // 1 when removed for automated play: no rank and no prize.
     disqualified: integer("disqualified").notNull().default(0),
+    // JSON ghost trap of the current round (lib/ghost-trap.ts).
+    trap: text("trap"),
   },
   (t) => [
     uniqueIndex("one_entry_per_player").on(t.tournamentId, t.userId),
@@ -403,6 +407,8 @@ export const shotAnalysis = sqliteTable(
     bestShare: real("best_share").notNull(),
     // Percentile of the shot among every sampled angle, judged on the board it leaves (lib/anti-cheat-rules.ts).
     quality: real("quality"),
+    // On a ghost trap round: 1 when the shot fell into the trap, 0 when it did not; null otherwise.
+    trapped: integer("trapped"),
     created: integer("created").notNull(),
   },
   (t) => [primaryKey({ columns: [t.runKey, t.revision] }), index("shot_analysis_user").on(t.userId, t.created)],

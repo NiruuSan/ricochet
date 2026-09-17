@@ -4,6 +4,7 @@ import type { Asset, Run } from "@/lib/api-types";
 import { GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, seedRows, step, W, type Flight, type Game } from "@/lib/engine";
 import { MAX_AIM_SAMPLES, type AimTrail } from "@/lib/anti-cheat-rules";
 import { clientFlags, signProof, type UnsignedProof } from "./shot-signing";
+import { cleanRun } from "@/lib/ghost-bricks";
 import { gameAction } from "./api";
 import { drawBoard } from "./board-canvas";
 
@@ -191,7 +192,8 @@ export function useGameSession({ onSaved, onError }: Options) {
           if (saveFailedRef.current) return;
           // Without a key the report goes unsigned and the server asks for a reload.
           const proof = report.key ? await signProof(report.key, runId, revision, shotAngle, report.proof, report.aim) : report.proof;
-          const { run: saved } = await gameAction<{ run: Run }>({ action: "shot", runId, revision, angle: shotAngle, proof, aim: report.aim });
+          // Ghost bricks in the server's board are for bots only: drop them before anything uses it.
+          const saved = cleanRun((await gameAction<{ run: Run }>({ action: "shot", runId, revision, angle: shotAngle, proof, aim: report.aim })).run);
           confirmedRef.current = saved;
           if (predicted && !sameState(saved.state, predicted)) mismatchRef.current = true;
           if (!disposedRef.current) onConfirmed?.(saved);
@@ -352,7 +354,7 @@ export function useGameSession({ onSaved, onError }: Options) {
       if (busyRef.current) return null;
       setBlocking(true);
       try {
-        const { run: entered } = await gameAction<{ run: Run }>({ action: "start", stake, asset });
+        const entered = cleanRun((await gameAction<{ run: Run }>({ action: "start", stake, asset })).run);
         confirmedRef.current = entered;
         setRun(entered);
         setGame(entered.state);
@@ -377,7 +379,7 @@ export function useGameSession({ onSaved, onError }: Options) {
       await saveChainRef.current;
       const current = runRef.current;
       if (!current || current.done) return;
-      const { run: ended } = await gameAction<{ run: Run }>({ action: "forfeit", runId: current.id, revision: current.revision });
+      const ended = cleanRun((await gameAction<{ run: Run }>({ action: "forfeit", runId: current.id, revision: current.revision })).run);
       confirmedRef.current = ended;
       setRun(ended);
       setGame(ended.state);
@@ -390,9 +392,10 @@ export function useGameSession({ onSaved, onError }: Options) {
   }, [onError, onSaved, setBlocking, setGame, setRun]);
 
   const resume = useCallback(
-    (active: Run) => {
+    (served: Run) => {
       // Polling must not rewind a run this tab is already playing, or replace another game in progress.
-      if (runRef.current?.id === active.id || (startedRef.current && !gameRef.current.over)) return;
+      if (runRef.current?.id === served.id || (startedRef.current && !gameRef.current.over)) return;
+      const active = cleanRun(served);
       confirmedRef.current = active;
       setRun(active);
       setGame(active.state);

@@ -16,6 +16,7 @@ import {
 } from "./api-types";
 import { AUTOMATION_DETECTED, avatarUrl, GameError, recordedFindings, reportSigned, SHOT_HISTORY_SQL, type ShotGuard, type ShotHistory } from "./matches";
 import { shotKeyFor } from "./shot-key";
+import { parseTrap, planTrap, presentRun } from "./ghost-trap";
 import { notificationInsert } from "./notifications";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { parseSol, requireDevnet } from "./payments/policy";
@@ -71,6 +72,7 @@ type EntryRow = {
   rank: number | null;
   payout: number;
   disqualified: number;
+  trap: string | null;
 };
 
 const escrowOwner = (id: string) => `escrow:tournament:${id}`;
@@ -240,7 +242,10 @@ export async function registerForTournament(uid: string, idInput: unknown, now =
   }
 }
 
-const toRun = (t: Pick<TournamentRow, "id" | "asset" | "ruleset">, e: EntryRow): Run => ({
+/** A tournament run as sent to its player, with the round's ghost bricks. */
+const toRun = (t: Pick<TournamentRow, "id" | "asset" | "ruleset">, e: EntryRow): Run => presentRun(realRun(t, e), `t-${e.id}`, e.trap);
+
+const realRun = (t: Pick<TournamentRow, "id" | "asset" | "ruleset">, e: EntryRow): Run => ({
   id: `t:${e.id}`,
   match_id: `t:${t.id}`,
   tournamentId: t.id,
@@ -337,13 +342,15 @@ export async function playTournamentShot(
   }
   const clears = row.clears + (!forfeit && state.bonus ? 1 : 0);
   const done = state.over ? 1 : 0;
+  const nextTrap = !forfeit && row.asset === "devnet" ? planTrap(runKey, row.revision + 1, state, row.ruleset) : null;
+  const nextTrapJson = nextTrap ? JSON.stringify(nextTrap) : null;
   const [result] = await db.batch([
     db
       .prepare(
-        `UPDATE tournament_entries SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, revision = revision + 1
+        `UPDATE tournament_entries SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, trap = ?, revision = revision + 1
          WHERE id = ? AND user_id = ? AND revision = ? AND done = 0`,
       )
-      .bind(JSON.stringify(state), state.score, done, forfeit ? 1 : 0, clears, done ? now : null, row.id, uid, row.revision),
+      .bind(JSON.stringify(state), state.score, done, forfeit ? 1 : 0, clears, done ? now : null, nextTrapJson, row.id, uid, row.revision),
     shotInsert(db, runKey, "tournament_entries", row.id, row.revision, forfeit ? null : (angle as number), now, ticks, forfeit ? null : (guard.aim ?? null)),
     ...signals,
   ]);
@@ -351,7 +358,9 @@ export async function playTournamentShot(
   if (!forfeit && guard.defer && row.asset === "devnet") {
     const aimMs = guard.proof?.aimMs ?? null;
     const aim = guard.aim ?? null;
-    guard.defer(() => analyzeShot({ uid, runKey, revision: row.revision, before, angle: angle as number, ruleset: row.ruleset, rowKey: row.row_key, aimMs, aim, evaluate: !!done }));
+    const shown = parseTrap(row.trap);
+    const trap = shown?.revision === row.revision ? shown : null;
+    guard.defer(() => analyzeShot({ uid, runKey, revision: row.revision, before, angle: angle as number, ruleset: row.ruleset, rowKey: row.row_key, aimMs, aim, trap, evaluate: !!done }));
   }
   if (done) {
     // The run is saved; if the payout fails here, the next visit after the new end settles it.
@@ -359,7 +368,7 @@ export async function playTournamentShot(
   }
   return toRun(
     { id: row.tournament_id, asset: row.asset, ruleset: row.ruleset },
-    { ...row, state: JSON.stringify(state), score: state.score, done, forfeit: forfeit ? 1 : 0, clears, revision: row.revision + 1 },
+    { ...row, state: JSON.stringify(state), score: state.score, done, forfeit: forfeit ? 1 : 0, clears, revision: row.revision + 1, trap: nextTrapJson },
   );
 }
 

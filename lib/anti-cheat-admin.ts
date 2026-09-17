@@ -31,6 +31,8 @@ export type CheatCase = {
     qualityThreshold: number;
     /** Medians over recent aim trails: samples, direction changes, and sample timing regularity. */
     aim: { trails: number; samples: number | null; reversals: number | null; gapCv: number | null };
+    /** Ghost trap rounds the player met, and how many they aimed into. */
+    traps: { rounds: number; trapped: number };
   };
   /** Last 30 days, in lamports except the match count. */
   winnings: { solMatchesWon: number; solMatchNet: number; tournamentPrizes: number; racePrizes: number };
@@ -102,6 +104,7 @@ async function caseFor(row: CaseRow, now: number, threshold: number): Promise<Ch
   ]);
   const features = trails.results.map((t) => aimFeatures(JSON.parse(t.aim) as AimTrail));
   const qualities = shots.map((s) => s.quality).filter((q): q is number => q !== null);
+  const trapRounds = shots.filter((s) => s.trapped !== null);
   const hard = shots.filter((s) => s.bestShare <= STATS.hardShare && s.bestGain >= STATS.minBestGain);
   const aims = shots.map((s) => s.aimMs).filter((ms): ms is number => ms !== null);
   const withTrail = shots.filter((s) => s.aimMoves !== null);
@@ -128,6 +131,7 @@ async function caseFor(row: CaseRow, now: number, threshold: number): Promise<Ch
         reversals: median(features.map((f) => f.reversals)),
         gapCv: median(features.map((f) => f.gapCv).filter((cv): cv is number => cv !== null)),
       },
+      traps: { rounds: trapRounds.length, trapped: trapRounds.filter((s) => s.trapped).length },
     },
     winnings: { solMatchesWon: Number(won?.n ?? 0), solMatchNet: Number(won?.net ?? 0), tournamentPrizes: Number(prizes?.tournaments ?? 0), racePrizes: Number(prizes?.races ?? 0) },
     balances: { sol: Number(balances?.sol ?? 0), gems: Number(balances?.gems ?? 0) },

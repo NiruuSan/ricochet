@@ -5,7 +5,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 // longer matches. The key is derived from a server secret and the run, and
 // reaches only the run's player.
 
-function secret() {
+export function serverSecret() {
   const value = process.env.AUTH_SECRET;
   if (value) return value;
   if (process.env.NODE_ENV === "production") throw new Error("AUTH_SECRET is required to sign shot reports.");
@@ -13,7 +13,7 @@ function secret() {
 }
 
 /** `runKey` is the shot-log key: `m-<run id>` or `t-<entry id>`. */
-export const shotKeyFor = (runKey: string) => createHmac("sha256", secret()).update(`bounce-shot-key:${runKey}`).digest("hex");
+export const shotKeyFor = (runKey: string) => createHmac("sha256", serverSecret()).update(`bounce-shot-key:${runKey}`).digest("hex");
 
 export const signReport = (key: string, message: string) => createHmac("sha256", key).update(message).digest("hex");
 

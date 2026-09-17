@@ -4,6 +4,7 @@ import { experienceFromWagered, levelFor } from "./levels";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
 import { inspectShot, reportMessage, SUSPENDED_MESSAGE, type AimTrail, type Finding, type ShotProof } from "./anti-cheat-rules";
 import { shotKeyFor, validSignature } from "./shot-key";
+import { parseTrap, planTrap, presentRun } from "./ghost-trap";
 import { analyzeShot, ANTI_CHEAT_ON_SQL, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
 import type { Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
@@ -26,7 +27,7 @@ export class GameError extends Error {
 type RunRow = { user_id: string; done: number; forfeit: number; score: number };
 type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number; row_key: string | null; disqualified?: string | null };
 
-const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, r.clears, m.asset, m.ruleset";
+const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, r.clears, m.asset, m.ruleset, r.trap";
 
 export const AUTOMATION_DETECTED = "Automated play was detected. This game is lost and your account is suspended pending review.";
 
@@ -54,8 +55,11 @@ export type ShotHistory = { previous_at: number | null; previous_ticks: number |
 /** Findings to record for a shot: with the anti-cheat off, proof is kept as evidence and marked as not sanctioned. */
 export const recordedFindings = (findings: Finding[], sanctioning: boolean) =>
   sanctioning ? findings : findings.map((f) => (f.level === "proof" ? { ...f, detail: { ...f.detail, sanctioned: false } } : f));
-type RunRecord = Omit<Run, "state"> & { state: string };
-const parseRun = (row: RunRecord): Run => ({ ...row, state: JSON.parse(row.state) as Game, shotKey: shotKeyFor(`m-${row.id}`) });
+type RunRecord = Omit<Run, "state"> & { state: string; trap: string | null };
+/** The run with its real board, for the server's own use. */
+const parseRun = ({ trap: _trap, ...row }: RunRecord): Run => ({ ...row, state: JSON.parse(row.state) as Game, shotKey: shotKeyFor(`m-${row.id}`) });
+/** The run as sent to its player, with this round's ghost bricks (lib/ghost-trap.ts). */
+const publicRun = (row: RunRecord) => presentRun(parseRun(row), `m-${row.id}`, row.trap);
 
 /** Public URL of a stored profile picture. Keys are random, never user IDs. */
 export const avatarUrl = (key: string | null) => (key ? `/api/avatars/${key}` : null);
@@ -276,7 +280,7 @@ async function activeRun(uid: string) {
     .prepare(`SELECT ${PUBLIC_RUN} FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.user_id = ? AND r.done = 0`)
     .bind(uid)
     .first<RunRecord>();
-  return row ? parseRun(row) : null;
+  return row ? publicRun(row) : null;
 }
 
 /** Players seen within this window count as online. The client polls every 15 seconds. */
@@ -522,7 +526,7 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
     .bind(runId, uid)
     .first<RunRecord>();
   if (!row) throw new GameError("That opponent was just matched. Please try again.", 409);
-  return parseRun(row);
+  return publicRun(row);
 }
 
 /**
@@ -553,11 +557,11 @@ export async function playShot(
   if (!permitted) throw new GameError("Too many requests. Wait a minute before trying again.", 429);
   if (!record) throw new GameError("Game not found.", 404);
   // The row key and the anti-cheat history stay on the server.
-  const { row_key: rowKey, suspended, previous_at, previous_ticks, timing_strikes, anti_cheat_on, ...row } = record;
+  const { row_key: rowKey, suspended, previous_at, previous_ticks, timing_strikes, anti_cheat_on, trap: trapJson, ...row } = record;
   if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
   if (row.done || row.revision !== revision) throw new GameError("This game changed in another tab. Reload to resume.", 409);
 
-  const run = parseRun(row);
+  const run = parseRun({ ...row, trap: null });
   const runKey = `m-${run.id}`;
   let state = run.state;
   let ticks: number | null = null;
@@ -588,10 +592,13 @@ export async function playShot(
   }
   // A shot is one round, and `bonus` marks a round that cleared the board.
   const clears = run.clears + (!forfeit && state.bonus ? 1 : 0);
+  // Real-money boards may carry a ghost trap for the next round.
+  const nextTrap = !forfeit && run.asset === "devnet" ? planTrap(runKey, run.revision + 1, state, run.ruleset) : null;
+  const nextTrapJson = nextTrap ? JSON.stringify(nextTrap) : null;
   const [result] = await db.batch([
     db
-      .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
-      .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, state.over ? now : null, run.id, uid, run.revision),
+      .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, trap = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
+      .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, state.over ? now : null, nextTrapJson, run.id, uid, run.revision),
     shotInsert(db, runKey, "runs", run.id, run.revision, forfeit ? null : (angle as number), now, ticks, forfeit ? null : (guard.aim ?? null)),
     ...signals,
   ]);
@@ -601,8 +608,10 @@ export async function playShot(
     const before = run.state;
     const aimMs = guard.proof?.aimMs ?? null;
     const aim = guard.aim ?? null;
-    guard.defer(() => analyzeShot({ uid, runKey, revision: run.revision, before, angle: angle as number, ruleset: run.ruleset, rowKey, aimMs, aim, evaluate: state.over }));
+    const shown = parseTrap(trapJson);
+    const trap = shown?.revision === run.revision ? shown : null;
+    guard.defer(() => analyzeShot({ uid, runKey, revision: run.revision, before, angle: angle as number, ruleset: run.ruleset, rowKey, aimMs, aim, trap, evaluate: state.over }));
   }
   if (state.over) await settle(run.match_id);
-  return { ...run, state, score: state.score, done: state.over ? 1 : 0, forfeit: forfeit ? 1 : 0, clears, revision: run.revision + 1 };
+  return presentRun({ ...run, state, score: state.score, done: state.over ? 1 : 0, forfeit: forfeit ? 1 : 0, clears, revision: run.revision + 1 }, runKey, nextTrapJson);
 }
