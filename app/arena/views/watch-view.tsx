@@ -8,7 +8,7 @@ import { useSpectator } from "../use-spectator";
 import styles from "./watch.module.css";
 
 export function WatchView({ id }: { id: string }) {
-  const { data, game, error, revision, flying, liveScore, replaying, speed, replay, goLive, toggleSpeed, attachCanvas } = useSpectator(id);
+  const { data, game, error, revision, flying, aiming, liveScore, replaying, speed, replay, goLive, toggleSpeed, attachCanvas } = useSpectator(id);
 
   if (!data || !game) {
     return (
@@ -26,7 +26,9 @@ export function WatchView({ id }: { id: string }) {
 
   const live = !data.done;
   const caughtUp = !replaying && revision >= data.revision;
-  const status = replaying
+  const status = aiming
+    ? "Aiming…"
+    : replaying
     ? "Replaying from the start"
     : flying
       ? "Shot in flight"

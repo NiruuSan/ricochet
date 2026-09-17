@@ -18,7 +18,14 @@ export type CheatCase = {
   reviewedAt: number | null;
   note: string | null;
   signals: CheatSignalView[];
-  stats: { analyzedShots: number; hardShots: number; hardHitRate: number | null; meanAimMs: number | null };
+  stats: {
+    analyzedShots: number;
+    hardShots: number;
+    hardHitRate: number | null;
+    meanAimMs: number | null;
+    /** Share of shots with an aim trail where the aim never moved before the shot. */
+    stillAimRate: number | null;
+  };
   /** Last 30 days, in lamports except the match count. */
   winnings: { solMatchesWon: number; solMatchNet: number; tournamentPrizes: number; racePrizes: number };
   balances: { sol: number; gems: number };
@@ -70,6 +77,7 @@ async function caseFor(row: { user_id: string; name: string; status: CheatCase["
   ]);
   const hard = shots.filter((s) => s.bestShare <= STATS.hardShare && s.bestGain >= STATS.minBestGain);
   const aims = shots.map((s) => s.aimMs).filter((ms): ms is number => ms !== null);
+  const trails = shots.filter((s) => s.aimMoves !== null);
   return {
     name: row.name,
     status: row.status,
@@ -84,6 +92,7 @@ async function caseFor(row: { user_id: string; name: string; status: CheatCase["
       hardShots: hard.length,
       hardHitRate: hard.length ? hard.filter((s) => s.gain >= s.bestGain).length / hard.length : null,
       meanAimMs: aims.length ? Math.round(aims.reduce((a, b) => a + b, 0) / aims.length) : null,
+      stillAimRate: trails.length ? trails.filter((s) => s.aimMoves === 0).length / trails.length : null,
     },
     winnings: { solMatchesWon: Number(won?.n ?? 0), solMatchNet: Number(won?.net ?? 0), tournamentPrizes: Number(prizes?.tournaments ?? 0), racePrizes: Number(prizes?.races ?? 0) },
     balances: { sol: Number(balances?.sol ?? 0), gems: Number(balances?.gems ?? 0) },

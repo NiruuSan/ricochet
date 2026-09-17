@@ -1,5 +1,5 @@
 import { database, type Database, type Statement } from "@/db/raw";
-import { ANALYSIS_STEP, evaluateShots, FINDING_LABELS, STATS, SUSPENDED_MESSAGE, type Finding } from "./anti-cheat-rules";
+import { aimMoves, ANALYSIS_STEP, evaluateShots, FINDING_LABELS, STATS, SUSPENDED_MESSAGE, type AimTrail, type Finding } from "./anti-cheat-rules";
 import { MAX_ANGLE, MIN_ANGLE, simulate, type Game } from "./engine";
 import { GameError } from "./matches";
 import { PaymentError } from "./payments/errors";
@@ -98,6 +98,7 @@ export async function analyzeShot(input: {
   ruleset: number;
   rowKey: string | null;
   aimMs: number | null;
+  aim?: AimTrail | null;
   evaluate: boolean;
   now?: number;
 }) {
@@ -117,8 +118,8 @@ export async function analyzeShot(input: {
   const bestShare = sampled.filter((g) => g >= bestGain).length / sampled.length;
   const db = database();
   await db
-    .prepare("INSERT OR IGNORE INTO shot_analysis(run_key, revision, user_id, aim_ms, gain, best_gain, best_share, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
-    .bind(input.runKey, input.revision, input.uid, input.aimMs, gain, bestGain, bestShare, now)
+    .prepare("INSERT OR IGNORE INTO shot_analysis(run_key, revision, user_id, aim_ms, aim_moves, gain, best_gain, best_share, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(input.runKey, input.revision, input.uid, input.aimMs, input.aim ? aimMoves(input.aim) : null, gain, bestGain, bestShare, now)
     .run();
   if (input.evaluate) await evaluatePlayer(input.uid, now);
 }
@@ -126,11 +127,11 @@ export async function analyzeShot(input: {
 export async function playerShotStats(uid: string, now = Date.now()) {
   const { results } = await database()
     .prepare(
-      `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs FROM shot_analysis
+      `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs, aim_moves AS aimMoves FROM shot_analysis
        WHERE user_id = ? AND created >= ? ORDER BY created DESC, revision DESC LIMIT ?`,
     )
     .bind(uid, now - STATS.windowMs, STATS.maxShots)
-    .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null }>();
+    .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null; aimMoves: number | null }>();
   return results;
 }
 

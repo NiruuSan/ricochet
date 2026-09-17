@@ -341,13 +341,14 @@ export async function playTournamentShot(
          WHERE id = ? AND user_id = ? AND revision = ? AND done = 0`,
       )
       .bind(JSON.stringify(state), state.score, done, forfeit ? 1 : 0, clears, done ? now : null, row.id, uid, row.revision),
-    shotInsert(db, runKey, "tournament_entries", row.id, row.revision, forfeit ? null : (angle as number), now, ticks),
+    shotInsert(db, runKey, "tournament_entries", row.id, row.revision, forfeit ? null : (angle as number), now, ticks, forfeit ? null : (guard.aim ?? null)),
     ...signals,
   ]);
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
   if (!forfeit && guard.defer && row.asset === "devnet") {
     const aimMs = guard.proof?.aimMs ?? null;
-    guard.defer(() => analyzeShot({ uid, runKey, revision: row.revision, before, angle: angle as number, ruleset: row.ruleset, rowKey: row.row_key, aimMs, evaluate: !!done }));
+    const aim = guard.aim ?? null;
+    guard.defer(() => analyzeShot({ uid, runKey, revision: row.revision, before, angle: angle as number, ruleset: row.ruleset, rowKey: row.row_key, aimMs, aim, evaluate: !!done }));
   }
   if (done) {
     // The run is saved; if the payout fails here, the next visit after the new end settles it.

@@ -44,6 +44,12 @@ try {
   assert.deepEqual(inspect({ previousShotAt: 9_900, previousTicks: 300 }), [], "Short animations are never timed (network jitter)");
   assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: 1_080, ruleset: 5 }), [], "Older rulesets send shots after landing and are not timed");
 
+  // Aim trails: validated, never blocking a shot.
+  assert.deepEqual(rules.parseAim([[0, 90], [120, 84.44], [300, 84.44], [650, 71.06]]), [[0, 90], [120, 84.4], [300, 84.4], [650, 71.1]]);
+  for (const bad of [undefined, [], [[0, 5]], [[10, 90], [5, 91]], [[0, "90"]], Array.from({ length: 121 }, (_, i) => [i, 90])]) assert.equal(rules.parseAim(bad), null);
+  assert.equal(rules.aimMoves([[0, 90], [120, 84.4], [300, 84.4], [650, 71.1]]), 2);
+  assert.equal(rules.aimMoves([[0, 71.1], [900, 71.1]]), 0, "A shot fired without touching the aim");
+
   const shot = (gain, bestGain, bestShare, aimMs) => ({ gain, bestGain, bestShare, aimMs });
   const person = Array.from({ length: 120 }, (_, i) => shot(i % 3 === 0 ? 20 : 12, 20, i % 2 ? 0.03 : 0.3, 900 + ((i * 377) % 4000)));
   assert.deepEqual(rules.evaluateShots(person), [], "A strong but human player is not flagged");
@@ -66,13 +72,16 @@ try {
   // A normal shot with a report is accepted and logs its animation length.
   const annRun = await matches.startMatch(ids.ann, SOL, "devnet");
   const deferred = [];
-  const saved = await matches.playShot(ids.ann, annRun.id, annRun.revision, "shot", 80, true, { proof: human(), defer: (task) => deferred.push(task) });
+  const trail = [[0, 90], [400, 85.5], [900, 80]];
+  const saved = await matches.playShot(ids.ann, annRun.id, annRun.revision, "shot", 80, true, { proof: human(), aim: trail, defer: (task) => deferred.push(task) });
   assert.equal(saved.revision, 1);
   assert.ok(sqlite.prepare("SELECT ticks FROM run_shots WHERE run_key = ?").get(`m-${annRun.id}`).ticks > 0, "The shot log records animation ticks");
   assert.equal(deferred.length, 1, "Real-money shots are analyzed after the response");
   await deferred[0]();
   const analysis = sqlite.prepare("SELECT gain, best_gain, best_share, aim_ms FROM shot_analysis WHERE run_key = ?").get(`m-${annRun.id}`);
   assert.ok(analysis.best_gain >= analysis.gain && analysis.best_share > 0 && analysis.best_share <= 1 && analysis.aim_ms === 1800);
+  assert.equal(sqlite.prepare("SELECT aim_moves FROM shot_analysis WHERE run_key = ?").get(`m-${annRun.id}`).aim_moves, 2);
+  assert.equal(sqlite.prepare("SELECT aim FROM run_shots WHERE run_key = ?").get(`m-${annRun.id}`).aim, JSON.stringify(trail), "The aim trail is logged with the shot");
 
   // The bot joins Ann's match (Ann still playing) and plays with an automation browser.
   const botRun = await matches.startMatch(ids.bot, SOL, "devnet");
@@ -157,6 +166,8 @@ try {
   // --- Administrator ---------------------------------------------------------
   const overview = await admin.antiCheatOverview();
   const botCase = overview.cases.find((c) => c.name === "bot");
+  const catCase = overview.cases.find((c) => c.name === "cat");
+  assert.equal(catCase.stats.stillAimRate, null, "No trails, no still-aim rate");
   assert.equal(botCase.status, "suspended");
   assert.equal(botCase.signals[0].label, "Automation browser (webdriver)");
   assert.ok(overview.recentSignals.some((s) => s.name === "ben" && s.kind === "timing"));
@@ -187,7 +198,7 @@ try {
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%'").get().n, 3);
 
   console.log(
-    "PASS: anti-cheat (report parsing, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
+    "PASS: anti-cheat (report parsing, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
   );
 } finally {
   close();

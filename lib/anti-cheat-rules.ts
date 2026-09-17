@@ -22,6 +22,33 @@ export type ShotProof = {
   webdriver: boolean;
 };
 
+/** How the player aimed before a shot: [ms since the board was ready, angle]. */
+export type AimTrail = [number, number][];
+
+/** Samples the client keeps per shot; it thins longer trails to this many. */
+export const MAX_AIM_SAMPLES = 120;
+const AIM_MIN_ANGLE = 8;
+const AIM_MAX_ANGLE = 172;
+
+/** A valid trail, or null. A missing or malformed trail never blocks a shot; it is just not stored. */
+export function parseAim(input: unknown): AimTrail | null {
+  if (!Array.isArray(input) || !input.length || input.length > MAX_AIM_SAMPLES) return null;
+  const trail: AimTrail = [];
+  let last = 0;
+  for (const sample of input) {
+    if (!Array.isArray(sample) || sample.length !== 2) return null;
+    const [t, angle] = sample;
+    if (!Number.isSafeInteger(t) || t < last || t > 3_600_000) return null;
+    if (typeof angle !== "number" || !Number.isFinite(angle) || angle < AIM_MIN_ANGLE || angle > AIM_MAX_ANGLE) return null;
+    trail.push([t, Math.round(angle * 10) / 10]);
+    last = t;
+  }
+  return trail;
+}
+
+/** Times the aim actually changed along a trail. */
+export const aimMoves = (trail: AimTrail) => trail.reduce((moves, [, angle], i) => moves + (i > 0 && Math.abs(angle - trail[i - 1][1]) >= 0.1 ? 1 : 0), 0);
+
 export type Finding = { kind: string; level: "proof" | "stat"; detail: Record<string, unknown> };
 
 export const OUTDATED_CLIENT = "Bounce was updated. Reload the page to keep playing.";

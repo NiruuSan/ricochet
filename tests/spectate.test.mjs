@@ -46,7 +46,7 @@ try {
   let ann = await matches.startMatch(ANN, 25, "gems");
   for (const angle of [70, 115.5, 42]) {
     if (ann.state.over) break;
-    ann = await matches.playShot(ANN, ann.id, ann.revision, "shot", angle);
+    ann = await matches.playShot(ANN, ann.id, ann.revision, "shot", angle, true, { aim: [[0, 90], [500, angle]] });
   }
   // Ann ends her run early; under the current ruleset the seat stays open.
   ann = await matches.playShot(ANN, ann.id, ann.revision, "forfeit");
@@ -60,6 +60,8 @@ try {
     [...Array(ann.revision).keys()],
   );
   assert.equal(own.replayable, true);
+  assert.deepEqual(own.shots[0].aim, [[0, 90], [500, 70]], "Replays carry how the player aimed");
+  assert.equal(own.shots.at(-1).aim, null, "A forfeit has no aim");
   assert.deepEqual(replay(own), own.state, "Logged shots replay to the server's board");
   assert.equal(own.rows.length, own.state.round, "Spectators get the rows of rounds already reached, and no later ones");
   const matchKey = sqlite.prepare("SELECT row_key FROM matches WHERE id = ?").get(ann.match_id).row_key;
@@ -176,7 +178,7 @@ try {
   noIds(publicBoard, "The public leaderboard");
 
   console.log(
-    "PASS: public leaderboard for visitors. arena overview (tournament pick, last games, open seats, best run). shot log for match and tournament runs (shots, forfeits, stale shots), replays match the server board, open seats hidden, players still on a seed limited to their own run, side switching, polling from a revision, live list rules, history and standings watch links, no player IDs.",
+    "PASS: public leaderboard for visitors. arena overview (tournament pick, last games, open seats, best run). shot log for match and tournament runs (shots, aim trails, forfeits, stale shots), replays match the server board, open seats hidden, players still on a seed limited to their own run, side switching, polling from a revision, live list rules, history and standings watch links, no player IDs.",
   );
 } finally {
   close();

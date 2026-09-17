@@ -10,6 +10,33 @@ const LIVE_POLL_MS = 2500;
 const IDLE_POLL_MS = 10_000;
 /** Pause between shots of a replay, at 1× speed. */
 const REPLAY_GAP_MS = 450;
+/** Aim playback: long pauses are shortened, and a whole aim lasts at most this long at 1×. */
+const AIM_MAX_PAUSE_MS = 700;
+const AIM_MAX_MS = 5_000;
+
+/** Aim samples on a compressed timeline: [ms from the start, angle]. */
+function aimTimeline(aim: [number, number][]) {
+  const points: [number, number][] = [];
+  let t = 0;
+  aim.forEach(([at, angle], i) => {
+    if (i > 0) t += Math.min(AIM_MAX_PAUSE_MS, at - aim[i - 1][0]);
+    points.push([t, angle]);
+  });
+  const scale = t > AIM_MAX_MS ? AIM_MAX_MS / t : 1;
+  return points.map(([at, angle]): [number, number] => [at * scale, angle]);
+}
+
+function angleAt(points: [number, number][], t: number) {
+  if (t <= points[0][0]) return points[0][1];
+  for (let i = 1; i < points.length; i++) {
+    const [t1, a1] = points[i];
+    if (t <= t1) {
+      const [t0, a0] = points[i - 1];
+      return t1 === t0 ? a1 : a0 + ((a1 - a0) * (t - t0)) / (t1 - t0);
+    }
+  }
+  return points[points.length - 1][1];
+}
 
 /**
  * Follows a run in spectator mode. The board shows the last shot the server
@@ -26,6 +53,7 @@ export function useSpectator(watchId: string) {
   const [liveScore, setLiveScore] = useState(0);
   const [replaying, setReplaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [aiming, setAiming] = useState(false);
 
   const dataRef = useRef<WatchData | null>(null);
   const gameRef = useRef<Game | null>(null);
@@ -40,9 +68,11 @@ export function useSpectator(watchId: string) {
   const disposedRef = useRef(false);
   // The animation loop calls back into `pump` after each shot.
   const pumpRef = useRef<() => void>(() => {});
+  /** The replayed aim angle while a player's aiming plays back; null otherwise. */
+  const aimRef = useRef<number | null>(null);
 
   const draw = useCallback(() => {
-    if (canvasRef.current && gameRef.current) drawBoard(canvasRef.current, flightRef.current, gameRef.current, null);
+    if (canvasRef.current && gameRef.current) drawBoard(canvasRef.current, flightRef.current, gameRef.current, aimRef.current);
   }, []);
 
   const show = useCallback(
@@ -59,6 +89,8 @@ export function useSpectator(watchId: string) {
 
   const stopAnimation = useCallback(() => {
     cancelAnimationFrame(frameRef.current);
+    aimRef.current = null;
+    setAiming(false);
     if (gapRef.current) clearTimeout(gapRef.current);
     gapRef.current = null;
     flightRef.current = null;
@@ -80,32 +112,8 @@ export function useSpectator(watchId: string) {
     show(server.state, server.revision);
   }, [setReplay, show, stopAnimation]);
 
-  const pump = useCallback(() => {
-    const server = dataRef.current;
-    if (disposedRef.current || !server || flightRef.current || gapRef.current || !gameRef.current) return;
-    const shot = queueRef.current[0];
-    if (!shot) {
-      // Caught up: make sure the board matches the server's.
-      if (revisionRef.current >= server.revision) {
-        if (replayingRef.current) setReplay(false);
-        if (JSON.stringify(gameRef.current) !== JSON.stringify(server.state)) show(server.state, server.revision);
-      } else if (!replayingRef.current) {
-        show(server.state, server.revision);
-      }
-      return;
-    }
-    if (shot.revision !== revisionRef.current) return snap();
-    queueRef.current.shift();
-    if (shot.angle === null) {
-      show({ ...gameRef.current, over: true }, revisionRef.current + 1);
-      return pumpRef.current();
-    }
-    let f: Flight;
-    try {
-      f = launch(gameRef.current, shot.angle, server.ruleset, (round) => server.rows[round - 1] ?? []);
-    } catch {
-      return snap();
-    }
+  /** Animates one shot, then moves on to the next queued shot. */
+  const flyShot = useCallback((f: Flight) => {
     flightRef.current = f;
     setFlying(true);
     let previous = 0;
@@ -139,7 +147,64 @@ export function useSpectator(watchId: string) {
       }
     };
     frameRef.current = requestAnimationFrame(tick);
-  }, [draw, setReplay, show, snap]);
+  }, [draw, show, snap]);
+
+  const pump = useCallback(() => {
+    const server = dataRef.current;
+    if (disposedRef.current || !server || flightRef.current || gapRef.current || aimRef.current !== null || !gameRef.current) return;
+    const shot = queueRef.current[0];
+    if (!shot) {
+      // Caught up: make sure the board matches the server's.
+      if (revisionRef.current >= server.revision) {
+        if (replayingRef.current) setReplay(false);
+        if (JSON.stringify(gameRef.current) !== JSON.stringify(server.state)) show(server.state, server.revision);
+      } else if (!replayingRef.current) {
+        show(server.state, server.revision);
+      }
+      return;
+    }
+    if (shot.revision !== revisionRef.current) return snap();
+    queueRef.current.shift();
+    if (shot.angle === null) {
+      show({ ...gameRef.current, over: true }, revisionRef.current + 1);
+      return pumpRef.current();
+    }
+    const angle = shot.angle;
+    const fly = () => {
+      if (disposedRef.current || !gameRef.current) return;
+      let f: Flight;
+      try {
+        f = launch(gameRef.current, angle, server.ruleset, (round) => server.rows[round - 1] ?? []);
+      } catch {
+        return snap();
+      }
+      flyShot(f);
+    };
+    // Play back how the player aimed, then launch.
+    if (!shot.aim?.length) return fly();
+    const points = aimTimeline(shot.aim);
+    const end = points[points.length - 1][0];
+    aimRef.current = points[0][1];
+    setAiming(true);
+    let started = 0;
+    let elapsed = 0;
+    const aimTick = (ts: number) => {
+      if (disposedRef.current || aimRef.current === null) return;
+      if (!started) started = ts;
+      elapsed += Math.min(100, ts - started) * speedRef.current;
+      started = ts;
+      aimRef.current = angleAt(points, elapsed);
+      draw();
+      if (elapsed < end) {
+        frameRef.current = requestAnimationFrame(aimTick);
+        return;
+      }
+      aimRef.current = null;
+      setAiming(false);
+      fly();
+    };
+    frameRef.current = requestAnimationFrame(aimTick);
+  }, [draw, flyShot, setReplay, show, snap]);
 
   useEffect(() => {
     pumpRef.current = pump;
@@ -240,5 +305,5 @@ export function useSpectator(watchId: string) {
     [draw],
   );
 
-  return { data, error, game, revision, flying, liveScore, replaying, speed, replay, goLive: snap, toggleSpeed, attachCanvas };
+  return { data, error, game, revision, flying, aiming, liveScore, replaying, speed, replay, goLive: snap, toggleSpeed, attachCanvas };
 }

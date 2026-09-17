@@ -108,6 +108,45 @@ function StatRow({ label, you, them, missing, final = false }: { label: string; 
   );
 }
 
+function PracticeStat({ label, value, main = false }: { label: string; value: number; main?: boolean }) {
+  const shown = useCountUp(value);
+  return (
+    <div className={`${styles.practiceStat} ${main ? styles.practiceScore : ""}`}>
+      <strong>{shown.toLocaleString("en")}</strong>
+      <span>{label}</span>
+    </div>
+  );
+}
+
+/** Practice has no opponent: the player's own run, without a versus layout. */
+function PracticeDetails({ you }: { you: RecapSide }) {
+  return (
+    <section className={styles.details}>
+      <header className={styles.practiceHeader}>
+        <Avatar name={you.name} src={you.avatar} size={48} />
+        <div>
+          <b>{you.name}</b>
+          <span className={`${styles.chip} ${styles.you}`}>PRACTICE RUN</span>
+        </div>
+      </header>
+      <div className={styles.practiceStats}>
+        <PracticeStat label="Final score" value={you.score} main />
+        <PracticeStat label="Rounds" value={you.rounds} />
+        <PracticeStat label="Balls" value={you.balls} />
+        <PracticeStat label="Boards cleared" value={you.clears} />
+      </div>
+      <div className={styles.boardsSection}>
+        <p className={styles.eyebrow}>FINAL BOARD</p>
+        <div className={styles.boards}>
+          <div className={styles.boardSolo}>
+            <FinalBoard game={you.board} label="Your board" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export function ResultScreen({ target, onPlayAgain, onClose, onSettled }: Props) {
   const { recap, error } = useRecap(target, onSettled);
 
@@ -170,7 +209,7 @@ export function ResultScreen({ target, onPlayAgain, onClose, onSettled }: Props)
   }
 
   const again = recap ? { asset: recap.asset, stake: recap.stake } : null;
-  const missing = practice || !opponent || result === "cancelled" ? "—" : "?";
+  const missing = !opponent || result === "cancelled" ? "—" : "?";
   const net = recap?.net ?? 0;
 
   return (
@@ -223,50 +262,54 @@ export function ResultScreen({ target, onPlayAgain, onClose, onSettled }: Props)
         </button>
       </section>
 
-      <section className={styles.details}>
-        <header className={styles.versus}>
-          <div className={styles.side}>
-            <Avatar name={you.name} src={you.avatar} size={48} />
-            <div>
-              <b>{you.name}</b>
-              <span className={`${styles.chip} ${styles.you}`}>YOU</span>
-            </div>
-          </div>
-          <span className={styles.vs}>VS</span>
-          <div className={`${styles.side} ${styles.sideRight}`}>
-            <div>
-              <b>{practice ? "The board" : (opponent?.name ?? "Open seat")}</b>
-              <span className={`${styles.chip} ${status === "opponent_playing" ? styles.live : ""}`}>
-                {practice ? "PRACTICE" : status === "opponent_playing" ? "PLAYING" : opponent ? (them?.forfeit ? "FORFEIT" : "OPP") : "WAITING"}
-              </span>
-            </div>
-            {opponent ? <Avatar name={opponent.name} src={opponent.avatar} size={48} /> : <span className={styles.emptySeat}>?</span>}
-          </div>
-        </header>
-
-        <table className={`${styles.stats} ${them ? styles.reveal : ""}`} key={them ? "revealed" : "hidden"}>
-          <tbody>
-            <StatRow label="Balls" you={you.balls} them={them?.balls ?? null} missing={missing} />
-            <StatRow label="Boards cleared" you={you.clears} them={them?.clears ?? null} missing={missing} />
-            <StatRow label="Rounds" you={you.rounds} them={them?.rounds ?? null} missing={missing} />
-            <StatRow label="Final score" you={you.score} them={them?.score ?? null} missing={missing} final />
-          </tbody>
-        </table>
-
-        <div className={styles.boardsSection}>
-          <p className={styles.eyebrow}>FINAL BOARDS</p>
-          <div className={styles.boards}>
-            <FinalBoard game={you.board} label="Your board" />
-            {them ? (
-              <FinalBoard game={them.board} label={`${them.name}'s board`} />
-            ) : (
-              <div className={`${styles.boardCard} ${styles.boardHidden}`}>
-                {practice ? "Practice has no opponent." : opponent ? `${opponent.name}'s board is revealed when they finish.` : "Waiting for a challenger to take the seat."}
+      {practice ? (
+        <PracticeDetails you={you} />
+      ) : (
+        <section className={styles.details}>
+          <header className={styles.versus}>
+            <div className={styles.side}>
+              <Avatar name={you.name} src={you.avatar} size={48} />
+              <div>
+                <b>{you.name}</b>
+                <span className={`${styles.chip} ${styles.you}`}>YOU</span>
               </div>
-            )}
+            </div>
+            <span className={styles.vs}>VS</span>
+            <div className={`${styles.side} ${styles.sideRight}`}>
+              <div>
+                <b>{opponent?.name ?? "Open seat"}</b>
+                <span className={`${styles.chip} ${status === "opponent_playing" ? styles.live : ""}`}>
+                  {status === "opponent_playing" ? "PLAYING" : opponent ? (them?.forfeit ? "FORFEIT" : "OPP") : "WAITING"}
+                </span>
+              </div>
+              {opponent ? <Avatar name={opponent.name} src={opponent.avatar} size={48} /> : <span className={styles.emptySeat}>?</span>}
+            </div>
+          </header>
+
+          <table className={`${styles.stats} ${them ? styles.reveal : ""}`} key={them ? "revealed" : "hidden"}>
+            <tbody>
+              <StatRow label="Balls" you={you.balls} them={them?.balls ?? null} missing={missing} />
+              <StatRow label="Boards cleared" you={you.clears} them={them?.clears ?? null} missing={missing} />
+              <StatRow label="Rounds" you={you.rounds} them={them?.rounds ?? null} missing={missing} />
+              <StatRow label="Final score" you={you.score} them={them?.score ?? null} missing={missing} final />
+            </tbody>
+          </table>
+
+          <div className={styles.boardsSection}>
+            <p className={styles.eyebrow}>FINAL BOARDS</p>
+            <div className={styles.boards}>
+              <FinalBoard game={you.board} label="Your board" />
+              {them ? (
+                <FinalBoard game={them.board} label={`${them.name}'s board`} />
+              ) : (
+                <div className={`${styles.boardCard} ${styles.boardHidden}`}>
+                  {opponent ? `${opponent.name}'s board is revealed when they finish.` : "Waiting for a challenger to take the seat."}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }

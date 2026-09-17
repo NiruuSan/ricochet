@@ -332,7 +332,8 @@ export type TournamentHistoryItem = {
 };
 
 /** A shot as spectators see it: the run revision it was taken from, and its angle (null for a forfeit). */
-export type WatchShot = { revision: number; angle: number | null };
+/** `aim` is how the player aimed before the shot, as [ms, angle] samples; null when it was not recorded. */
+export type WatchShot = { revision: number; angle: number | null; aim: [number, number][] | null };
 
 /** One player's run in a match, for switching sides while watching. */
 export type WatchSide = { watchId: string; name: string; avatar: string | null; score: number; done: boolean; isYou: boolean };

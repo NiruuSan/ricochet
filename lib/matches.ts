@@ -2,7 +2,7 @@ import { adminId, database, type Statement } from "@/db/raw";
 import { wageredSql } from "./experience";
 import { experienceFromWagered, levelFor } from "./levels";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
-import { inspectShot, SUSPENDED_MESSAGE, type ShotProof } from "./anti-cheat-rules";
+import { inspectShot, SUSPENDED_MESSAGE, type AimTrail, type ShotProof } from "./anti-cheat-rules";
 import { analyzeShot, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
 import type { Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
@@ -30,7 +30,7 @@ const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.fo
 export const AUTOMATION_DETECTED = "Automated play was detected. This game is lost and your account is suspended pending review.";
 
 /** Anti-cheat inputs for a shot: the client's report, and where to run work after the response. */
-export type ShotGuard = { proof?: ShotProof; defer?: (task: () => Promise<unknown>) => void };
+export type ShotGuard = { proof?: ShotProof; aim?: AimTrail | null; defer?: (task: () => Promise<unknown>) => void };
 
 /** The last logged shot of a run (for timing) and the run's timing strikes so far. `key` is the run's shot-log key as SQL. */
 export const SHOT_HISTORY_SQL = (key: string) => `
@@ -575,7 +575,7 @@ export async function playShot(
     db
       .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
       .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, state.over ? now : null, run.id, uid, run.revision),
-    shotInsert(db, runKey, "runs", run.id, run.revision, forfeit ? null : (angle as number), now, ticks),
+    shotInsert(db, runKey, "runs", run.id, run.revision, forfeit ? null : (angle as number), now, ticks, forfeit ? null : (guard.aim ?? null)),
     ...signals,
   ]);
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
@@ -583,7 +583,8 @@ export async function playShot(
   if (!forfeit && guard.defer && run.asset === "devnet") {
     const before = run.state;
     const aimMs = guard.proof?.aimMs ?? null;
-    guard.defer(() => analyzeShot({ uid, runKey, revision: run.revision, before, angle: angle as number, ruleset: run.ruleset, rowKey, aimMs, evaluate: state.over }));
+    const aim = guard.aim ?? null;
+    guard.defer(() => analyzeShot({ uid, runKey, revision: run.revision, before, angle: angle as number, ruleset: run.ruleset, rowKey, aimMs, aim, evaluate: state.over }));
   }
   if (state.over) await settle(run.match_id);
   return { ...run, state, score: state.score, done: state.over ? 1 : 0, forfeit: forfeit ? 1 : 0, clears, revision: run.revision + 1 };

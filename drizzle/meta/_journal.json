@@ -99,6 +99,13 @@
       "when": 1789648365561,
       "tag": "0013_anti_cheat",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1789650054603,
+      "tag": "0014_aim_trails",
+      "breakpoints": true
     }
   ]
 }

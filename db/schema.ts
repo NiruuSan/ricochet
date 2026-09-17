@@ -275,6 +275,8 @@ export const runShots = sqliteTable(
     created: integer("created").notNull(),
     // Simulation ticks of the shot: how long its animation must at least take.
     ticks: integer("ticks"),
+    // JSON [ms, angle][]: how the player aimed before the shot, replayed to spectators.
+    aim: text("aim"),
   },
   (t) => [primaryKey({ columns: [t.runKey, t.revision] })],
 );
@@ -393,6 +395,8 @@ export const shotAnalysis = sqliteTable(
     revision: integer("revision").notNull(),
     userId: text("user_id").notNull(),
     aimMs: integer("aim_ms"),
+    // Times the aim changed before the shot; null when the client sent no trail.
+    aimMoves: integer("aim_moves"),
     gain: integer("gain").notNull(),
     bestGain: integer("best_gain").notNull(),
     // Share of the sampled angles that reach the best gain: small means a hard shot.

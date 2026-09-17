@@ -62,10 +62,13 @@ type EntryRow = {
 async function shotsFor(runKey: string, since: number) {
   const db = database();
   const [rows, count] = await Promise.all([
-    db.prepare("SELECT revision, angle FROM run_shots WHERE run_key = ? AND revision >= ? ORDER BY revision").bind(runKey, since).all<WatchShot>(),
+    db
+      .prepare("SELECT revision, angle, aim FROM run_shots WHERE run_key = ? AND revision >= ? ORDER BY revision")
+      .bind(runKey, since)
+      .all<Omit<WatchShot, "aim"> & { aim: string | null }>(),
     db.prepare("SELECT COUNT(*) AS n FROM run_shots WHERE run_key = ?").bind(runKey).first<{ n: number }>(),
   ]);
-  return { shots: rows.results, logged: count?.n ?? 0 };
+  return { shots: rows.results.map((row): WatchShot => ({ ...row, aim: row.aim ? (JSON.parse(row.aim) as [number, number][]) : null })), logged: count?.n ?? 0 };
 }
 
 /**

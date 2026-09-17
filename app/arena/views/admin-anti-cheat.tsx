@@ -109,6 +109,11 @@ function CaseCard({ item, busy, onAction }: { item: CheatCase; busy: boolean; on
             {item.stats.hardShots} hard of {item.stats.analyzedShots} analyzed · aim {item.stats.meanAimMs ?? "—"} ms
           </span>
         </div>
+        <div className={styles.stat}>
+          <small className={styles.muted}>SHOTS WITHOUT AIMING</small>
+          <b>{item.stats.stillAimRate === null ? "—" : `${Math.round(item.stats.stillAimRate * 100)}%`}</b>
+          <span className={styles.muted}>Aim never moved before the shot. Watch the replays: touch players can tap straight to their angle.</span>
+        </div>
       </div>
       {item.signals.length > 0 && (
         <table className={styles.table}>

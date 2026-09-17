@@ -788,6 +788,76 @@
 .reveal {
   animation: revealFlash 0.9s ease-out;
 }
+/* Practice: the player's own run, no opponent column. */
+.practiceHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  animation: fadeUp 0.5s 0.25s backwards;
+}
+.practiceHeader :global(.avatar) {
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.practiceHeader b {
+  display: block;
+  font-size: 17px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.practiceStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.practiceStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: clamp(10px, 1.8vh, 18px) 16px;
+  border: 1px solid #2b3546;
+  border-radius: 12px;
+  background: #121a26;
+  animation: fadeUp 0.45s 0.42s backwards;
+}
+.practiceStat strong {
+  font-size: clamp(20px, 3vh, 28px);
+  font-weight: 900;
+  color: #f6f8fd;
+  line-height: 1.1;
+}
+.practiceStat span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #8e9cb1;
+  text-transform: uppercase;
+}
+.practiceScore {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  border-color: #c6f56440;
+  background: radial-gradient(ellipse at top left, #c6f56412, transparent 70%), #070a0f;
+  animation-delay: 0.35s;
+}
+.practiceScore strong {
+  font-size: clamp(30px, 5vh, 48px);
+  color: #c6f564;
+  letter-spacing: -1px;
+}
+.boardSolo {
+  height: 100%;
+  display: flex;
+  justify-content: center;
+}
+.boardSolo .boardCard {
+  max-width: 100%;
+}
 
 /* ---------- Keyframes ---------- */
 @keyframes fadeIn {

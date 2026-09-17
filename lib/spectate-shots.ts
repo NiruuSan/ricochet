@@ -6,8 +6,18 @@ import type { Database } from "@/db/raw";
  * past the shot's. A concurrent request that won the race already wrote its own
  * row for that revision, so the insert is ignored rather than duplicated.
  */
-export function shotInsert(db: Database, runKey: string, table: "runs" | "tournament_entries", id: string, revision: number, angle: number | null, now: number, ticks: number | null = null) {
+export function shotInsert(
+  db: Database,
+  runKey: string,
+  table: "runs" | "tournament_entries",
+  id: string,
+  revision: number,
+  angle: number | null,
+  now: number,
+  ticks: number | null = null,
+  aim: [number, number][] | null = null,
+) {
   return db
-    .prepare(`INSERT OR IGNORE INTO run_shots(run_key, revision, angle, created, ticks) SELECT ?, ?, ?, ?, ? FROM ${table} WHERE id = ? AND revision = ?`)
-    .bind(runKey, revision, angle, now, ticks, id, revision + 1);
+    .prepare(`INSERT OR IGNORE INTO run_shots(run_key, revision, angle, created, ticks, aim) SELECT ?, ?, ?, ?, ?, ? FROM ${table} WHERE id = ? AND revision = ?`)
+    .bind(runKey, revision, angle, now, ticks, aim ? JSON.stringify(aim) : null, id, revision + 1);
 }

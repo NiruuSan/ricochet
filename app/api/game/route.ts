@@ -3,7 +3,7 @@ import { currentUser } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import type { Asset } from "@/lib/api-types";
 import { clientKey, json, readBody, sameOrigin } from "@/lib/http";
-import { OUTDATED_CLIENT, parseProof } from "@/lib/anti-cheat-rules";
+import { OUTDATED_CLIENT, parseAim, parseProof } from "@/lib/anti-cheat-rules";
 import { GameError, playerSnapshot, playShot, startMatch, touchPlayer, type ShotGuard } from "@/lib/matches";
 import { settings } from "@/lib/payments/accounts";
 import { PaymentError } from "@/lib/payments/errors";
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
       // Every shot carries the client's anti-cheat report; a client without one is out of date.
       const proof = b.action === "shot" ? parseProof(b.proof) : null;
       if (b.action === "shot" && !proof) return json({ error: OUTDATED_CLIENT }, 426);
-      const guard: ShotGuard = { proof: proof ?? undefined, defer: (task) => after(() => task().catch((e) => console.error("Shot analysis failed", e))) };
+      const guard: ShotGuard = { proof: proof ?? undefined, aim: b.action === "shot" ? parseAim(b.aim) : null, defer: (task) => after(() => task().catch((e) => console.error("Shot analysis failed", e))) };
       // Tournament runs are addressed as `t:<entry id>`.
       if (typeof b.runId === "string" && b.runId.startsWith("t:")) {
         return json({ run: await playTournamentShot(uid, b.runId.slice(2), b.revision, b.action, b.angle, allowed, Date.now(), guard) });
