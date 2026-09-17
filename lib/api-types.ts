@@ -371,18 +371,25 @@ export type WatchData = {
   sides: WatchSide[];
 };
 
-/** A run being played right now, for the lobby's Live now list. */
+/** A run being played right now, for the Live board and the lobby's Live now list. */
 export type LiveGame = {
   watchId: string;
   kind: "match" | "tournament";
   asset: Asset;
   name: string;
   avatar: string | null;
-  score: number;
+  /** Hidden on a match whose seat is still open: whoever takes it must not know the score to beat. */
+  score: number | null;
   round: number;
   stake: number;
-  /** The tournament name, or the opponent's name for a match. */
+  /** The tournament name, or the opponent's name for a match. Empty while a seat is open. */
   context: string;
+  /** Your own run. */
+  isYou: boolean;
+  /** Why this run cannot be watched yet: its seat is open, or you still have to play that tournament. */
+  locked: "seat" | "playing" | null;
+  /** Its last shot, or its start. */
+  at: number;
 };
 
 /** One of the player's recently finished games, for the arena. */

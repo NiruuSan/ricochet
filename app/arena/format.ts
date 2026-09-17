@@ -22,6 +22,16 @@ export const initials = (name: string) => name.slice(0, 2).toUpperCase();
 
 export const shortDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
+/** How long ago something happened, in words. */
+export function timeAgo(ms: number, now = Date.now()) {
+  const minutes = Math.round((now - ms) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return shortDate(ms);
+}
+
 export function outcome(m: MatchSummary) {
   if (!m.done) return "In progress";
   if (m.result === "cancelled") return m.net === 0 ? "Cancelled · fully refunded" : `Cancelled · ${Math.round((m.stake + m.net) / m.stake * 100)}% refunded`;

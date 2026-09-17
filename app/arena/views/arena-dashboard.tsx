@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Crown, Eye, History, Medal, Radio, Swords, Trophy, Users } from "lucide-react";
-import type { ArenaOverview, RecentGame } from "@/lib/api-types";
+import { ArrowRight, Crown, Eye, History, Lock, Medal, Radio, Swords, Trophy, Users } from "lucide-react";
+import type { ArenaOverview, LiveGame, RecentGame } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import { amount, CURRENCY, signedAmount } from "../format";
@@ -95,6 +95,32 @@ function RecentRow({ g, onOpenMatch }: { g: RecentGame; onOpenMatch: (id: string
   );
 }
 
+/** One run in progress. A run that cannot be watched yet is shown, but not opened. */
+function LiveRow({ g }: { g: LiveGame }) {
+  const body = (
+    <>
+      <Avatar name={g.name} src={g.avatar} size={26} />
+      <span className={styles.rowMain}>
+        <b>
+          {g.name}
+          {g.isYou && <small className={styles.youTag}>YOU</small>}
+        </b>
+        <small>{g.kind === "tournament" ? g.context : `${g.context ? `vs ${g.context}` : "Open seat"} · ${amount(g.stake, g.asset)}`}</small>
+      </span>
+      <span className={styles.liveScore}>
+        {g.score === null ? <Lock size={14} className={styles.muted} /> : g.score.toLocaleString("en")}
+        <small>R{g.round}</small>
+      </span>
+    </>
+  );
+  if (g.locked) return <div className={`${styles.live} ${styles.lockedRow}`} title={g.locked === "seat" ? "The board opens once someone takes the seat" : "Finish your own run in this tournament first"}>{body}</div>;
+  return (
+    <Link href={`/watch/${g.watchId}`} className={styles.live}>
+      {body}
+    </Link>
+  );
+}
+
 type Props = {
   overview: ArenaOverview | null;
   now: number;
@@ -166,6 +192,9 @@ export function ArenaDashboard({ overview, now, signedIn, onOpenMatch }: Props) 
           <h2 id="arena-pulse">
             <Radio size={17} className={styles.pulseIcon} /> Arena pulse
           </h2>
+          <Link href="/live">
+            Live board <ArrowRight size={14} />
+          </Link>
         </header>
         <div className={styles.box}>
           <div className={styles.counters}>
@@ -197,17 +226,7 @@ export function ArenaDashboard({ overview, now, signedIn, onOpenMatch }: Props) 
           {overview?.live.length ? (
             <div className={styles.liveList}>
               {overview.live.map((g) => (
-                <Link key={g.watchId} href={`/watch/${g.watchId}`} className={styles.live}>
-                  <Avatar name={g.name} src={g.avatar} size={26} />
-                  <span className={styles.rowMain}>
-                    <b>{g.name}</b>
-                    <small>{g.kind === "tournament" ? g.context : `vs ${g.context} · ${amount(g.stake, g.asset)}`}</small>
-                  </span>
-                  <span className={styles.liveScore}>
-                    {g.score.toLocaleString("en")}
-                    <small>R{g.round}</small>
-                  </span>
-                </Link>
+                <LiveRow key={g.watchId} g={g} />
               ))}
             </div>
           ) : (

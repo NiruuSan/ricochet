@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, Medal, Trophy, Wallet, X } from "lucide-react";
+import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, Medal, Radio, Trophy, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Avatar, GemIcon } from "./avatar";
 import { units } from "./format";
@@ -15,6 +15,7 @@ import { usePlayerData } from "./use-player-data";
 const AdminView = dynamic(() => import("./views/admin-view").then((m) => m.AdminView));
 const AuthView = dynamic(() => import("./views/auth-view").then((m) => m.AuthView));
 const LeaderboardView = dynamic(() => import("./views/leaderboard-view").then((m) => m.LeaderboardView));
+const LiveView = dynamic(() => import("./views/live-view").then((m) => m.LiveView));
 const MatchesView = dynamic(() => import("./views/matches-view").then((m) => m.MatchesView));
 const PlayView = dynamic(() => import("./views/play-view").then((m) => m.PlayView));
 const ProfileView = dynamic(() => import("./views/profile-view").then((m) => m.ProfileView));
@@ -30,6 +31,7 @@ export type PlayerState = ReturnType<typeof usePlayerData>;
 
 const NAVIGATION = [
   { href: "/", view: "play", label: "Arena", Icon: Gamepad2 },
+  { href: "/live", view: "live", label: "Live", Icon: Radio },
   { href: "/tournaments", view: "tournaments", label: "Tournaments", Icon: Medal },
   { href: "/leaderboard", view: "leaderboard", label: "Leaderboard", Icon: Trophy },
   { href: "/faq", view: "faq", label: "How to play", Icon: HelpCircle },
@@ -180,6 +182,7 @@ export default function Arena({ view, profileName, initialMatchId, initialTourna
         {view === "watch" && watchId && <WatchView key={watchId} id={watchId} />}
         {view === "welcome" && <WelcomeView session={session} />}
         {view === "matches" && <MatchesView player={player} />}
+        {view === "live" && <LiveView />}
         {view === "leaderboard" && <LeaderboardView player={player} />}
         {view === "wallet" && <WalletView player={player} />}
         {view === "profile" && (profileName ? <PublicProfileView key={profileName} name={profileName} player={player} /> : <ProfileView player={player} />)}

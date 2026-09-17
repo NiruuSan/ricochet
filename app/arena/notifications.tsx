@@ -4,19 +4,10 @@ import { useRouter } from "next/navigation";
 import { Bell, Equal, Gift, Medal, ShieldAlert, Trophy, X } from "lucide-react";
 import type { NotificationItem } from "@/lib/api-types";
 import { request } from "./api";
-import { CURRENCY, units } from "./format";
+import { CURRENCY, timeAgo, units } from "./format";
 import styles from "./notifications.module.css";
 
 const TOAST_MS = 6_500;
-
-function timeAgo(ms: number, now = Date.now()) {
-  const minutes = Math.round((now - ms) / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  return new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
 
 const ordinal = (n: number) => `${n}${[, "st", "nd", "rd"][(n % 100 >> 3) ^ 1 && n % 10] || "th"}`;
 

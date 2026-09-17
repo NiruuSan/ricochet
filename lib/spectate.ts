@@ -194,40 +194,69 @@ export async function watchRun(viewer: string | null, watchIdInput: unknown, sin
   return match[1] === "m" ? watchMatchRun(viewer, match[2], since) : watchTournamentRun(viewer, match[2], since, now);
 }
 
-type LiveRow = { id: string; asset: Asset; name: string; avatar: string | null; score: number; round: number; stake: number; context: string | null };
+type LiveRow = {
+  id: string;
+  asset: Asset;
+  name: string;
+  avatar: string | null;
+  score: number;
+  round: number;
+  stake: number;
+  context: string | null;
+  mine: number;
+  locked: number;
+  at: number;
+};
 
-/** Runs with a shot in the last few minutes that the viewer is allowed to watch, best score first. */
-export async function liveGames(viewer: string | null, now = Date.now()): Promise<LiveGame[]> {
+/** Stands in for a signed-out viewer: no player ID can ever equal it. */
+const NOBODY = "-";
+
+/**
+ * The runs being played right now, most recent shot first: the viewer's own,
+ * and every other one they are allowed to know about.
+ *
+ * A run nobody may watch yet still shows, without a watch link, so the lobby
+ * reflects what is really going on: a match whose seat is open (watching it
+ * would mean studying the board before taking the seat, so its score is hidden
+ * too) and a tournament the viewer has still to play. The one run kept out
+ * entirely is an opponent's, in a match the viewer is playing.
+ */
+export async function liveGames(viewer: string | null, now = Date.now(), limit = 12): Promise<LiveGame[]> {
   const db = database();
   const since = now - LIVE_WINDOW;
+  const me = viewer ?? NOBODY;
   const [matches, entries] = await Promise.all([
     db
       .prepare(
-        `SELECT r.id, m.asset, p.name, p.avatar, r.score, json_extract(r.state, '$.round') AS round, m.stake,
-           (SELECT o.name FROM players o WHERE o.id = CASE WHEN m.p1 = r.user_id THEN m.p2 ELSE m.p1 END) AS context
-         FROM runs r
-         JOIN matches m ON m.id = r.match_id
-         JOIN players p ON p.id = r.user_id
-         WHERE r.done = 0 AND m.settled = 0 AND m.p2 IS NOT NULL
-           AND COALESCE(?, '') NOT IN (m.p1, m.p2)
-           AND COALESCE((SELECT MAX(s.created) FROM run_shots s WHERE s.run_key = 'm-' || r.id), r.created) >= ?
-         ORDER BY r.score DESC LIMIT 12`,
+        `SELECT * FROM (
+           SELECT r.id, m.asset, p.name, p.avatar, r.score, json_extract(r.state, '$.round') AS round, m.stake,
+             (SELECT o.name FROM players o WHERE o.id = CASE WHEN m.p1 = r.user_id THEN m.p2 ELSE m.p1 END) AS context,
+             r.user_id = ? AS mine,
+             (m.p2 IS NULL AND r.user_id <> ?) AS locked,
+             COALESCE((SELECT MAX(s.created) FROM run_shots s WHERE s.run_key = 'm-' || r.id), r.created) AS at
+           FROM runs r
+           JOIN matches m ON m.id = r.match_id
+           JOIN players p ON p.id = r.user_id
+           WHERE r.done = 0 AND m.settled = 0
+             AND (r.user_id = ? OR (m.p1 <> ? AND COALESCE(m.p2, '') <> ?))
+         ) WHERE at >= ? ORDER BY at DESC LIMIT ?`,
       )
-      .bind(viewer, since)
+      .bind(me, me, me, me, me, since, limit)
       .all<LiveRow>(),
     db
       .prepare(
-        `SELECT e.id, t.asset, p.name, p.avatar, e.score, json_extract(e.state, '$.round') AS round, t.entry_fee AS stake, t.name AS context
-         FROM tournament_entries e
-         JOIN tournaments t ON t.id = e.tournament_id
-         JOIN players p ON p.id = e.user_id
-         WHERE e.state IS NOT NULL AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ?
-           AND e.user_id <> COALESCE(?, '')
-           AND NOT EXISTS (SELECT 1 FROM tournament_entries mine WHERE mine.tournament_id = t.id AND mine.user_id = ? AND mine.done = 0)
-           AND COALESCE((SELECT MAX(s.created) FROM run_shots s WHERE s.run_key = 't-' || e.id), e.started) >= ?
-         ORDER BY e.score DESC LIMIT 12`,
+        `SELECT * FROM (
+           SELECT e.id, t.asset, p.name, p.avatar, e.score, json_extract(e.state, '$.round') AS round, t.entry_fee AS stake, t.name AS context,
+             e.user_id = ? AS mine,
+             (e.user_id <> ? AND EXISTS (SELECT 1 FROM tournament_entries x WHERE x.tournament_id = t.id AND x.user_id = ? AND x.done = 0)) AS locked,
+             COALESCE((SELECT MAX(s.created) FROM run_shots s WHERE s.run_key = 't-' || e.id), e.started) AS at
+           FROM tournament_entries e
+           JOIN tournaments t ON t.id = e.tournament_id
+           JOIN players p ON p.id = e.user_id
+           WHERE e.state IS NOT NULL AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ?
+         ) WHERE at >= ? ORDER BY at DESC LIMIT ?`,
       )
-      .bind(now, now, viewer, viewer, since)
+      .bind(me, me, me, now, now, since, limit)
       .all<LiveRow>(),
   ]);
   const toLive = (kind: LiveGame["kind"], watchId: (id: string) => string) => (r: LiveRow): LiveGame => ({
@@ -236,12 +265,15 @@ export async function liveGames(viewer: string | null, now = Date.now()): Promis
     asset: r.asset,
     name: r.name,
     avatar: avatarUrl(r.avatar),
-    score: r.score,
+    score: r.locked && kind === "match" ? null : r.score,
     round: r.round,
     stake: r.stake,
     context: r.context ?? "",
+    isYou: !!r.mine,
+    locked: r.locked ? (kind === "match" ? "seat" : "playing") : null,
+    at: r.at,
   });
   return [...entries.results.map(toLive("tournament", entryWatchId)), ...matches.results.map(toLive("match", matchWatchId))]
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 12);
+    .sort((a, b) => b.at - a.at)
+    .slice(0, limit);
 }

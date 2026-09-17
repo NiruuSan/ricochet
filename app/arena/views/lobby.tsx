@@ -22,7 +22,7 @@ type Props = {
   onOpenMatch: (matchId: string) => void;
 };
 
-/** Step one: how to play. Step two, for a 1v1: the entry. */
+/** Step one: how to play. Step two, for a 1v1: the entry. Picking the same mode again closes it. */
 export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onFindMatch, busy, onOpenMatch }: Props) {
   const { data } = player;
   const solConfigured = !!data.launch?.configured;
@@ -54,7 +54,7 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           className={`${styles.mode} ${styles.modeSol}`}
           aria-pressed={choice === "devnet"}
           disabled={!solConfigured}
-          onClick={() => onChoose("devnet")}
+          onClick={() => onChoose(choice === "devnet" ? null : "devnet")}
         >
           <span className={styles.modeIcon}>
             <Zap />
@@ -63,7 +63,7 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           <strong>Solana match</strong>
           <span>{!solConfigured ? "Solana matches are not available yet." : data.player ? `${units(balance("devnet"), "devnet")} SOL available. Test SOL only.` : "Sign in and fund your wallet with devnet SOL."}</span>
         </button>
-        <button className={`${styles.mode} ${styles.modeGems}`} aria-pressed={choice === "gems"} onClick={() => onChoose("gems")}>
+        <button className={`${styles.mode} ${styles.modeGems}`} aria-pressed={choice === "gems"} onClick={() => onChoose(choice === "gems" ? null : "gems")}>
           <span className={styles.modeIcon}>
             <Gem />
           </span>

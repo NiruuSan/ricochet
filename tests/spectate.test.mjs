@@ -48,6 +48,15 @@ try {
     if (ann.state.over) break;
     ann = await matches.playShot(ANN, ann.id, ann.revision, "shot", angle, true, { aim: [[0, 90], [500, angle]] });
   }
+  // While the seat is open, Ann's run is listed as live for everyone, but only
+  // she can open it: the score and the board stay hidden from whoever may join.
+  const [seat] = await liveGames(CAT);
+  assert.equal(seat.watchId, `m-${ann.id}`, "A run with an open seat still shows as live");
+  assert.deepEqual([seat.locked, seat.score, seat.context, seat.isYou], ["seat", null, "", false]);
+  assert.ok(!(await liveGames(null)).some((g) => g.score !== null), "A signed-out visitor sees no open-seat score either");
+  const [hers] = await liveGames(ANN);
+  assert.deepEqual([hers.locked, hers.score, hers.isYou], [null, ann.state.score, true], "You always see your own run, with its score");
+
   // Ann ends her run early; under the current ruleset the seat stays open.
   ann = await matches.playShot(ANN, ann.id, ann.revision, "forfeit");
   const annWatch = `m-${ann.id}`;
@@ -89,7 +98,9 @@ try {
   const live = await liveGames(CAT);
   assert.ok(live.some((g) => g.watchId === `m-${ben.id}` && g.context === "Ann"), "Ben's live run is listed for spectators");
   assert.ok(!live.some((g) => g.watchId === annWatch), "Finished runs are not live");
-  assert.ok(!(await liveGames(BEN)).some((g) => g.watchId === `m-${ben.id}`), "Players do not see their own match as live");
+  const benLive = await liveGames(BEN);
+  assert.ok(benLive.every((g) => g.watchId !== annWatch), "The live list never shows the run you are playing against");
+  assert.ok(benLive.some((g) => g.watchId === `m-${ben.id}` && g.isYou), "Your own run is marked as yours");
   noIds(live, "The live list");
   assert.ok(!(await liveGames(DOM, Date.now() + 11 * 60_000)).length, "Idle runs drop off the live list");
 
@@ -143,7 +154,8 @@ try {
   await assert.rejects(() => watchRun(DOM, `t-${sqlite.prepare("SELECT id FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").get(cup, CAT).id}`), /not started/);
 
   assert.ok((await liveGames(DOM, now)).some((g) => g.watchId === annTournamentWatch && g.context === "Watch Cup"));
-  assert.ok(!(await liveGames(BEN, now)).some((g) => g.kind === "tournament"), "The live list hides a tournament you still have to play");
+  const benTournament = (await liveGames(BEN, now)).find((g) => g.watchId === annTournamentWatch);
+  assert.equal(benTournament.locked, "playing", "A tournament you still have to play is listed, but locked");
 
   // Once Ben finishes, he can watch Ann.
   await t.playTournamentShot(BEN, benRun.id.slice(2), 0, "forfeit", undefined, true, now);

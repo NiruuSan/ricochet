@@ -8,6 +8,10 @@ export const FAQ: [question: string, answer: string][] = [
     "No. Your run starts immediately. If nobody has entered at your amount, the second seat stays open. Another player can join while you play or after you finish. Scores are hidden until both players finish. There is no automatic expiry in this development version.",
   ],
   [
+    "Can I watch other players?",
+    "Yes. The Live tab lists every run in progress: open one and follow it shot by shot, with the aiming that went into each. A match nobody has joined stays closed, and its score hidden, until someone takes the seat, and while you still have a run to play on a board you can only watch your own. Finished games are replayed from your history, a profile or the leaderboard.",
+  ],
+  [
     "How much does the winner receive?",
     "Gem matches have no house fee: the winner receives both entries in full. Two 100-gem entries pay the winner 200 gems, a net profit of 100 gems. In devnet SOL matches, the house fee is 12% of each entry when a match resolves with a winner. The winner receives 88% of the combined entries: for two 1 SOL entries, the payout is 1.76 SOL, the winner’s net profit is 0.76 SOL, and the house receives 0.24 SOL. All amounts in this development version are gems or devnet test SOL.",
   ],
