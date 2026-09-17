@@ -1,8 +1,22 @@
 import { database } from "@/db/raw";
 import type { AdminOverview } from "./api-types";
+import { GameError } from "./matches";
 import { volumeHistory } from "./admin-volume";
 import { avatarUrl, ONLINE_MS } from "./matches";
 import { HOUSE } from "./payments/accounts";
+
+/** The note an administrator writes on a decision, trimmed and, where it is the record, required. */
+export const adminNote = (value: unknown, required: boolean) => {
+  const text = String(value ?? "").trim().slice(0, 300);
+  if (required && text.length < 3) throw new GameError("Write a short note explaining the decision.");
+  return text;
+};
+
+/** An audit row for an administrator action, for an existing batch. */
+export const adminAudit = (adminUid: string, action: string, target: string, reason: string, now: number) =>
+  database()
+    .prepare("INSERT INTO admin_audit(id, admin_id, action, target_user_id, reason, created) VALUES(?, ?, ?, ?, ?, ?)")
+    .bind(crypto.randomUUID(), adminUid, action, target, reason, now);
 
 /** Player counts and rolling volumes for the administrator dashboard. */
 export async function adminOverview(now = Date.now()): Promise<AdminOverview> {

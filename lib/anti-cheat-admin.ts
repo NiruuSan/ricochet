@@ -2,6 +2,7 @@ import { database, type Statement } from "@/db/raw";
 import { aimFeatures, evaluateShots, FINDING_LABELS, qualityThreshold, STATS, type AimTrail } from "./anti-cheat-rules";
 import { antiCheatEnabled, playerShotStats, populationQuality, suspensionOps } from "./anti-cheat";
 import type { Finding } from "./anti-cheat-rules";
+import { adminAudit, adminNote } from "./admin";
 import { GameError } from "./matches";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
 
@@ -185,30 +186,19 @@ async function findPlayer(nameInput: unknown) {
   return player;
 }
 
-const note = (value: unknown, required: boolean) => {
-  const text = String(value ?? "").trim().slice(0, 300);
-  if (required && text.length < 3) throw new GameError("Write a short note explaining the decision.");
-  return text;
-};
-
-const audit = (adminUid: string, action: string, target: string, reason: string, now: number) =>
-  database()
-    .prepare("INSERT INTO admin_audit(id, admin_id, action, target_user_id, reason, created) VALUES(?, ?, ?, ?, ?, ?)")
-    .bind(crypto.randomUUID(), adminUid, action, target, reason, now);
-
 /** Administrator: suspends a player by hand, e.g. after a report. */
 export async function adminSuspend(adminUid: string, nameInput: unknown, reasonInput: unknown, now = Date.now()) {
   const player = await findPlayer(nameInput);
-  const reason = note(reasonInput, true);
+  const reason = adminNote(reasonInput, true);
   const db = database();
   const finding: Finding = { kind: "admin", level: "stat", detail: { reason } };
-  await db.batch([...suspensionOps(db, player.id, "admin", reason, { findings: [finding] }, now), audit(adminUid, "anti_cheat_suspend", player.id, reason, now)]);
+  await db.batch([...suspensionOps(db, player.id, "admin", reason, { findings: [finding] }, now), adminAudit(adminUid, "anti_cheat_suspend", player.id, reason, now)]);
 }
 
 /** Administrator: the detection was wrong. The player can play again; this week's automatic race exclusion is removed. */
 export async function adminLift(adminUid: string, nameInput: unknown, noteInput: unknown, now = Date.now()) {
   const player = await findPlayer(nameInput);
-  const text = note(noteInput, true);
+  const text = adminNote(noteInput, true);
   const db = database();
   const current = await db.prepare("SELECT status FROM player_suspensions WHERE user_id = ?").bind(player.id).first<{ status: string }>();
   if (current?.status !== "suspended" && current?.status !== "banned") throw new GameError("This player is not suspended.", 409);
@@ -219,7 +209,7 @@ export async function adminLift(adminUid: string, nameInput: unknown, noteInput:
     db
       .prepare("DELETE FROM weekly_race_exclusions WHERE user_id = ? AND admin_id = 'system' AND week_start NOT IN (SELECT week_start FROM weekly_races)")
       .bind(player.id),
-    audit(adminUid, "anti_cheat_lift", player.id, text, now),
+    adminAudit(adminUid, "anti_cheat_lift", player.id, text, now),
   ]);
   if (!result.meta.changes) throw new GameError("This player is not suspended.", 409);
 }
@@ -231,7 +221,7 @@ export async function adminLift(adminUid: string, nameInput: unknown, noteInput:
  */
 export async function adminBan(adminUid: string, nameInput: unknown, noteInput: unknown, now = Date.now()) {
   const player = await findPlayer(nameInput);
-  const text = note(noteInput, true);
+  const text = adminNote(noteInput, true);
   const db = database();
   const current = await db.prepare("SELECT status FROM player_suspensions WHERE user_id = ?").bind(player.id).first<{ status: string }>();
   if (current?.status !== "suspended") throw new GameError("Only a suspended player can be banned.", 409);
@@ -263,7 +253,7 @@ export async function adminBan(adminUid: string, nameInput: unknown, noteInput: 
   if (gems > 0) {
     ops.push(db.prepare("INSERT INTO ledger(id, user_id, match_id, kind, amount, created) VALUES(?, ?, NULL, 'cheat_seizure', ?, ?)").bind(`${reference}:gems`, player.id, -gems, now));
   }
-  ops.push(audit(adminUid, "anti_cheat_ban", player.id, `${text} · seized ${sol} lamports and ${gems} gems`, now));
+  ops.push(adminAudit(adminUid, "anti_cheat_ban", player.id, `${text} · seized ${sol} lamports and ${gems} gems`, now));
   await db.batch(ops);
   return { sol, gems };
 }

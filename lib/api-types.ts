@@ -143,7 +143,8 @@ export type MatchNotification = {
   matchId: string;
   asset: Asset;
   stake: number;
-  result: Exclude<MatchResult, "cancelled">;
+  /** "cancelled": an administrator closed the match and returned the entries. */
+  result: MatchResult;
   net: number;
   opponent: string | null;
   score: number;
@@ -152,6 +153,8 @@ export type MatchNotification = {
   bonusGems?: number;
   /** Set when the match ended because a player was disqualified for automated play: true if it was the opponent. */
   disqualified?: boolean;
+  /** Why an administrator cancelled the match. */
+  reason?: string;
 };
 export type TipNotification = { amount: number; from: string };
 export type TournamentNotification = {
@@ -435,6 +438,30 @@ export type TwoFactorStatus = {
 };
 
 export type AdminTournament = TournamentSummary & { played: number; finished: number };
+
+/** A 1v1 match that has not settled, for the administrator. */
+export type AdminGame = {
+  id: string;
+  asset: Asset;
+  stake: number;
+  created: number;
+  /** The last shot played on either side, or null before the first one. */
+  lastShot: number | null;
+  /** Nobody has taken the second seat yet. */
+  seatOpen: boolean;
+  /** What cancelling this match would hand back in total. */
+  refund: number;
+  players: {
+    name: string;
+    avatar: string | null;
+    score: number;
+    round: number;
+    done: boolean;
+    forfeit: boolean;
+    watchId: string;
+    lastShot: number | null;
+  }[];
+};
 
 export type SecurityStatus = TwoFactorStatus & { withdrawalHoldUntil: number | null };
 export type AdminSecuritySnapshot = {

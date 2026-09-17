@@ -8,6 +8,7 @@ import { FundedWallet } from "../funded-wallet";
 import { units } from "../format";
 import type { PlayerState } from "../arena";
 import { AdminAntiCheat } from "./admin-anti-cheat";
+import { AdminGames } from "./admin-games";
 import { AdminRace } from "./admin-race";
 import { AdminTournaments } from "./admin-tournaments";
 import { AdminSecurity } from "./admin-security";
@@ -20,7 +21,7 @@ export function AdminView({ player }: { player: PlayerState }) {
   const { data, loaded } = player;
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview" | "tournaments" | "race" | "anti-cheat" | "security">("overview");
+  const [tab, setTab] = useState<"overview" | "games" | "tournaments" | "race" | "anti-cheat" | "security">("overview");
 
   useEffect(() => {
     if (!data.isAdmin) return;
@@ -64,6 +65,9 @@ export function AdminView({ player }: { player: PlayerState }) {
         <button aria-pressed={tab === "overview"} onClick={() => setTab("overview")}>
           Overview
         </button>
+        <button aria-pressed={tab === "games"} onClick={() => setTab("games")}>
+          Games
+        </button>
         <button aria-pressed={tab === "tournaments"} onClick={() => setTab("tournaments")}>
           Tournaments
         </button>
@@ -77,7 +81,7 @@ export function AdminView({ player }: { player: PlayerState }) {
           Security
         </button>
       </div>
-      {tab === "security" ? <AdminSecurity /> : tab === "anti-cheat" ? <AdminAntiCheat /> : tab === "race" ? <AdminRace /> : tab === "tournaments" ? (
+      {tab === "security" ? <AdminSecurity /> : tab === "anti-cheat" ? <AdminAntiCheat /> : tab === "race" ? <AdminRace /> : tab === "games" ? <AdminGames /> : tab === "tournaments" ? (
         <AdminTournaments solConfigured={!!data.launch?.configured} />
       ) : (
         <>

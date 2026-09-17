@@ -341,6 +341,56 @@ assert.ok(!JSON.stringify(overview).includes("user-"), "The overview carries no 
   assert.deepEqual([recap.status, recap.opponent, matchRow(lonely.match_id).settled], ["waiting", null, 0]);
 }
 
+// The administrator closes a match in progress: both runs end, both entries go
+// back in full with no house fee, and each player is told once.
+{
+  const admin = await import("../lib/admin-games.ts");
+  // An entry with no open seat left over from the fixtures above.
+  const stake = 100;
+  sqlite.prepare("UPDATE runs SET done = 1").run();
+  const openRun = await matches.startMatch(ALICE, stake, "gems");
+  const joinRun = await matches.startMatch(BOB, stake, "gems");
+  assert.equal(joinRun.match_id, openRun.match_id);
+  const staked = [gemBalance(ALICE), gemBalance(BOB)];
+  const listed = (await admin.adminGames()).find((g) => g.id === openRun.match_id);
+  assert.deepEqual([listed.seatOpen, listed.players.length, listed.refund, listed.stake], [false, 2, stake * 2, stake]);
+  assert.deepEqual(listed.players.map((p) => p.name).sort(), ["Alice_2", "bob"]);
+  assert.deepEqual(listed.players.map((p) => p.watchId).sort(), [`m-${joinRun.id}`, `m-${openRun.id}`].sort());
+  assert.ok(!JSON.stringify(listed).includes(ALICE), "The administrator list carries no player IDs");
+  await assert.rejects(() => admin.cancelMatchAsAdmin("admin-user", openRun.match_id, "x"), /short note/);
+  await assert.rejects(() => admin.cancelMatchAsAdmin("admin-user", "no-such-match", "Missing"), (e) => e.status === 404);
+  const refunded = await admin.cancelMatchAsAdmin("admin-user", openRun.match_id, "Server restart mid-round");
+  assert.deepEqual([refunded.refunded, refunded.players], [stake * 2, 2]);
+  assert.deepEqual([gemBalance(ALICE), gemBalance(BOB)], [staked[0] + stake, staked[1] + stake]);
+  const closed = matchRow(openRun.match_id);
+  assert.deepEqual([closed.settled, closed.cancelled, closed.fee, closed.winner], [1, 1, 0, null]);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM runs WHERE match_id = ? AND done = 0").get(openRun.match_id).n, 0, "Both runs end with the match");
+  await assert.rejects(() => matches.playShot(ALICE, openRun.id, openRun.revision, "shot", 73), (e) => e.status === 409);
+  await assert.rejects(() => admin.cancelMatchAsAdmin("admin-user", openRun.match_id, "Cancelling again"), (e) => e.status === 409);
+  assert.deepEqual([gemBalance(ALICE), gemBalance(BOB)], [staked[0] + stake, staked[1] + stake], "A second cancellation refunds nothing");
+  const told = JSON.parse(sqlite.prepare("SELECT data FROM notifications WHERE user_id = ? ORDER BY created DESC LIMIT 1").get(BOB).data);
+  assert.deepEqual([told.result, told.stake, told.reason, told.opponent], ["cancelled", stake, "Server restart mid-round", "Alice_2"]);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'match_cancel'").get().n, 2, "One audit row per refunded player");
+  assert.ok(!(await admin.adminGames()).some((g) => g.id === openRun.match_id), "A cancelled match leaves the list");
+  // The settled match keeps its cancelled result for both players.
+  assert.equal((await matches.playerSnapshot(BOB, "gems")).matches.find((x) => x.id === openRun.match_id).result, "cancelled");
+
+  // The same on devnet: the escrow empties back to the players, and the house keeps nothing.
+  sqlite.prepare("UPDATE runs SET done = 1").run();
+  for (const [uid, id] of [[ALICE, "fund-alice"], [BOB, "fund-bob"]]) {
+    await service.ensureCashAccount(uid);
+    sqlite.prepare("INSERT INTO cash_ledger VALUES(?, ?, 'fixture', 1000000000, 'fixture', 0)").run(id, service.cashAccountId(uid));
+  }
+  const solRun = await matches.startMatch(ALICE, 1_000_000_000, "devnet");
+  assert.equal((await matches.startMatch(BOB, 1_000_000_000, "devnet")).match_id, solRun.match_id);
+  const houseBefore = cashBalance(service.HOUSE);
+  assert.equal(cashBalance("escrow:" + solRun.match_id), 2_000_000_000);
+  assert.equal((await admin.cancelMatchAsAdmin("admin-user", solRun.match_id, "Network incident")).refunded, 2_000_000_000);
+  assert.deepEqual([cashBalance(ALICE), cashBalance(BOB)], [1_000_000_000, 1_000_000_000], "Devnet entries go back in full");
+  assert.equal(cashBalance("escrow:" + solRun.match_id), 0);
+  assert.equal(cashBalance(service.HOUSE), houseBefore, "A cancellation by the house takes no fee");
+}
+
 // Fixed-window rate limiting.
 const now = 1_000_000 * 60_000;
 for (let i = 0; i < LIMITS.walletWrite; i++) assert.equal(await rateLimited("walletWrite", ALICE, now), false);
@@ -349,6 +399,6 @@ assert.equal(await rateLimited("walletWrite", BOB, now), false, "Limits are per 
 assert.equal(await rateLimited("walletWrite", ALICE, now + 60_000), false, "A new window resets the count");
 
 console.log(
-  "PASS: ruleset recorded per match, legacy ruleset replay, retired rulesets, legacy unjoined-forfeit cancellation (gems and devnet), ruleset 4 forfeits that keep the seat open and settle on score, no joining forfeited matches, settlement of unsettled matches only, no player-ID leaks, per-match net P&L, rate-limited shots, unique names, picture validation and replacement, presence, admin overview, match recaps with hidden opponent stats, cleared boards, result notifications, rate limits.",
+  "PASS: ruleset recorded per match, legacy ruleset replay, retired rulesets, legacy unjoined-forfeit cancellation (gems and devnet), ruleset 4 forfeits that keep the seat open and settle on score, no joining forfeited matches, settlement of unsettled matches only, administrator cancellation of a match in progress (full refunds, ended runs, notices, audit, idempotent, gems and devnet), no player-ID leaks, per-match net P&L, rate-limited shots, unique names, picture validation and replacement, presence, admin overview, match recaps with hidden opponent stats, cleared boards, result notifications, rate limits.",
 );
 close();

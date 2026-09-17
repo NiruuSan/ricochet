@@ -35,8 +35,15 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
       detail: payout > 0 ? `Prize +${units(payout, asset)} ${CURRENCY[asset]}` : "Outside the prize places this time",
     };
   }
-  const { result, opponent, net, asset, score, opponentScore } = n.data;
+  const { result, opponent, net, asset, stake, score, opponentScore } = n.data;
   const vs = opponent ?? "your opponent";
+  if (result === "cancelled") {
+    return {
+      tone: "draw",
+      title: opponent ? `Your match vs ${vs} was cancelled` : "Your match was cancelled",
+      detail: `Entry refunded · +${units(stake, asset)} ${CURRENCY[asset]}${n.data.reason ? ` · ${n.data.reason}` : ""}`,
+    };
+  }
   const scores = `${score.toLocaleString("en")} – ${opponentScore.toLocaleString("en")}`;
   const bonus = n.data.bonusGems ? ` · +${n.data.bonusGems} gems` : "";
   if (result === "win" && n.data.disqualified) return { tone: "win", title: `You won: ${vs} was disqualified`, detail: `Automated play was detected on their side · +${units(net, asset)} ${CURRENCY[asset]}${bonus}` };
