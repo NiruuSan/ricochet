@@ -132,6 +132,20 @@
   .back { font-size: 11px; }
   .assetTabs { gap: 20px; }
 }
+/* Phones: each row of the history becomes a card, with the column headers as labels. */
+@media (max-width: 620px) {
+  .table { min-width: 0; border-spacing: 0; }
+  .table thead { display: none; }
+  .table, .table tbody, .table tr { display: block; width: 100%; }
+  .table tr { border-radius: 14px; padding: 14px 16px; margin-bottom: 8px; }
+  .table tbody tr:nth-child(odd), .table tbody tr:nth-child(even) { background: #141c28; }
+  .table td { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 5px 0; text-align: right; white-space: normal; }
+  .table td::before { content: attr(data-label); flex-shrink: 0; color: #94a5bd; font-size: 10px; font-weight: 500; letter-spacing: .7px; text-transform: uppercase; }
+  .table td:first-child { display: block; text-align: left; padding: 0 0 10px; width: auto; }
+  .table td:last-child { text-align: right; }
+  .table td strong { display: block; }
+  .return { display: block; }
+}
 @media (max-width: 400px) {
   .identity { gap: 10px; }
   .identity .iconActions { flex-direction: column; gap: 0; }

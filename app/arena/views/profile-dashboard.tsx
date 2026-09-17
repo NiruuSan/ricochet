@@ -159,9 +159,9 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
             <div><div className={styles.matchName}>{match.tournament ? <Link href={`/tournaments/${match.id}`}>{match.tournament.name}</Link> : match.opponent ? <>vs <Link href={`/players/${encodeURIComponent(match.opponent)}`}>{match.opponent}</Link></> : "Open challenge"}</div>
               <span className={styles.matchSub}>{match.tournament ? "Tournament" : `#${shortId(match.id)}`} <span>·</span> {new Date(match.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{match.watchId && <> <span>·</span> <Link className={styles.watchLink} href={`/watch/${match.watchId}`}><Eye size={12} /> Watch</Link></>}</span></div>
           </div></td>
-          <td>{match.stake ? <>{number(match.stake, asset)} <small>{currency(asset)}</small></> : "Free"}</td>
-          <td><span className={`${styles.status} ${won(match) ? styles.won : lost(match) ? styles.lost : ""}`}>{status(match)}</span></td>
-          <td><strong className={match.net > 0 ? styles.positive : match.net < 0 ? styles.negative : ""}>{match.settled ? `${signed(match.net, asset)} ${currency(asset)}` : "—"}</strong><span className={styles.return}>{!match.settled ? (match.stake ? "Entry committed" : "Free entry") : match.stake ? `${match.net > 0 ? "+" : ""}${Math.round(match.net / match.stake * 100)}% return` : "Free entry"}</span></td>
+          <td data-label="Entry">{match.stake ? <>{number(match.stake, asset)} <small>{currency(asset)}</small></> : "Free"}</td>
+          <td data-label="Result"><span className={`${styles.status} ${won(match) ? styles.won : lost(match) ? styles.lost : ""}`}>{status(match)}</span></td>
+          <td data-label="Profit / Loss"><strong className={match.net > 0 ? styles.positive : match.net < 0 ? styles.negative : ""}>{match.settled ? `${signed(match.net, asset)} ${currency(asset)}` : "—"}</strong><span className={styles.return}>{!match.settled ? (match.stake ? "Entry committed" : "Free entry") : match.stake ? `${match.net > 0 ? "+" : ""}${Math.round(match.net / match.stake * 100)}% return` : "Free entry"}</span></td>
         </tr>)}</tbody>
       </table>
     </div>

@@ -29,12 +29,13 @@ const WelcomeView = dynamic(() => import("./views/welcome-view").then((m) => m.W
 
 export type PlayerState = ReturnType<typeof usePlayerData>;
 
+// `short` is what the phone tab bar shows under each icon.
 const NAVIGATION = [
-  { href: "/", view: "play", label: "Arena", Icon: Gamepad2 },
-  { href: "/live", view: "live", label: "Live", Icon: Radio },
-  { href: "/tournaments", view: "tournaments", label: "Tournaments", Icon: Medal },
-  { href: "/leaderboard", view: "leaderboard", label: "Leaderboard", Icon: Trophy },
-  { href: "/faq", view: "faq", label: "How to play", Icon: HelpCircle },
+  { href: "/", view: "play", label: "Arena", short: "Arena", Icon: Gamepad2 },
+  { href: "/live", view: "live", label: "Live", short: "Live", Icon: Radio },
+  { href: "/tournaments", view: "tournaments", label: "Tournaments", short: "Cups", Icon: Medal },
+  { href: "/leaderboard", view: "leaderboard", label: "Leaderboard", short: "Ranks", Icon: Trophy },
+  { href: "/faq", view: "faq", label: "How to play", short: "Help", Icon: HelpCircle },
 ];
 
 type ArenaProps = { view: View; profileName?: string; initialMatchId?: string; initialTournamentId?: string; tournamentId?: string; watchId?: string };
@@ -104,16 +105,18 @@ export default function Arena({ view, profileName, initialMatchId, initialTourna
           <img src="/brand/bounce-white.svg" alt="Bounce" width={147} height={36} />
         </Link>
         <nav className="navigation" aria-label="Main navigation">
-          {NAVIGATION.map(({ href, view: key, label, Icon }) => (
+          {NAVIGATION.map(({ href, view: key, label, short, Icon }) => (
             <Link key={key} href={href} className={view === key ? "active" : ""}>
               <Icon />
-              {label}
+              <span className="nav-label">{label}</span>
+              <span className="nav-label-short">{short}</span>
             </Link>
           ))}
           {data.isAdmin && (
             <Link href="/admin" className={view === "admin" ? "active" : ""}>
               <Landmark />
-              Admin
+              <span className="nav-label">Admin</span>
+              <span className="nav-label-short">Admin</span>
             </Link>
           )}
         </nav>

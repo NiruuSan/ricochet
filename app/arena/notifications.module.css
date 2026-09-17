@@ -228,16 +228,17 @@
 @media (max-width: 720px) {
   .panel {
     position: fixed;
-    left: 16px;
-    right: 16px;
-    top: 120px;
+    left: 12px;
+    right: 12px;
+    top: 72px;
     width: auto;
-    max-height: calc(100dvh - 144px);
+    max-height: calc(100dvh - 170px);
   }
+  /* Clear of the tab bar at the bottom of the screen. */
   .toasts {
-    right: 16px;
-    left: 16px;
+    right: 12px;
+    left: 12px;
     width: auto;
-    bottom: 16px;
+    bottom: calc(78px + env(safe-area-inset-bottom));
   }
 }

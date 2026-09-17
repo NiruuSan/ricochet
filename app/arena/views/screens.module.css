@@ -1001,6 +1001,16 @@
   }
 }
 
+@media (max-width: 720px) {
+  .hud {
+    margin-bottom: 10px;
+    gap: 8px;
+  }
+  .hudChip {
+    padding: 6px 9px;
+    font-size: 10px;
+  }
+}
 @media (max-width: 900px) {
   .modes {
     grid-template-columns: 1fr;

@@ -106,11 +106,11 @@ export function MatchesView({ player }: { player: PlayerState }) {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{t.entryFee ? amount(t.entryFee, asset) : "Free"}</TableCell>
-                      <TableCell>{t.started ? t.score : "—"}</TableCell>
-                      <TableCell>{t.status === "settled" ? `${t.players} ${t.players === 1 ? "player" : "players"}` : "—"}</TableCell>
-                      <TableCell>{tournamentOutcome(t)}</TableCell>
-                      <TableCell>{closed(t) ? <span className={t.net > 0 ? "lime" : ""}>{signedAmount(t.net, asset)}</span> : "—"}</TableCell>
+                      <TableCell data-label="Entry">{t.entryFee ? amount(t.entryFee, asset) : "Free"}</TableCell>
+                      <TableCell data-label="Your score">{t.started ? t.score : "—"}</TableCell>
+                      <TableCell data-label="Players">{t.status === "settled" ? `${t.players} ${t.players === 1 ? "player" : "players"}` : "—"}</TableCell>
+                      <TableCell data-label="Result">{tournamentOutcome(t)}</TableCell>
+                      <TableCell data-label="Net P&L">{closed(t) ? <span className={t.net > 0 ? "lime" : ""}>{signedAmount(t.net, asset)}</span> : "—"}</TableCell>
                     </TableRow>
                   );
                 }
@@ -131,13 +131,13 @@ export function MatchesView({ player }: { player: PlayerState }) {
                       ) : null}
                     </div>
                   </TableCell>
-                  <TableCell>{amount(m.stake, asset)}</TableCell>
-                  <TableCell>{m.score}</TableCell>
-                  <TableCell>
+                  <TableCell data-label="Entry">{amount(m.stake, asset)}</TableCell>
+                  <TableCell data-label="Your score">{m.score}</TableCell>
+                  <TableCell data-label="Opponent">
                     {m.opponent ? <Link className="lime" href={`/players/${encodeURIComponent(m.opponent)}`}>{m.opponent}</Link> : (m.result === "cancelled" ? "-" : "Seat open")}
                     {m.opponent_score !== null && <span className="muted"> · {m.opponent_score}</span>}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Result">
                     {m.done ? (
                       outcome(m)
                     ) : (
@@ -146,7 +146,7 @@ export function MatchesView({ player }: { player: PlayerState }) {
                       </Link>
                     )}
                   </TableCell>
-                  <TableCell>{m.settled ? <span className={m.net > 0 ? "lime" : ""}>{signedAmount(m.net, asset)}</span> : "—"}</TableCell>
+                  <TableCell data-label="Net P&L">{m.settled ? <span className={m.net > 0 ? "lime" : ""}>{signedAmount(m.net, asset)}</span> : "—"}</TableCell>
                 </TableRow>
                 );
               })}

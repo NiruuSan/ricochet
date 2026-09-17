@@ -134,14 +134,17 @@
   .boardBar { margin-bottom: 23px; }
 }
 @media (max-width: 520px) {
+  .currencyTabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .currencyTabs::-webkit-scrollbar { display: none; }
+  .currencyTabs button { white-space: nowrap; }
   .hero h1 { font-size: 42px; letter-spacing: -1.8px; }
   .hero p { max-width: 310px; }
   .eyebrow { font-size: 9px; margin-bottom: 14px; }
   .currencyTabs { gap: 23px; }
   .currencyTabs button { font-size: 12px; }
-  .boardScope { font-size: 8px; gap: 6px; }
-  .boardScope span { border: 0; padding: 0; }
-  .boardScope span + span { display: none; }
+  /* The board switch takes the whole line; the scope labels only repeat the heading. */
+  .boardScope { display: none; }
+  .currencyTabs { flex: 1; }
   .sidebar { grid-template-columns: 1fr; gap: 26px; }
   .personalCard { padding: 23px; }
   .explainer { padding: 0 5px; }

@@ -241,7 +241,8 @@ export function AdminAntiCheat() {
           (superhuman precision or rhythm on SOL shots) suspend for your review. Suspended players cannot play, withdraw or tip until you lift or ban.
         </p>
         <form
-          style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr) auto", gap: 12, alignItems: "end", marginTop: 16 }}
+          className="field-row"
+          style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr) auto" }}
           onSubmit={(e) => {
             e.preventDefault();
             void act({ action: "suspend", name, note: reason }).then((ok) => ok && (setName(""), setReason("")));

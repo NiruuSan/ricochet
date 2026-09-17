@@ -14,6 +14,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#0c1018",
+  // The phone tab bar and the page gutters pad themselves against the notch and
+  // the home indicator (env(safe-area-inset-*)), so the page can use the whole screen.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

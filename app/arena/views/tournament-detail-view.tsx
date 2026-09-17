@@ -227,7 +227,7 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
                     <td>
                       {s.watchId && (
                         <Link className={styles.watch} href={`/watch/${s.watchId}`} aria-label={`Watch ${s.name}'s run`}>
-                          <Eye size={14} /> {s.done ? "Replay" : "Watch"}
+                          <Eye size={14} /> <span className={styles.watchLabel}>{s.done ? "Replay" : "Watch"}</span>
                         </Link>
                       )}
                     </td>

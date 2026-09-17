@@ -56,7 +56,7 @@ function PrizeSettings({ prizes, onSaved }: { prizes: RacePrize[]; onSaved: () =
         </p>
       )}
       {values.map((v, i) => (
-        <div key={i} className={styles.full} style={{ display: "grid", gridTemplateColumns: "90px minmax(0, 1fr) minmax(0, 1fr)", gap: 14, alignItems: "end" }}>
+        <div key={i} className={`${styles.full} field-row`} style={{ gridTemplateColumns: "90px minmax(0, 1fr) minmax(0, 1fr)", marginTop: 0 }}>
           <b style={{ paddingBottom: 14 }}>{["1st", "2nd", "3rd"][i]} place</b>
           <label className="field" style={{ margin: 0 }}>
             SOL
