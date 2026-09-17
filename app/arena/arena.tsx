@@ -150,6 +150,13 @@ export default function Arena({ view, profileName, initialMatchId, initialTourna
         </div>
       </header>
       <main className="shell">
+        {data.suspension && (
+          <div className="error" role="alert">
+            <span>
+              <b>Your account is suspended.</b> {data.suspension.reason}. Play, withdrawals and tips are paused while this is reviewed. Contact support if you think this is a mistake.
+            </span>
+          </div>
+        )}
         {error && (
           <div className="error" role="alert">
             <span>{error}</span>

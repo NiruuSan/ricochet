@@ -426,8 +426,13 @@ export function step(f: Flight) {
 }
 
 export function simulate(g: Game, angle: number, ruleset = RULESET, rows?: RowSource) {
+  return simulateShot(g, angle, ruleset, rows).game;
+}
+
+/** A shot's resulting board, with the simulation ticks its animation plays. */
+export function simulateShot(g: Game, angle: number, ruleset = RULESET, rows?: RowSource) {
   const f = launch(g, angle, ruleset, rows);
   while (!f.done && !f.aborted) step(f);
   if (f.aborted) throw new ShotError("Shot exceeded the simulation limit. Try another angle.");
-  return f.game;
+  return { game: f.game, ticks: f.ticks };
 }

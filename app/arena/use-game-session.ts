@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset, Run } from "@/lib/api-types";
 import { GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, seedRows, step, W, type Flight, type Game } from "@/lib/engine";
+import type { ShotProof } from "@/lib/anti-cheat-rules";
 import { gameAction } from "./api";
 import { drawBoard } from "./board-canvas";
 
@@ -68,6 +69,9 @@ export function useGameSession({ onSaved, onError }: Options) {
   const pendingSavesRef = useRef(0);
   const saveFailedRef = useRef(false);
   const mismatchRef = useRef(false);
+  /** Anti-cheat report: when the board was last ready to aim, and the real inputs since. */
+  const readyAtRef = useRef(0);
+  const inputsRef = useRef(0);
 
   const draw = useCallback(() => {
     if (canvasRef.current) drawBoard(canvasRef.current, flightRef.current, gameRef.current, angleRef.current);
@@ -148,14 +152,14 @@ export function useGameSession({ onSaved, onError }: Options) {
 
   const saveShot = useCallback(
     /** `predicted` is the board this tab expects; null when the server supplies part of it (hidden rows). */
-    (runId: string, revision: number, shotAngle: number, predicted: Game | null, onConfirmed?: (saved: Run) => void) => {
+    (runId: string, revision: number, shotAngle: number, proof: ShotProof, predicted: Game | null, onConfirmed?: (saved: Run) => void) => {
       pendingSavesRef.current++;
       setSyncing(true);
       saveChainRef.current = saveChainRef.current.then(async () => {
         try {
           // After a failure, later shots were played on a board the server never had.
           if (saveFailedRef.current) return;
-          const { run: saved } = await gameAction<{ run: Run }>({ action: "shot", runId, revision, angle: shotAngle });
+          const { run: saved } = await gameAction<{ run: Run }>({ action: "shot", runId, revision, angle: shotAngle, proof });
           confirmedRef.current = saved;
           if (predicted && !sameState(saved.state, predicted)) mismatchRef.current = true;
           if (!disposedRef.current) onConfirmed?.(saved);
@@ -188,10 +192,23 @@ export function useGameSession({ onSaved, onError }: Options) {
     [setAngle],
   );
 
-  const shoot = useCallback(() => {
+  /** Counts a real pointer or key event while aiming, for the anti-cheat report. */
+  const noteInput = useCallback((event: Event) => {
+    if (event.isTrusted) inputsRef.current++;
+  }, []);
+
+  /** `trigger` is the input event that fired the shot. */
+  const shoot = useCallback((trigger?: { isTrusted: boolean }) => {
     if (busyRef.current || !startedRef.current || gameRef.current.over) return;
     const currentRun = runRef.current;
     const shotAngle = angleRef.current;
+    const proof: ShotProof = {
+      v: 1,
+      aimMs: Math.max(0, Math.round(performance.now() - readyAtRef.current)),
+      inputs: inputsRef.current,
+      trusted: trigger?.isTrusted === true,
+      webdriver: navigator.webdriver === true,
+    };
     // Practice rows come from its own seed; a match run uses its ruleset, and from
     // ruleset 6 the browser has no row source at all.
     const ruleset = currentRun?.ruleset ?? RULESET;
@@ -220,8 +237,9 @@ export function useGameSession({ onSaved, onError }: Options) {
       setRun(saved);
       setGame(saved.state);
     };
+    inputsRef.current = 0;
     if (hiddenRows) {
-      saveShot(currentRun.id, currentRun.revision, shotAngle, null, (saved) => {
+      saveShot(currentRun.id, currentRun.revision, shotAngle, proof, null, (saved) => {
         confirmed = saved;
         if (landed) adopt(saved);
       });
@@ -246,7 +264,7 @@ export function useGameSession({ onSaved, onError }: Options) {
         const next = f.game;
         const clears = (currentRun.clears ?? 0) + (next.bonus ? 1 : 0);
         setRun({ ...currentRun, state: next, score: next.score, done: next.over ? 1 : 0, clears, revision: currentRun.revision + 1 });
-        saveShot(currentRun.id, currentRun.revision, shotAngle, next);
+        saveShot(currentRun.id, currentRun.revision, shotAngle, proof, next);
       } else if (f.game.bonus) {
         setPracticeClears((count) => count + 1);
       }
@@ -387,6 +405,11 @@ export function useGameSession({ onSaved, onError }: Options) {
     return () => controller.abort();
   }, []);
 
+  // The board is ready to aim again once the balls have landed and the next row is in.
+  useEffect(() => {
+    if (!flying && !awaitingRow) readyAtRef.current = performance.now();
+  }, [flying, awaitingRow, run?.id, started]);
+
   return {
     game,
     run,
@@ -401,6 +424,7 @@ export function useGameSession({ onSaved, onError }: Options) {
     clears: run ? (run.clears ?? 0) : practiceClears,
     attachCanvas,
     aimAt,
+    noteInput,
     setAngle,
     toggleSpeed,
     shoot,

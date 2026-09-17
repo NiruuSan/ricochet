@@ -24,6 +24,9 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
   if (n.kind === "security_reset") {
     return { tone: "security", title: "Your two-factor authentication was reset", detail: `An administrator reset your authenticator. Withdrawals are paused until ${new Date(n.data.holdUntil).toLocaleString()}. Set up two-factor again in your wallet. If you did not request this, contact support.` };
   }
+  if (n.kind === "account_suspended") {
+    return { tone: "security", title: "Your account is suspended", detail: `${n.data.reason}. Play, withdrawals and tips are paused while this is reviewed. Contact support if you think this is a mistake.` };
+  }
   if (n.kind === "race_result") {
     const { rank, score, sol, gems } = n.data;
     const prizes = [sol ? `+${units(sol, "devnet")} SOL` : "", gems ? `+${units(gems, "gems")} gems` : ""].filter(Boolean).join(" · ");
@@ -45,6 +48,7 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
   const vs = opponent ?? "your opponent";
   const scores = `${score.toLocaleString("en")} – ${opponentScore.toLocaleString("en")}`;
   const bonus = n.data.bonusGems ? ` · +${n.data.bonusGems} gems` : "";
+  if (result === "win" && n.data.disqualified) return { tone: "win", title: `You won: ${vs} was disqualified`, detail: `Automated play was detected on their side · +${units(net, asset)} ${CURRENCY[asset]}${bonus}` };
   if (result === "win") return { tone: "win", title: `You won vs ${vs}`, detail: `+${units(net, asset)} ${CURRENCY[asset]}${bonus} · ${scores}` };
   if (result === "loss") return { tone: "loss", title: `You lost vs ${vs}`, detail: `${units(net, asset)} ${CURRENCY[asset]} · ${scores}` };
   return { tone: "draw", title: `Draw vs ${vs}`, detail: `Entry refunded · ${scores}` };

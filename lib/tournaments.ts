@@ -1,5 +1,7 @@
 import { database, type Statement } from "@/db/raw";
-import { initial, isSupportedRuleset, RULESET, ShotError, simulate, validAngle, type Game } from "./engine";
+import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, validAngle, type Game } from "./engine";
+import { inspectShot, SUSPENDED_MESSAGE } from "./anti-cheat-rules";
+import { analyzeShot, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
 import {
   PAYOUT_SHARES,
   TOURNAMENT_FEE_PERCENT,
@@ -12,7 +14,7 @@ import {
   type TournamentStanding,
   type TournamentSummary,
 } from "./api-types";
-import { avatarUrl, GameError } from "./matches";
+import { AUTOMATION_DETECTED, avatarUrl, GameError, SHOT_HISTORY_SQL, type ShotGuard, type ShotHistory } from "./matches";
 import { notificationInsert } from "./notifications";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { parseSol, requireDevnet } from "./payments/policy";
@@ -67,6 +69,7 @@ type EntryRow = {
   finished: number | null;
   rank: number | null;
   payout: number;
+  disqualified: number;
 };
 
 const escrowOwner = (id: string) => `escrow:tournament:${id}`;
@@ -186,6 +189,7 @@ export async function registerForTournament(uid: string, idInput: unknown, now =
   if (tournamentStatus(t, now) !== "registration") throw new GameError("Registration for this tournament is closed.", 409);
   const db = database();
   if (!(await db.prepare("SELECT 1 FROM players WHERE id = ?").bind(uid).first())) throw new GameError("Create your player profile first.", 403);
+  if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
   if (await db.prepare("SELECT 1 FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").bind(t.id, uid).first()) {
     throw new GameError("You are already registered.", 409);
   }
@@ -257,7 +261,9 @@ export async function startTournamentRun(uid: string, idInput: unknown, now = Da
   if (status !== "live") throw new GameError("This tournament has ended.", 409);
   const db = database();
   const load = () => db.prepare("SELECT * FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").bind(t.id, uid).first<EntryRow>();
-  let entry = await load();
+  const [first, suspended] = await Promise.all([load(), isSuspended(uid)]);
+  if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
+  let entry = first;
   if (!entry) throw new GameError("You are not registered for this tournament.", 403);
   if (entry.done) throw new GameError("You have already played your run in this tournament.", 409);
   if (!entry.state) {
@@ -276,35 +282,51 @@ export async function playTournamentShot(
   angle?: unknown,
   allowed: Promise<boolean> | boolean = true,
   now = Date.now(),
+  guard: ShotGuard = {},
 ): Promise<Run> {
   const db = database();
   const [row, permitted] = await Promise.all([
     db
       .prepare(
-        `SELECT e.*, t.asset, t.ruleset, t.row_key, t.status AS t_status, t.starts_at, t.ends_at
+        `SELECT e.*, t.asset, t.ruleset, t.row_key, t.status AS t_status, t.starts_at, t.ends_at,
+           ${suspendedSql("e.user_id")} AS suspended, ${SHOT_HISTORY_SQL("'t-' || e.id")}
          FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id
          WHERE e.id = ? AND e.user_id = ?`,
       )
       .bind(String(entryIdInput), uid)
-      .first<EntryRow & { asset: Asset; ruleset: number; row_key: string | null; t_status: TournamentRow["status"]; starts_at: number; ends_at: number }>(),
+      .first<EntryRow & ShotHistory & { asset: Asset; ruleset: number; row_key: string | null; t_status: TournamentRow["status"]; starts_at: number; ends_at: number; suspended: number }>(),
     allowed,
   ]);
   if (!permitted) throw new GameError("Too many requests. Wait a minute before trying again.", 429);
   if (!row || !row.state) throw new GameError("Game not found.", 404);
+  if (row.suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
+  const runKey = `t-${row.id}`;
   if (tournamentStatus({ status: row.t_status, starts_at: row.starts_at, ends_at: row.ends_at }, now) !== "live") {
     throw new GameError("This tournament has ended. Your score so far counts.", 409);
   }
   if (row.done || row.revision !== revision) throw new GameError("This game changed in another tab. Reload to resume.", 409);
 
-  let state = JSON.parse(row.state) as Game;
+  const before = JSON.parse(row.state) as Game;
+  let state = before;
+  let ticks: number | null = null;
+  const signals: Statement[] = [];
   const forfeit = action === "forfeit";
   if (forfeit) {
-    state.over = true;
+    state = { ...before, over: true };
   } else {
     if (!validAngle(angle)) throw new GameError("Invalid aim angle.");
     if (!isSupportedRuleset(row.ruleset)) throw new GameError("This tournament uses a retired ruleset.", 409);
+    if (guard.proof) {
+      const findings = inspectShot({ proof: guard.proof, ruleset: row.ruleset, now, previousShotAt: row.previous_at, previousTicks: row.previous_ticks, timingStrikes: row.timing_strikes });
+      if (findings.some((f) => f.level === "proof")) {
+        const { disqualify } = await import("./anti-cheat");
+        await disqualify(uid, runKey, findings, now);
+        throw new GameError(AUTOMATION_DETECTED, 403);
+      }
+      signals.push(...findings.map((f) => signalInsert(db, uid, runKey, f, now)));
+    }
     try {
-      state = simulate(state, angle, row.ruleset, rowsFor(row.ruleset, row.row_key));
+      ({ game: state, ticks } = simulateShot(before, angle, row.ruleset, rowsFor(row.ruleset, row.row_key)));
     } catch (e) {
       if (e instanceof ShotError) throw new GameError(e.message);
       throw e;
@@ -319,9 +341,14 @@ export async function playTournamentShot(
          WHERE id = ? AND user_id = ? AND revision = ? AND done = 0`,
       )
       .bind(JSON.stringify(state), state.score, done, forfeit ? 1 : 0, clears, done ? now : null, row.id, uid, row.revision),
-    shotInsert(db, `t-${row.id}`, "tournament_entries", row.id, row.revision, forfeit ? null : (angle as number), now),
+    shotInsert(db, runKey, "tournament_entries", row.id, row.revision, forfeit ? null : (angle as number), now, ticks),
+    ...signals,
   ]);
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
+  if (!forfeit && guard.defer && row.asset === "devnet") {
+    const aimMs = guard.proof?.aimMs ?? null;
+    guard.defer(() => analyzeShot({ uid, runKey, revision: row.revision, before, angle: angle as number, ruleset: row.ruleset, rowKey: row.row_key, aimMs, evaluate: !!done }));
+  }
   if (done) {
     // The run is saved; if the payout fails here, the next visit after the new end settles it.
     await endIfEveryoneFinished(row.tournament_id, now).catch((e) => console.error("Could not end the tournament early", e));
@@ -330,6 +357,31 @@ export async function playTournamentShot(
     { id: row.tournament_id, asset: row.asset, ruleset: row.ruleset },
     { ...row, state: JSON.stringify(state), score: state.score, done, forfeit: forfeit ? 1 : 0, clears, revision: row.revision + 1 },
   );
+}
+
+/**
+ * Anti-cheat: disqualifies the player's runs in every tournament not yet paid
+ * out. A run in progress ends; the entry keeps no rank and no prize, and its fee
+ * stays in the pool. Tournaments where everyone has now finished end at once.
+ */
+export async function disqualifyTournamentRuns(uid: string, now = Date.now()) {
+  const db = database();
+  const { results } = await db
+    .prepare(
+      `SELECT e.id, e.tournament_id FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id
+       WHERE e.user_id = ? AND t.status = 'scheduled' AND e.disqualified = 0`,
+    )
+    .bind(uid)
+    .all<{ id: string; tournament_id: string }>();
+  if (!results.length) return;
+  await db.batch(
+    results.map((e) =>
+      db
+        .prepare("UPDATE tournament_entries SET disqualified = 1, done = 1, forfeit = CASE WHEN done = 0 THEN 1 ELSE forfeit END, finished = COALESCE(finished, ?) WHERE id = ?")
+        .bind(now, e.id),
+    ),
+  );
+  for (const e of results) await endIfEveryoneFinished(e.tournament_id, now).catch((err) => console.error("Could not end the tournament early", err));
 }
 
 /**
@@ -352,7 +404,7 @@ async function endIfEveryoneFinished(id: string, now: number) {
 /** Entrants who played, best score first; ties keep the order they finished in. */
 function rankable<T extends EntryRow>(entries: T[]) {
   return entries
-    .filter((e) => e.state !== null)
+    .filter((e) => e.state !== null && !e.disqualified)
     .sort((a, b) => b.score - a.score || (a.finished ?? Infinity) - (b.finished ?? Infinity) || a.registered - b.registered);
 }
 
@@ -387,7 +439,8 @@ export async function settleTournament(id: string, now = Date.now()) {
   const refunds = new Map<string, number>();
   if (!ranked.length) {
     // Nobody played: entries go back, and so does a house prize.
-    if (t.entry_fee) for (const e of entries) refunds.set(e.id, t.entry_fee);
+    // A disqualified entrant gets nothing back; their entry goes to the house.
+    if (t.entry_fee) for (const e of entries) if (!e.disqualified) refunds.set(e.id, t.entry_fee);
     for (const e of entries) if (refunds.get(e.id)) ops.push(credit(`tournament:${e.id}:refund`, e.user_id, "tournament_refund", t.entry_fee));
     if (sol && !t.entry_fee) ops.push(credit(`tournament:${id}:return`, HOUSE, "tournament_return", t.prize));
   } else {

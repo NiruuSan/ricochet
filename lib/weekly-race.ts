@@ -40,15 +40,16 @@ async function bestScores(week: number, limit: number): Promise<ScoreRow[]> {
       `WITH scores AS (
          SELECT r.user_id, r.score, r.finished AS at, CASE WHEN m.p2 IS NOT NULL THEN 'm-' || r.id END AS watch
          FROM runs r JOIN matches m ON m.id = r.match_id AND m.asset = 'devnet' AND m.cancelled = 0
-         WHERE r.done = 1 AND r.score > 0 AND r.finished >= ? AND r.finished < ?
+         WHERE r.done = 1 AND r.score > 0 AND r.finished >= ? AND r.finished < ? AND (m.disqualified IS NULL OR m.disqualified <> r.user_id)
          UNION ALL
          SELECT e.user_id, e.score, e.finished, 't-' || e.id
          FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id AND t.asset = 'devnet' AND t.entry_fee > 0 AND t.status <> 'cancelled'
-         WHERE e.done = 1 AND e.state IS NOT NULL AND e.score > 0 AND e.finished >= ? AND e.finished < ?
+         WHERE e.done = 1 AND e.state IS NOT NULL AND e.score > 0 AND e.disqualified = 0 AND e.finished >= ? AND e.finished < ?
        ), best AS (
          SELECT user_id, score, at, watch, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY score DESC, at ASC) AS n
          FROM scores
          WHERE user_id NOT IN (SELECT user_id FROM weekly_race_exclusions WHERE week_start = ?)
+           AND user_id NOT IN (SELECT user_id FROM player_suspensions WHERE status IN ('suspended', 'banned'))
        )
        SELECT b.user_id, p.name, p.avatar, b.score, b.at, b.watch
        FROM best b JOIN players p ON p.id = b.user_id

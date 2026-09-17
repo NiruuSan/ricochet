@@ -92,6 +92,13 @@
       "when": 1789645427172,
       "tag": "0012_weekly_race",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1789648365561,
+      "tag": "0013_anti_cheat",
+      "breakpoints": true
     }
   ]
 }

@@ -204,7 +204,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
             <button className="btn" aria-label="Aim more right" disabled={flying || busy} onClick={() => session.setAngle((a) => Math.max(MIN_ANGLE, a - 3))}>
               <ChevronRight />
             </button>
-            <button className="btn btn-primary" disabled={game.over || flying || busy} onClick={session.shoot}>
+            <button className="btn btn-primary" disabled={game.over || flying || busy} onClick={(e) => session.shoot(e.nativeEvent)}>
               <Play size={14} />
               Launch
             </button>

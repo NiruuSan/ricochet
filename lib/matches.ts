@@ -1,7 +1,9 @@
 import { adminId, database, type Statement } from "@/db/raw";
 import { wageredSql } from "./experience";
 import { experienceFromWagered, levelFor } from "./levels";
-import { initial, isSupportedRuleset, RULESET, ShotError, simulate, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
+import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
+import { inspectShot, SUSPENDED_MESSAGE, type ShotProof } from "./anti-cheat-rules";
+import { analyzeShot, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
 import type { Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
@@ -21,9 +23,21 @@ export class GameError extends Error {
 }
 
 type RunRow = { user_id: string; done: number; forfeit: number; score: number };
-type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number; row_key: string | null };
+type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number; row_key: string | null; disqualified?: string | null };
 
 const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, r.clears, m.asset, m.ruleset";
+
+export const AUTOMATION_DETECTED = "Automated play was detected. This game is lost and your account is suspended pending review.";
+
+/** Anti-cheat inputs for a shot: the client's report, and where to run work after the response. */
+export type ShotGuard = { proof?: ShotProof; defer?: (task: () => Promise<unknown>) => void };
+
+/** The last logged shot of a run (for timing) and the run's timing strikes so far. `key` is the run's shot-log key as SQL. */
+export const SHOT_HISTORY_SQL = (key: string) => `
+  (SELECT s.created FROM run_shots s WHERE s.run_key = ${key} ORDER BY s.revision DESC LIMIT 1) AS previous_at,
+  (SELECT s.ticks FROM run_shots s WHERE s.run_key = ${key} ORDER BY s.revision DESC LIMIT 1) AS previous_ticks,
+  (SELECT COUNT(*) FROM cheat_signals c WHERE c.run_key = ${key} AND c.kind = 'timing') AS timing_strikes`;
+export type ShotHistory = { previous_at: number | null; previous_ticks: number | null; timing_strikes: number };
 type RunRecord = Omit<Run, "state"> & { state: string };
 const parseRun = (row: RunRecord): Run => ({ ...row, state: JSON.parse(row.state) as Game });
 
@@ -47,10 +61,12 @@ export async function settle(matchId: string) {
   if (!m || m.settled) return;
   const runs = (await db.prepare("SELECT * FROM runs WHERE match_id = ?").bind(matchId).all<RunRow>()).results;
   if (!m.p2) return m.ruleset < 4 ? cancelUnjoined(m, runs) : undefined;
-  if (runs.length !== 2 || runs.some((r) => !r.done)) return;
+  // A player disqualified for automated play loses at once, even mid-run.
+  const disqualified = m.disqualified ?? null;
+  if (runs.length !== 2 || (!disqualified && runs.some((r) => !r.done))) return;
 
   const [a, b] = runs;
-  const winner = decideWinner(m.ruleset, a, b);
+  const winner = disqualified ? (a.user_id === disqualified ? b.user_id : a.user_id) : decideWinner(m.ruleset, a, b);
   const now = Date.now();
   const payout = winner ? winnerPayout(m.stake, m.asset) : m.stake;
   const fee = winner ? winnerFee(m.stake, m.asset) : 0;
@@ -96,6 +112,8 @@ export async function settle(matchId: string) {
     );
   }
   ops.push(db.prepare("UPDATE matches SET settled = 1, winner = ?, fee = ? WHERE id = ? AND settled = 0").bind(winner, fee, matchId));
+  // The opponent's run ends with the match; their score so far stands.
+  if (disqualified) ops.push(db.prepare("UPDATE runs SET done = 1, finished = ? WHERE match_id = ? AND done = 0").bind(now, matchId));
   // Tell both players how it ended, including one who has since gone offline.
   const names = await db
     .prepare("SELECT id, name FROM players WHERE id IN (?, ?)")
@@ -117,6 +135,7 @@ export async function settle(matchId: string) {
       score: me.score,
       opponentScore: other.score,
       bonusGems: result === "win" ? bonusGems : 0,
+      ...(disqualified ? { disqualified: other.user_id === disqualified } : {}),
     };
     // The ID names the seat, not the player: notification IDs reach the browser.
     ops.push(notificationInsert(db, `${matchId}:result:${me.user_id === m.p1 ? "p1" : "p2"}`, me.user_id, "match_result", data, now));
@@ -160,6 +179,39 @@ async function cancelUnjoined(m: MatchRow, runs: RunRow[]) {
       db
         .prepare(`INSERT OR IGNORE INTO ledger(id, user_id, match_id, kind, amount, created) SELECT ?, ?, ?, 'refund', ?, ? ${cancelled}`)
         .bind(`${m.id}:refund:${uid}`, uid, m.id, refund, now, m.id),
+    );
+  }
+  await db.batch(ops);
+}
+
+/**
+ * Anti-cheat: `uid` loses this unsettled match. Their run ends. With an opponent,
+ * the opponent wins as in a normal match. Without one, the match closes and the
+ * house keeps the entry.
+ */
+export async function disqualifyMatch(matchId: string, uid: string, now = Date.now()) {
+  const db = database();
+  const m = await db.prepare("SELECT * FROM matches WHERE id = ? AND settled = 0 AND (p1 = ? OR p2 = ?)").bind(matchId, uid, uid).first<MatchRow>();
+  if (!m) return;
+  const endRun = db.prepare("UPDATE runs SET done = 1, forfeit = 1, finished = COALESCE(finished, ?) WHERE match_id = ? AND user_id = ? AND done = 0").bind(now, matchId, uid);
+  if (m.p2) {
+    await db.batch([db.prepare("UPDATE matches SET disqualified = ? WHERE id = ? AND settled = 0").bind(uid, matchId), endRun]);
+    return settle(matchId);
+  }
+  const closed = "FROM matches WHERE id = ? AND cancelled = 1 AND disqualified IS NOT NULL";
+  const ops: Statement[] = [
+    db.prepare("UPDATE matches SET settled = 1, cancelled = 1, disqualified = ?, fee = stake WHERE id = ? AND settled = 0 AND p2 IS NULL").bind(uid, matchId),
+    endRun,
+  ];
+  if (m.asset === "devnet") {
+    await ensureCashAccount(HOUSE);
+    ops.push(
+      db
+        .prepare(`INSERT OR IGNORE INTO cash_ledger(id, account_id, kind, amount, reference, created) SELECT ?, ?, 'house_fee', ?, ?, ? ${closed}`)
+        .bind(`${matchId}:cash:fee`, cashAccountId(HOUSE), m.stake, matchId, now, matchId),
+      db
+        .prepare(`INSERT OR IGNORE INTO cash_ledger(id, account_id, kind, amount, reference, created) SELECT ?, ?, 'escrow_release', ?, ?, ? ${closed}`)
+        .bind(`${matchId}:cash:release`, cashAccountId("escrow:" + matchId), -m.stake, matchId, now, matchId),
     );
   }
   await db.batch(ops);
@@ -243,7 +295,14 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
   const db = database();
   await settleFinishedMatches(uid);
   const [player, history, active, cash, inbox, tournaments] = await Promise.all([
-    db.prepare("SELECT public_id AS publicId, name, balance, avatar, created FROM players WHERE id = ?").bind(uid).first<Profile>(),
+    db
+      .prepare(
+        `SELECT public_id AS publicId, name, balance, avatar, created,
+           (SELECT reason FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS suspension
+         FROM players WHERE id = ?`,
+      )
+      .bind(uid)
+      .first<Profile & { suspension: string | null }>(),
     db
       .prepare(
         `SELECT m.id, m.stake, m.fee, m.settled, m.created,
@@ -277,7 +336,8 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     asset,
     cashBalance: cash?.balance ?? 0,
     launch: launchStatus(settings()),
-    player: player && { ...player, avatar: avatarUrl(player.avatar) },
+    player: player && { publicId: player.publicId, name: player.name, balance: player.balance, avatar: avatarUrl(player.avatar), created: player.created },
+    suspension: player?.suspension ? { reason: player.suspension } : null,
     matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
     active,
     isAdmin: !!admin && uid === admin,
@@ -378,7 +438,8 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
     requireDevnet(settings());
     await ensureCashAccount(uid);
   }
-  const active = await activeRun(uid);
+  const [active, suspended] = await Promise.all([activeRun(uid), isSuspended(uid)]);
+  if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
   if (active) return active;
 
   const stake = Number(stakeInput);
@@ -460,31 +521,49 @@ export async function playShot(
   action: "shot" | "forfeit",
   angle?: unknown,
   allowed: Promise<boolean> | boolean = true,
+  guard: ShotGuard = {},
 ): Promise<Run> {
   const db = database();
   const [record, permitted] = await Promise.all([
     db
-      .prepare(`SELECT ${PUBLIC_RUN}, m.row_key FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.id = ? AND r.user_id = ?`)
+      .prepare(
+        `SELECT ${PUBLIC_RUN}, m.row_key, ${suspendedSql("r.user_id")} AS suspended, ${SHOT_HISTORY_SQL("'m-' || r.id")}
+         FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.id = ? AND r.user_id = ?`,
+      )
       .bind(String(runIdInput), uid)
-      .first<RunRecord & { row_key: string | null }>(),
+      .first<RunRecord & ShotHistory & { row_key: string | null; suspended: number }>(),
     allowed,
   ]);
   if (!permitted) throw new GameError("Too many requests. Wait a minute before trying again.", 429);
   if (!record) throw new GameError("Game not found.", 404);
-  // The row key stays on the server: it is split off before anything is returned.
-  const { row_key: rowKey, ...row } = record;
+  // The row key and the anti-cheat history stay on the server.
+  const { row_key: rowKey, suspended, previous_at, previous_ticks, timing_strikes, ...row } = record;
+  if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
   if (row.done || row.revision !== revision) throw new GameError("This game changed in another tab. Reload to resume.", 409);
 
   const run = parseRun(row);
+  const runKey = `m-${run.id}`;
   let state = run.state;
+  let ticks: number | null = null;
   const forfeit = action === "forfeit";
+  const now = Date.now();
+  const signals: Statement[] = [];
   if (forfeit) {
     state.over = true;
   } else {
     if (!validAngle(angle)) throw new GameError("Invalid aim angle.");
     if (!isSupportedRuleset(run.ruleset)) throw new GameError("This match uses a retired ruleset. It can only be forfeited.", 409);
+    if (guard.proof) {
+      const findings = inspectShot({ proof: guard.proof, ruleset: run.ruleset, now, previousShotAt: previous_at, previousTicks: previous_ticks, timingStrikes: timing_strikes });
+      if (findings.some((f) => f.level === "proof")) {
+        const { disqualify } = await import("./anti-cheat");
+        await disqualify(uid, runKey, findings, now);
+        throw new GameError(AUTOMATION_DETECTED, 403);
+      }
+      signals.push(...findings.map((f) => signalInsert(db, uid, runKey, f, now)));
+    }
     try {
-      state = simulate(state, angle, run.ruleset, rowsFor(run.ruleset, rowKey));
+      ({ game: state, ticks } = simulateShot(state, angle, run.ruleset, rowsFor(run.ruleset, rowKey)));
     } catch (e) {
       if (e instanceof ShotError) throw new GameError(e.message);
       throw e;
@@ -492,14 +571,20 @@ export async function playShot(
   }
   // A shot is one round, and `bonus` marks a round that cleared the board.
   const clears = run.clears + (!forfeit && state.bonus ? 1 : 0);
-  const now = Date.now();
   const [result] = await db.batch([
     db
       .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
       .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, state.over ? now : null, run.id, uid, run.revision),
-    shotInsert(db, `m-${run.id}`, "runs", run.id, run.revision, forfeit ? null : (angle as number), now),
+    shotInsert(db, runKey, "runs", run.id, run.revision, forfeit ? null : (angle as number), now, ticks),
+    ...signals,
   ]);
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
+  // Real-money shots are rated against every other angle once the player has their answer.
+  if (!forfeit && guard.defer && run.asset === "devnet") {
+    const before = run.state;
+    const aimMs = guard.proof?.aimMs ?? null;
+    guard.defer(() => analyzeShot({ uid, runKey, revision: run.revision, before, angle: angle as number, ruleset: run.ruleset, rowKey, aimMs, evaluate: state.over }));
+  }
   if (state.over) await settle(run.match_id);
   return { ...run, state, score: state.score, done: state.over ? 1 : 0, forfeit: forfeit ? 1 : 0, clears, revision: run.revision + 1 };
 }

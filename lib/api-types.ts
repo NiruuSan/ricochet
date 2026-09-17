@@ -146,6 +146,8 @@ export type MatchNotification = {
   opponentScore: number;
   /** Gems won alongside a devnet SOL win; absent on older notifications. */
   bonusGems?: number;
+  /** Set when the match ended because a player was disqualified for automated play: true if it was the opponent. */
+  disqualified?: boolean;
 };
 export type TipNotification = { amount: number; from: string };
 export type TournamentNotification = {
@@ -191,6 +193,7 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
   | { kind: "tournament_result"; data: TournamentNotification }
   | { kind: "security_reset"; data: { holdUntil: number } }
   | { kind: "race_result"; data: RaceNotification }
+  | { kind: "account_suspended"; data: { reason: string } }
 );
 
 export type Snapshot = {
@@ -205,6 +208,8 @@ export type Snapshot = {
   unreadNotifications: number;
   /** The player's tournament entries in this currency, newest first. */
   tournaments: TournamentHistoryItem[];
+  /** Set while the account is suspended or banned by the anti-cheat. */
+  suspension: { reason: string } | null;
 };
 
 export type Transfer = {

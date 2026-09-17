@@ -1,3 +1,4 @@
+import { assertCanMoveMoney } from "../anti-cheat";
 import { database } from "@/db/raw";
 import type { TipReceipt } from "../api-types";
 import { notificationInsert } from "../notifications";
@@ -21,6 +22,7 @@ export async function sendTip(uid: string, idInput: unknown, recipientInput: unk
   if (!sender) throw new PaymentError("Create your player profile first.");
   if (!recipient) throw new PaymentError("This player is no longer available.");
   if (recipient.id === uid) throw new PaymentError("You cannot tip yourself.");
+  await assertCanMoveMoney(uid);
   const sentId = `tip:${id}:sent`, receivedId = `tip:${id}:received`;
   const replay = async (): Promise<TipReceipt | null> => {
     const rows = await db.prepare("SELECT id, account_id, amount, created FROM cash_ledger WHERE id IN (?, ?)")

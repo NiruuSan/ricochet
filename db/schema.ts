@@ -58,6 +58,8 @@ export const matches = sqliteTable(
     rowKey: text("row_key"),
     // 1 when the creator forfeited before anyone joined; see lib/matches.ts.
     cancelled: integer("cancelled").notNull().default(0),
+    // Player removed for automated play (lib/anti-cheat.ts); the other player wins.
+    disqualified: text("disqualified"),
   },
   (t) => [
     index("match_queue").on(t.stake, t.settled, t.p2, t.created),
@@ -250,6 +252,8 @@ export const tournamentEntries = sqliteTable(
     finished: integer("finished"),
     rank: integer("rank"),
     payout: integer("payout").notNull().default(0),
+    // 1 when removed for automated play: no rank and no prize.
+    disqualified: integer("disqualified").notNull().default(0),
   },
   (t) => [
     uniqueIndex("one_entry_per_player").on(t.tournamentId, t.userId),
@@ -269,6 +273,8 @@ export const runShots = sqliteTable(
     revision: integer("revision").notNull(),
     angle: real("angle"),
     created: integer("created").notNull(),
+    // Simulation ticks of the shot: how long its animation must at least take.
+    ticks: integer("ticks"),
   },
   (t) => [primaryKey({ columns: [t.runKey, t.revision] })],
 );
@@ -348,3 +354,50 @@ export const appSettings = sqliteTable("app_settings", {
   updatedBy: text("updated_by").notNull(),
   updated: integer("updated").notNull(),
 });
+
+// Anti-cheat (lib/anti-cheat.ts). A suspended or banned player cannot play,
+// withdraw or tip. `source` is "proof" (automatic, technical evidence), "stats"
+// (automatic, statistical) or "admin".
+export const playerSuspensions = sqliteTable("player_suspensions", {
+  userId: text("user_id").primaryKey(),
+  status: text("status").notNull(), // suspended | banned | lifted
+  source: text("source").notNull(),
+  reason: text("reason").notNull(),
+  evidence: text("evidence").notNull(),
+  created: integer("created").notNull(),
+  reviewedBy: text("reviewed_by"),
+  reviewedAt: integer("reviewed_at"),
+  note: text("note"),
+});
+
+// Every anti-cheat observation, including those below a sanction threshold.
+export const cheatSignals = sqliteTable(
+  "cheat_signals",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    runKey: text("run_key"),
+    kind: text("kind").notNull(),
+    level: text("level").notNull(), // proof | stat
+    detail: text("detail").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [index("cheat_signal_user").on(t.userId, t.created), index("cheat_signal_run").on(t.runKey, t.kind), index("cheat_signal_recent").on(t.created)],
+);
+
+// Per real-money shot: how the chosen angle compares with every other angle.
+export const shotAnalysis = sqliteTable(
+  "shot_analysis",
+  {
+    runKey: text("run_key").notNull(),
+    revision: integer("revision").notNull(),
+    userId: text("user_id").notNull(),
+    aimMs: integer("aim_ms"),
+    gain: integer("gain").notNull(),
+    bestGain: integer("best_gain").notNull(),
+    // Share of the sampled angles that reach the best gain: small means a hard shot.
+    bestShare: real("best_share").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.runKey, t.revision] }), index("shot_analysis_user").on(t.userId, t.created)],
+);

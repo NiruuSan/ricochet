@@ -43,18 +43,23 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
           tabIndex={0}
           aria-label={`Brick breaker board. Round ${game.round}, score ${game.score}. Arrow keys aim; Enter launches.`}
           onPointerMove={(e) => {
+            session.noteInput(e.nativeEvent);
             if (!locked) session.aimAt(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
           }}
           onPointerDown={(e) => {
+            session.noteInput(e.nativeEvent);
             if (!locked) session.aimAt(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
             e.currentTarget.setPointerCapture(e.pointerId);
           }}
           onPointerUp={(e) => {
+            session.noteInput(e.nativeEvent);
             if (locked) return;
             session.aimAt(e.clientX, e.clientY, e.currentTarget.getBoundingClientRect());
-            if (!mini && started) setTimeout(session.shoot, 0);
+            const trigger = { isTrusted: e.nativeEvent.isTrusted };
+            if (!mini && started) setTimeout(() => session.shoot(trigger), 0);
           }}
           onKeyDown={(e) => {
+            session.noteInput(e.nativeEvent);
             if (e.key === "ArrowLeft") {
               e.preventDefault();
               session.setAngle((a) => Math.min(MAX_ANGLE, a + 2));
@@ -65,7 +70,7 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
             }
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              session.shoot();
+              session.shoot(e.nativeEvent);
             }
           }}
         >

@@ -1,3 +1,4 @@
+import { assertCanMoveMoney } from "../anti-cheat";
 import { PaymentError } from "./errors";
 import { assertWithdrawalsAllowed } from "../security-holds";
 import { Keypair, PublicKey } from "@solana/web3.js";
@@ -82,7 +83,7 @@ export async function ensureWallet(uid: string): Promise<Wallet> {
  * two-factor code: the amount, the address and the available balance.
  */
 export async function precheckWithdrawal(uid: string, destinationInput: unknown, amountInput: unknown, treasury = false, now = Date.now()) {
-  if (!treasury) await assertWithdrawalsAllowed(uid, now);
+  if (!treasury) await Promise.all([assertWithdrawalsAllowed(uid, now), assertCanMoveMoney(uid)]);
   const amount = parseSol(amountInput);
   const destination = recipientAddress(destinationInput).toBase58();
   const db = database();
@@ -154,7 +155,7 @@ export async function beginWithdrawal(uid: string, idInput: unknown, destination
   const kind = treasury ? "treasury" : "withdrawal";
   const prior = await replay(id, uid, kind, destination, amount);
   if (prior) return publicTransfer(prior);
-  if (!treasury) await assertWithdrawalsAllowed(uid);
+  if (!treasury) await Promise.all([assertWithdrawalsAllowed(uid), assertCanMoveMoney(uid)]);
   const s = settings();
   requireDevnet(s);
   const db = database();
