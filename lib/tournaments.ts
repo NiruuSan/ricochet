@@ -14,7 +14,8 @@ import {
   type TournamentStanding,
   type TournamentSummary,
 } from "./api-types";
-import { AUTOMATION_DETECTED, avatarUrl, GameError, SHOT_HISTORY_SQL, type ShotGuard, type ShotHistory } from "./matches";
+import { AUTOMATION_DETECTED, avatarUrl, GameError, reportSigned, SHOT_HISTORY_SQL, type ShotGuard, type ShotHistory } from "./matches";
+import { shotKeyFor } from "./shot-key";
 import { notificationInsert } from "./notifications";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { parseSol, requireDevnet } from "./payments/policy";
@@ -251,6 +252,7 @@ const toRun = (t: Pick<TournamentRow, "id" | "asset" | "ruleset">, e: EntryRow):
   done: e.done,
   forfeit: e.forfeit,
   clears: e.clears,
+  shotKey: shotKeyFor(`t-${e.id}`),
 });
 
 /** Starts (or resumes) the player's single run while the tournament is live. */
@@ -317,7 +319,8 @@ export async function playTournamentShot(
     if (!validAngle(angle)) throw new GameError("Invalid aim angle.");
     if (!isSupportedRuleset(row.ruleset)) throw new GameError("This tournament uses a retired ruleset.", 409);
     if (guard.proof) {
-      const findings = inspectShot({ proof: guard.proof, ruleset: row.ruleset, now, previousShotAt: row.previous_at, previousTicks: row.previous_ticks, timingStrikes: row.timing_strikes });
+      const signed = reportSigned(runKey, row.revision, angle, guard);
+      const findings = inspectShot({ proof: guard.proof, signed, ruleset: row.ruleset, now, previousShotAt: row.previous_at, previousTicks: row.previous_ticks, timingStrikes: row.timing_strikes });
       if (findings.some((f) => f.level === "proof")) {
         const { disqualify } = await import("./anti-cheat");
         await disqualify(uid, runKey, findings, now);

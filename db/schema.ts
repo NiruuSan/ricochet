@@ -401,6 +401,8 @@ export const shotAnalysis = sqliteTable(
     bestGain: integer("best_gain").notNull(),
     // Share of the sampled angles that reach the best gain: small means a hard shot.
     bestShare: real("best_share").notNull(),
+    // Percentile of the shot among every sampled angle, judged on the board it leaves (lib/anti-cheat-rules.ts).
+    quality: real("quality"),
     created: integer("created").notNull(),
   },
   (t) => [primaryKey({ columns: [t.runKey, t.revision] }), index("shot_analysis_user").on(t.userId, t.created)],

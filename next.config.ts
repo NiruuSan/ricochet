@@ -51,6 +51,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["@libsql/client", "@solana/web3.js"],
   // Do not advertise the framework in every response.
   poweredByHeader: false,
+  // Identifies the deployed client in shot reports (lib/anti-cheat-rules.ts): a tab from an older deployment is asked to reload.
+  env: { BOUNCE_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA ?? "dev").slice(0, 12) },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

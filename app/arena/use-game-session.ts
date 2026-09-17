@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset, Run } from "@/lib/api-types";
 import { GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, seedRows, step, W, type Flight, type Game } from "@/lib/engine";
-import { MAX_AIM_SAMPLES, type AimTrail, type ShotProof } from "@/lib/anti-cheat-rules";
+import { MAX_AIM_SAMPLES, type AimTrail } from "@/lib/anti-cheat-rules";
+import { clientFlags, signProof, type UnsignedProof } from "./shot-signing";
 import { gameAction } from "./api";
 import { drawBoard } from "./board-canvas";
 
@@ -35,14 +36,17 @@ type Options = {
  * already has, and the server's reply (with the new row) is almost always back
  * before they land; if not, the row drops in as soon as it arrives.
  */
-type ShotReport = { proof: ShotProof; aim: AimTrail };
+/** A shot's anti-cheat report, signed with the run's shot key just before it is sent. */
+type ShotReport = { proof: UnsignedProof; aim: AimTrail; key: string | undefined };
+/** Aim times are capped where the server stops accepting them. */
+const MAX_AIM_MS = 3_600_000;
 
 const roundAngle = (angle: number) => Math.round(angle * 10) / 10;
 /** Aim samples closer together than this merge into one. */
 const AIM_SAMPLE_MS = 40;
 
 function recordAim(trail: AimTrail, readyAt: number, angle: number) {
-  const t = Math.max(0, Math.round(performance.now() - readyAt));
+  const t = Math.min(MAX_AIM_MS, Math.max(0, Math.round(performance.now() - readyAt)));
   const last = trail.at(-1);
   if (last && t - last[0] < AIM_SAMPLE_MS && trail.length > 1) last[1] = roundAngle(angle);
   else trail.push([Math.max(t, last?.[0] ?? 0), roundAngle(angle)]);
@@ -50,7 +54,7 @@ function recordAim(trail: AimTrail, readyAt: number, angle: number) {
 
 /** The trail as sent with the shot: ends on the shot angle, thinned to the sample limit. */
 function finishAim(trail: AimTrail, aimMs: number, angle: number): AimTrail {
-  const full: AimTrail = [...trail, [Math.max(aimMs, trail.at(-1)?.[0] ?? 0), roundAngle(angle)]];
+  const full: AimTrail = [...trail, [Math.min(MAX_AIM_MS, Math.max(aimMs, trail.at(-1)?.[0] ?? 0)), roundAngle(angle)]];
   if (full.length <= MAX_AIM_SAMPLES) return full;
   const step = (full.length - 1) / (MAX_AIM_SAMPLES - 1);
   return Array.from({ length: MAX_AIM_SAMPLES }, (_, i) => full[Math.round(i * step)]);
@@ -93,6 +97,8 @@ export function useGameSession({ onSaved, onError }: Options) {
   /** Anti-cheat report: when the board was last ready to aim, and the real inputs since. */
   const readyAtRef = useRef(0);
   const inputsRef = useRef(0);
+  /** Script-made (untrusted) events on the board since the board was ready. */
+  const syntheticRef = useRef(0);
   /** How the player aimed since the board was ready, replayed to spectators. */
   const aimTrailRef = useRef<AimTrail>([]);
 
@@ -183,7 +189,9 @@ export function useGameSession({ onSaved, onError }: Options) {
         try {
           // After a failure, later shots were played on a board the server never had.
           if (saveFailedRef.current) return;
-          const { run: saved } = await gameAction<{ run: Run }>({ action: "shot", runId, revision, angle: shotAngle, proof: report.proof, aim: report.aim });
+          // Without a key the report goes unsigned and the server asks for a reload.
+          const proof = report.key ? await signProof(report.key, runId, revision, shotAngle, report.proof, report.aim) : report.proof;
+          const { run: saved } = await gameAction<{ run: Run }>({ action: "shot", runId, revision, angle: shotAngle, proof, aim: report.aim });
           confirmedRef.current = saved;
           if (predicted && !sameState(saved.state, predicted)) mismatchRef.current = true;
           if (!disposedRef.current) onConfirmed?.(saved);
@@ -219,6 +227,7 @@ export function useGameSession({ onSaved, onError }: Options) {
   /** Counts a real pointer or key event while aiming, for the anti-cheat report. */
   const noteInput = useCallback((event: Event) => {
     if (event.isTrusted) inputsRef.current++;
+    else syntheticRef.current++;
   }, []);
 
   /** `trigger` is the input event that fired the shot. */
@@ -226,14 +235,15 @@ export function useGameSession({ onSaved, onError }: Options) {
     if (busyRef.current || !startedRef.current || gameRef.current.over) return;
     const currentRun = runRef.current;
     const shotAngle = angleRef.current;
-    const proof: ShotProof = {
-      v: 1,
-      aimMs: Math.max(0, Math.round(performance.now() - readyAtRef.current)),
+    const proof: UnsignedProof = {
+      aimMs: Math.min(MAX_AIM_MS, Math.max(0, Math.round(performance.now() - readyAtRef.current))),
       inputs: inputsRef.current,
       trusted: trigger?.isTrusted === true,
       webdriver: navigator.webdriver === true,
+      flags: clientFlags(),
+      synthetic: syntheticRef.current,
     };
-    const report: ShotReport = { proof, aim: finishAim(aimTrailRef.current, proof.aimMs, shotAngle) };
+    const report: ShotReport = { proof, aim: finishAim(aimTrailRef.current, proof.aimMs, shotAngle), key: currentRun?.shotKey };
     // Practice rows come from its own seed; a match run uses its ruleset, and from
     // ruleset 6 the browser has no row source at all.
     const ruleset = currentRun?.ruleset ?? RULESET;
@@ -263,6 +273,7 @@ export function useGameSession({ onSaved, onError }: Options) {
       setGame(saved.state);
     };
     inputsRef.current = 0;
+    syntheticRef.current = 0;
     aimTrailRef.current = [];
     if (hiddenRows) {
       saveShot(currentRun.id, currentRun.revision, shotAngle, report, null, (saved) => {
@@ -435,6 +446,7 @@ export function useGameSession({ onSaved, onError }: Options) {
   useEffect(() => {
     if (flying || awaitingRow) return;
     readyAtRef.current = performance.now();
+    syntheticRef.current = 0;
     aimTrailRef.current = [[0, roundAngle(angleRef.current)]];
   }, [flying, awaitingRow, run?.id, started]);
 

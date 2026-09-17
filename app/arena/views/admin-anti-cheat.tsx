@@ -11,8 +11,10 @@ const STATUS: Record<CheatCase["status"], { label: string; color: string }> = {
   suspended: { label: "SUSPENDED · TO REVIEW", color: "#ffb86b" },
   banned: { label: "BANNED", color: "#ff8091" },
   lifted: { label: "LIFTED", color: "#c6f564" },
+  watch: { label: "WATCHLIST · NOT SUSPENDED", color: "#7fd6ff" },
 };
-const SOURCE: Record<string, string> = { proof: "Automatic · technical proof", stats: "Automatic · statistics", admin: "Administrator" };
+const SOURCE: Record<string, string> = { proof: "Automatic · technical proof", stats: "Automatic · statistics", admin: "Administrator", watch: "Last signal" };
+const percent = (value: number | null) => (value === null ? "—" : `${Math.round(value * 100)}%`);
 
 const detailText = (detail: Record<string, unknown>) =>
   Object.entries(detail)
@@ -49,8 +51,10 @@ function SignalRow({ signal, name }: { signal: CheatSignalView; name?: string })
 
 function CaseCard({ item, busy, onAction }: { item: CheatCase; busy: boolean; onAction: (body: Record<string, unknown>, question?: string) => void }) {
   const status = STATUS[item.status];
-  const decide = (action: "lift" | "ban") => {
-    const text = window.prompt(action === "lift" ? `Lift ${item.name}'s suspension? Write why (kept in the audit log).` : `Ban ${item.name}? Write why (kept in the audit log).`);
+  const decide = (action: "lift" | "ban" | "suspend") => {
+    const text = window.prompt(
+      action === "lift" ? `Lift ${item.name}'s suspension? Write why (kept in the audit log).` : action === "ban" ? `Ban ${item.name}? Write why (kept in the audit log).` : `Suspend ${item.name} for review? Write why (kept in the audit log).`,
+    );
     if (text === null) return;
     onAction(
       { action, name: item.name, note: text },
@@ -73,6 +77,13 @@ function CaseCard({ item, busy, onAction }: { item: CheatCase; busy: boolean; on
           <p style={{ marginTop: 8, fontSize: 14 }}>{item.reason}</p>
           {item.note && <p className={styles.muted}>Review note: {item.note}</p>}
         </div>
+        {item.status === "watch" && (
+          <div className="row-actions">
+            <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy} onClick={() => decide("suspend")}>
+              <UserX size={15} /> Suspend
+            </button>
+          </div>
+        )}
         {item.status === "suspended" && (
           <div className="row-actions">
             <button className="btn" disabled={busy} onClick={() => decide("lift")}>
@@ -107,6 +118,18 @@ function CaseCard({ item, busy, onAction }: { item: CheatCase; busy: boolean; on
           <b>{item.stats.hardHitRate === null ? "—" : `${Math.round(item.stats.hardHitRate * 100)}%`}</b>
           <span className={styles.muted}>
             {item.stats.hardShots} hard of {item.stats.analyzedShots} analyzed · aim {item.stats.meanAimMs ?? "—"} ms
+          </span>
+        </div>
+        <div className={styles.stat}>
+          <small className={styles.muted}>SHOT QUALITY</small>
+          <b style={{ color: item.stats.meanQuality !== null && item.stats.meanQuality >= item.stats.qualityThreshold ? "#ff8091" : undefined }}>{percent(item.stats.meanQuality)}</b>
+          <span className={styles.muted}>Average percentile among all angles · flagged from {percent(item.stats.qualityThreshold)}</span>
+        </div>
+        <div className={styles.stat}>
+          <small className={styles.muted}>AIM TRAJECTORIES</small>
+          <b>{item.stats.aim.trails ? `${item.stats.aim.samples} pts · ${item.stats.aim.reversals} turns` : "—"}</b>
+          <span className={styles.muted}>
+            Medians over {item.stats.aim.trails} trails · timing irregularity {item.stats.aim.gapCv === null ? "—" : item.stats.aim.gapCv.toFixed(2)}
           </span>
         </div>
         <div className={styles.stat}>
@@ -220,6 +243,13 @@ export function AdminAntiCheat() {
             data.cases.map((item) => <CaseCard key={item.name} item={item} busy={busy} onAction={(body, question) => void act(body, question)} />)
           ) : (
             <p className={styles.empty}>No suspended players.</p>
+          )}
+          <h2 style={{ margin: "30px 0 4px" }}>Watchlist</h2>
+          <p className={styles.muted}>Players worth a look (modified game page, sudden jump in results). Nothing happens to them unless you suspend.</p>
+          {data.watchlist.length ? (
+            data.watchlist.map((item) => <CaseCard key={item.name} item={item} busy={busy} onAction={(body, question) => void act(body, question)} />)
+          ) : (
+            <p className={styles.empty}>Nobody on the watchlist.</p>
           )}
           <h2 style={{ margin: "30px 0 4px" }}>Latest signals</h2>
           <p className={styles.muted}>Every observation, including those below a sanction threshold.</p>

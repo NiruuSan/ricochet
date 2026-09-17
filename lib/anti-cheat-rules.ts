@@ -6,12 +6,15 @@
 //   official client (automation browser, synthetic input, animation skipped
 //   repeatedly). The player is suspended at once, their unsettled matches are
 //   lost to the opponent and their live tournament runs are disqualified.
-// - stat: statistical evidence (superhuman precision or rhythm over many shots).
-//   The player is suspended for review; past results are left for the admin.
+// - stat: statistical evidence (superhuman shot quality, precision or rhythm over
+//   many shots). The player is suspended for review; past results are left for the admin.
+// - watch: worth a look (modified page, sudden jump in results). Recorded and
+//   listed for the admin, with no sanction.
+import type { Game } from "./engine";
 
-/** What the official client reports with every shot. */
+/** What the official client reports with every shot, signed with the run's shot key. */
 export type ShotProof = {
-  v: 1;
+  v: 2;
   /** Time from the board becoming ready to the shot, in ms. */
   aimMs: number;
   /** Real (trusted) pointer and key events while aiming. */
@@ -20,7 +23,42 @@ export type ShotProof = {
   trusted: boolean;
   /** `navigator.webdriver`: set by Selenium, Playwright, Puppeteer and similar tools. */
   webdriver: boolean;
+  /** The client build; a report from another build is from an outdated tab. */
+  build: string;
+  /** CLIENT_FLAGS: page functions the game relies on that were replaced. */
+  flags: number;
+  /** Script-made (untrusted) pointer and key events on the board while aiming. */
+  synthetic: number;
+  /** HMAC-SHA256 of reportMessage(...) with the run's shot key, hex. */
+  sig: string;
 };
+
+export const CLIENT_FLAGS = { fetchPatched: 1, dispatchPatched: 2 } as const;
+
+/** Identifies the deployed client; it changes with every deployment. */
+export const CLIENT_BUILD = process.env.BOUNCE_BUILD ?? "dev";
+
+/**
+ * The exact text the client signs for a shot. Any field changed after signing
+ * (the trust flag, the input counts, the aim) breaks the signature.
+ */
+export function reportMessage(input: { runKey: string; revision: number; angle: number; proof: Omit<ShotProof, "sig" | "v">; aim: unknown }) {
+  const { runKey, revision, angle, proof, aim } = input;
+  return [
+    "bounce-shot-v2",
+    proof.build,
+    runKey,
+    revision,
+    angle,
+    proof.aimMs,
+    proof.inputs,
+    proof.trusted ? 1 : 0,
+    proof.webdriver ? 1 : 0,
+    proof.flags,
+    proof.synthetic,
+    aim === undefined || aim === null ? "" : JSON.stringify(aim),
+  ].join("|");
+}
 
 /** How the player aimed before a shot: [ms since the board was ready, angle]. */
 export type AimTrail = [number, number][];
@@ -49,7 +87,7 @@ export function parseAim(input: unknown): AimTrail | null {
 /** Times the aim actually changed along a trail. */
 export const aimMoves = (trail: AimTrail) => trail.reduce((moves, [, angle], i) => moves + (i > 0 && Math.abs(angle - trail[i - 1][1]) >= 0.1 ? 1 : 0), 0);
 
-export type Finding = { kind: string; level: "proof" | "stat"; detail: Record<string, unknown> };
+export type Finding = { kind: string; level: "proof" | "stat" | "watch"; detail: Record<string, unknown> };
 
 export const OUTDATED_CLIENT = "Bounce was updated. Reload the page to keep playing.";
 export const SUSPENDED_MESSAGE = "Your account is suspended while suspicious activity is reviewed. Contact support if you think this is a mistake.";
@@ -83,17 +121,119 @@ export const STATS = {
   rhythmMaxCv: 0.08,
 };
 
+/**
+ * Shot quality: each shot's percentile among every sampled angle, judged on the
+ * board it leaves (points, cleared board, bricks close to the ground), not only
+ * on immediate points. A player whose average percentile stays at the very top
+ * over many shots is playing like a solver.
+ */
+export const QUALITY = {
+  minShots: 60,
+  /**
+   * Without enough players to compare with, this average percentile is suspicious on its own.
+   * Simulated models (work/redteam/calibrate.mjs): random 0.65, average player 0.74, careful
+   * player aiming within ±3° of a top plan 0.78, the red-team bot 0.89, a points solver 0.999.
+   */
+  absoluteMean: 0.85,
+  /** With a population, the player must also be above its 99th percentile… */
+  populationPercentile: 0.99,
+  /** …and above this floor, so a population of weak players never makes good play suspicious. */
+  floorMean: 0.82,
+  minPopulation: 20,
+};
+
+/** Results trend: a sudden jump in real-money results, for review. */
+export const TREND = {
+  recentMatches: 20,
+  minPreviousMatches: 20,
+  recentWinRate: 0.75,
+  previousWinRate: 0.45,
+  scoreRatio: 2.5,
+};
+
+/** Rows run from 7 (just spawned) down to 1 (game over): bricks near the ground weigh most. */
+export function boardValue(before: Game, after: Game) {
+  if (after.over) return -10_000;
+  const danger = after.bricks.reduce((sum, b) => sum + b.hp * (8 - b.row) ** 2, 0) / 10;
+  return after.score - before.score + (after.bonus ? 30 : 0) - danger;
+}
+
+/** A shot's percentile among the sampled angles: 1 when nothing sampled is better. */
+export function qualityPercentile(chosen: number, sampled: number[]) {
+  if (!sampled.length) return null;
+  return 1 - sampled.filter((v) => v > chosen + 1e-9).length / sampled.length;
+}
+
+/** The average quality above which a player is flagged, given other players' averages. */
+export function qualityThreshold(populationMeans: number[]) {
+  if (populationMeans.length < QUALITY.minPopulation) return QUALITY.absoluteMean;
+  const sorted = [...populationMeans].sort((a, b) => a - b);
+  const p = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * QUALITY.populationPercentile))];
+  return Math.max(QUALITY.floorMean, p);
+}
+
+export function evaluateQuality(qualities: number[], threshold: number): Finding[] {
+  if (qualities.length < QUALITY.minShots) return [];
+  const mean = qualities.reduce((a, b) => a + b, 0) / qualities.length;
+  if (mean < threshold) return [];
+  const elite = qualities.filter((q) => q >= 0.9).length / qualities.length;
+  return [{ kind: "superhuman_quality", level: "stat", detail: { shots: qualities.length, meanQuality: Math.round(mean * 1000) / 1000, threshold: Math.round(threshold * 1000) / 1000, eliteShare: Math.round(elite * 1000) / 1000 } }];
+}
+
+/** Matches newest first: `won` and the player's score. */
+export function evaluateTrend(matches: { won: boolean; score: number }[]): Finding[] {
+  const recent = matches.slice(0, TREND.recentMatches);
+  const previous = matches.slice(TREND.recentMatches);
+  if (recent.length < TREND.recentMatches || previous.length < TREND.minPreviousMatches) return [];
+  const rate = (list: typeof matches) => list.filter((m) => m.won).length / list.length;
+  const mean = (list: typeof matches) => list.reduce((sum, m) => sum + m.score, 0) / list.length;
+  const [recentRate, previousRate, recentScore, previousScore] = [rate(recent), rate(previous), mean(recent), mean(previous)];
+  const winJump = recentRate >= TREND.recentWinRate && previousRate <= TREND.previousWinRate;
+  const scoreJump = previousScore > 0 && recentScore / previousScore >= TREND.scoreRatio;
+  if (!winJump && !scoreJump) return [];
+  return [
+    {
+      kind: "sudden_improvement",
+      level: "watch",
+      detail: { recentWinRate: Math.round(recentRate * 100) / 100, previousWinRate: Math.round(previousRate * 100) / 100, recentMeanScore: Math.round(recentScore), previousMeanScore: Math.round(previousScore) },
+    },
+  ];
+}
+
+/** Shape of one aim trail, for review: samples, how often the aim changed direction, and how regular the sample timing is. */
+export function aimFeatures(trail: AimTrail) {
+  let reversals = 0;
+  let direction = 0;
+  for (let i = 1; i < trail.length; i++) {
+    const delta = trail[i][1] - trail[i - 1][1];
+    if (Math.abs(delta) < 0.3) continue;
+    const sign = Math.sign(delta);
+    if (direction && sign !== direction) reversals++;
+    direction = sign;
+  }
+  const gaps = trail.slice(1).map(([t], i) => t - trail[i][0]).filter((g) => g > 0);
+  const meanGap = gaps.length ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 0;
+  const gapCv = gaps.length > 2 && meanGap > 0 ? Math.sqrt(gaps.reduce((sum, g) => sum + (g - meanGap) ** 2, 0) / gaps.length) / meanGap : null;
+  return { samples: trail.length, durationMs: trail.length ? trail[trail.length - 1][0] : 0, reversals, gapCv };
+}
+
 /** Angles sampled to rate a shot, every 2°. */
 export const ANALYSIS_STEP = 2;
 
+const count = (value: unknown, max: number) => (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= max ? value : null);
+
+/** A well-formed report, or null (an outdated or foreign client). Values are checked, never clamped: they are signed. */
 export function parseProof(input: unknown): ShotProof | null {
   if (!input || typeof input !== "object") return null;
   const p = input as Record<string, unknown>;
-  if (p.v !== 1 || typeof p.trusted !== "boolean" || typeof p.webdriver !== "boolean") return null;
-  const aimMs = Number(p.aimMs);
-  const inputs = Number(p.inputs);
-  if (!Number.isSafeInteger(aimMs) || aimMs < 0 || !Number.isSafeInteger(inputs) || inputs < 0) return null;
-  return { v: 1, aimMs: Math.min(aimMs, 86_400_000), inputs: Math.min(inputs, 1_000_000), trusted: p.trusted, webdriver: p.webdriver };
+  if (p.v !== 2 || typeof p.trusted !== "boolean" || typeof p.webdriver !== "boolean") return null;
+  if (typeof p.build !== "string" || p.build.length > 40 || typeof p.sig !== "string" || !/^[0-9a-f]{64}$/.test(p.sig)) return null;
+  const aimMs = count(p.aimMs, 86_400_000);
+  const inputs = count(p.inputs, 1_000_000);
+  const flags = count(p.flags, 255);
+  const synthetic = count(p.synthetic, 1_000_000);
+  if (aimMs === null || inputs === null || flags === null || synthetic === null) return null;
+  return { v: 2, aimMs, inputs, trusted: p.trusted, webdriver: p.webdriver, build: p.build, flags, synthetic, sig: p.sig };
 }
 
 export const minAnimationMs = (ticks: number) => (ticks * CLIENT_TICK_MS) / MAX_CLIENT_SPEED;
@@ -105,14 +245,24 @@ export const minAnimationMs = (ticks: number) => (ticks * CLIENT_TICK_MS) / MAX_
  */
 export function inspectShot(input: {
   proof: ShotProof;
+  /** Whether the report's signature matches the run's shot key. */
+  signed: boolean;
   ruleset: number;
   now: number;
   previousShotAt: number | null;
   previousTicks: number | null;
   timingStrikes: number;
 }): Finding[] {
-  const { proof, ruleset, now, previousShotAt, previousTicks, timingStrikes } = input;
+  const { proof, signed, ruleset, now, previousShotAt, previousTicks, timingStrikes } = input;
   const findings: Finding[] = [];
+  // A report edited after the client signed it: someone rewrote the request.
+  if (!signed) findings.push({ kind: "forged_report", level: "proof", detail: { signature: "invalid" } });
+  // Several script-made events moved the aim: a person's input is always trusted.
+  if (proof.synthetic >= 3) findings.push({ kind: "synthetic_aim", level: "proof", detail: { syntheticEvents: proof.synthetic } });
+  if (proof.flags) {
+    const replaced = Object.entries(CLIENT_FLAGS).filter(([, bit]) => proof.flags & bit).map(([name]) => name);
+    findings.push({ kind: "tampered_client", level: "watch", detail: { replaced } });
+  }
   if (proof.webdriver) findings.push({ kind: "automation_browser", level: "proof", detail: { webdriver: true } });
   if (!proof.trusted) findings.push({ kind: "synthetic_input", level: "proof", detail: { trusted: false, inputs: proof.inputs } });
   if (ruleset >= 6 && previousShotAt !== null && previousTicks !== null) {
@@ -148,6 +298,11 @@ export function evaluateShots(shots: AnalyzedShot[]): Finding[] {
 }
 
 export const FINDING_LABELS: Record<string, string> = {
+  forged_report: "Shot report edited after signing (request rewritten)",
+  synthetic_aim: "Aim moved by script-made events",
+  tampered_client: "Game page functions replaced (extension or script)",
+  superhuman_quality: "Solver-level shot quality",
+  sudden_improvement: "Sudden jump in real-money results",
   automation_browser: "Automation browser (webdriver)",
   synthetic_input: "Shot fired by a script, not a real input",
   impossible_timing: "Shots faster than the animation allows",

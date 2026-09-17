@@ -1,6 +1,6 @@
 import { database, type Statement } from "@/db/raw";
-import { evaluateShots, FINDING_LABELS, STATS } from "./anti-cheat-rules";
-import { playerShotStats, suspensionOps } from "./anti-cheat";
+import { aimFeatures, evaluateShots, FINDING_LABELS, qualityThreshold, STATS, type AimTrail } from "./anti-cheat-rules";
+import { playerShotStats, populationQuality, suspensionOps } from "./anti-cheat";
 import type { Finding } from "./anti-cheat-rules";
 import { GameError } from "./matches";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
@@ -11,7 +11,8 @@ import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
 export type CheatSignalView = { kind: string; label: string; level: string; detail: Record<string, unknown>; runKey: string | null; created: number };
 export type CheatCase = {
   name: string;
-  status: "suspended" | "banned" | "lifted";
+  /** `watch`: not suspended, on the watchlist for a signal worth a look. */
+  status: "suspended" | "banned" | "lifted" | "watch";
   source: string;
   reason: string;
   created: number;
@@ -25,6 +26,11 @@ export type CheatCase = {
     meanAimMs: number | null;
     /** Share of shots with an aim trail where the aim never moved before the shot. */
     stillAimRate: number | null;
+    /** Average shot quality percentile, and the level that gets a player flagged right now. */
+    meanQuality: number | null;
+    qualityThreshold: number;
+    /** Medians over recent aim trails: samples, direction changes, and sample timing regularity. */
+    aim: { trails: number; samples: number | null; reversals: number | null; gapCv: number | null };
   };
   /** Last 30 days, in lamports except the match count. */
   winnings: { solMatchesWon: number; solMatchNet: number; tournamentPrizes: number; racePrizes: number };
@@ -32,6 +38,8 @@ export type CheatCase = {
 };
 export type AntiCheatOverview = {
   cases: CheatCase[];
+  /** Players with a watch signal in the last 30 days who are not suspended. */
+  watchlist: CheatCase[];
   recentSignals: (CheatSignalView & { name: string })[];
   thresholds: typeof STATS;
 };
@@ -47,11 +55,19 @@ const signalView = (row: { kind: string; level: string; detail: string; run_key:
   created: row.created,
 });
 
-async function caseFor(row: { user_id: string; name: string; status: CheatCase["status"]; source: string; reason: string; created: number; reviewed_at: number | null; note: string | null }, now: number): Promise<CheatCase> {
+const median = (values: number[]) => {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)];
+};
+
+type CaseRow = { user_id: string; name: string; status: CheatCase["status"]; source: string; reason: string; created: number; reviewed_at: number | null; note: string | null };
+
+async function caseFor(row: CaseRow, now: number, threshold: number): Promise<CheatCase> {
   const db = database();
   const uid = row.user_id;
   const since = now - MONTH;
-  const [signals, shots, won, prizes, balances] = await Promise.all([
+  const [signals, shots, won, prizes, balances, trails] = await Promise.all([
     db.prepare("SELECT kind, level, detail, run_key, created FROM cheat_signals WHERE user_id = ? ORDER BY created DESC LIMIT 20").bind(uid).all<{ kind: string; level: string; detail: string; run_key: string | null; created: number }>(),
     playerShotStats(uid, now),
     db
@@ -74,10 +90,19 @@ async function caseFor(row: { user_id: string; name: string; status: CheatCase["
       .prepare("SELECT (SELECT balance FROM cash_accounts WHERE id = ?) AS sol, (SELECT balance FROM players WHERE id = ?) AS gems")
       .bind(cashAccountId(uid), uid)
       .first<{ sol: number | null; gems: number | null }>(),
+    db
+      .prepare(
+        `SELECT s.aim FROM shot_analysis a JOIN run_shots s ON s.run_key = a.run_key AND s.revision = a.revision
+         WHERE a.user_id = ? AND a.created >= ? AND s.aim IS NOT NULL ORDER BY a.created DESC LIMIT 100`,
+      )
+      .bind(uid, since)
+      .all<{ aim: string }>(),
   ]);
+  const features = trails.results.map((t) => aimFeatures(JSON.parse(t.aim) as AimTrail));
+  const qualities = shots.map((s) => s.quality).filter((q): q is number => q !== null);
   const hard = shots.filter((s) => s.bestShare <= STATS.hardShare && s.bestGain >= STATS.minBestGain);
   const aims = shots.map((s) => s.aimMs).filter((ms): ms is number => ms !== null);
-  const trails = shots.filter((s) => s.aimMoves !== null);
+  const withTrail = shots.filter((s) => s.aimMoves !== null);
   return {
     name: row.name,
     status: row.status,
@@ -92,7 +117,15 @@ async function caseFor(row: { user_id: string; name: string; status: CheatCase["
       hardShots: hard.length,
       hardHitRate: hard.length ? hard.filter((s) => s.gain >= s.bestGain).length / hard.length : null,
       meanAimMs: aims.length ? Math.round(aims.reduce((a, b) => a + b, 0) / aims.length) : null,
-      stillAimRate: trails.length ? trails.filter((s) => s.aimMoves === 0).length / trails.length : null,
+      stillAimRate: withTrail.length ? withTrail.filter((s) => s.aimMoves === 0).length / withTrail.length : null,
+      meanQuality: qualities.length ? qualities.reduce((a, b) => a + b, 0) / qualities.length : null,
+      qualityThreshold: threshold,
+      aim: {
+        trails: features.length,
+        samples: median(features.map((f) => f.samples)),
+        reversals: median(features.map((f) => f.reversals)),
+        gapCv: median(features.map((f) => f.gapCv).filter((cv): cv is number => cv !== null)),
+      },
     },
     winnings: { solMatchesWon: Number(won?.n ?? 0), solMatchNet: Number(won?.net ?? 0), tournamentPrizes: Number(prizes?.tournaments ?? 0), racePrizes: Number(prizes?.races ?? 0) },
     balances: { sol: Number(balances?.sol ?? 0), gems: Number(balances?.gems ?? 0) },
@@ -101,7 +134,7 @@ async function caseFor(row: { user_id: string; name: string; status: CheatCase["
 
 export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOverview> {
   const db = database();
-  const [cases, recent] = await Promise.all([
+  const [cases, recent, watched, population] = await Promise.all([
     db
       .prepare(
         `SELECT s.user_id, p.name, s.status, s.source, s.reason, s.created, s.reviewed_at, s.note
@@ -115,9 +148,24 @@ export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOver
          ORDER BY c.created DESC LIMIT 50`,
       )
       .all<{ kind: string; level: string; detail: string; run_key: string | null; created: number; name: string }>(),
+    db
+      .prepare(
+        `SELECT c.user_id, p.name, 'watch' AS status, 'watch' AS source, GROUP_CONCAT(DISTINCT c.kind) AS reason, MAX(c.created) AS created, NULL AS reviewed_at, NULL AS note
+         FROM cheat_signals c JOIN players p ON p.id = c.user_id
+         WHERE c.level = 'watch' AND c.created >= ?
+           AND NOT EXISTS (SELECT 1 FROM player_suspensions s WHERE s.user_id = c.user_id AND s.status IN ('suspended', 'banned'))
+         GROUP BY c.user_id ORDER BY created DESC LIMIT 30`,
+      )
+      .bind(now - MONTH)
+      .all<CaseRow>(),
+    populationQuality(now),
   ]);
+  const threshold = qualityThreshold(population);
   return {
-    cases: await Promise.all(cases.results.map((row) => caseFor(row, now))),
+    cases: await Promise.all(cases.results.map((row) => caseFor(row, now, threshold))),
+    watchlist: await Promise.all(
+      watched.results.map((row) => caseFor({ ...row, reason: row.reason.split(",").map((kind) => FINDING_LABELS[kind] ?? kind).join("; ") }, now, threshold)),
+    ),
     recentSignals: recent.results.map((row) => ({ ...signalView(row), name: row.name })),
     thresholds: STATS,
   };

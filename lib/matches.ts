@@ -2,7 +2,8 @@ import { adminId, database, type Statement } from "@/db/raw";
 import { wageredSql } from "./experience";
 import { experienceFromWagered, levelFor } from "./levels";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
-import { inspectShot, SUSPENDED_MESSAGE, type AimTrail, type ShotProof } from "./anti-cheat-rules";
+import { inspectShot, reportMessage, SUSPENDED_MESSAGE, type AimTrail, type ShotProof } from "./anti-cheat-rules";
+import { shotKeyFor, validSignature } from "./shot-key";
 import { analyzeShot, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
 import type { Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
@@ -30,7 +31,17 @@ const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.fo
 export const AUTOMATION_DETECTED = "Automated play was detected. This game is lost and your account is suspended pending review.";
 
 /** Anti-cheat inputs for a shot: the client's report, and where to run work after the response. */
-export type ShotGuard = { proof?: ShotProof; aim?: AimTrail | null; defer?: (task: () => Promise<unknown>) => void };
+export type ShotGuard = {
+  proof?: ShotProof;
+  aim?: AimTrail | null;
+  /** The aim exactly as the client sent it, which is what it signed. */
+  signedAim?: unknown;
+  defer?: (task: () => Promise<unknown>) => void;
+};
+
+/** Whether a shot report carries a valid signature for this run and shot. */
+export const reportSigned = (runKey: string, revision: number, angle: number, guard: ShotGuard) =>
+  !!guard.proof && validSignature(runKey, reportMessage({ runKey, revision, angle, proof: guard.proof, aim: guard.signedAim }), guard.proof.sig);
 
 /** The last logged shot of a run (for timing) and the run's timing strikes so far. `key` is the run's shot-log key as SQL. */
 export const SHOT_HISTORY_SQL = (key: string) => `
@@ -39,7 +50,7 @@ export const SHOT_HISTORY_SQL = (key: string) => `
   (SELECT COUNT(*) FROM cheat_signals c WHERE c.run_key = ${key} AND c.kind = 'timing') AS timing_strikes`;
 export type ShotHistory = { previous_at: number | null; previous_ticks: number | null; timing_strikes: number };
 type RunRecord = Omit<Run, "state"> & { state: string };
-const parseRun = (row: RunRecord): Run => ({ ...row, state: JSON.parse(row.state) as Game });
+const parseRun = (row: RunRecord): Run => ({ ...row, state: JSON.parse(row.state) as Game, shotKey: shotKeyFor(`m-${row.id}`) });
 
 /** Public URL of a stored profile picture. Keys are random, never user IDs. */
 export const avatarUrl = (key: string | null) => (key ? `/api/avatars/${key}` : null);
@@ -554,7 +565,8 @@ export async function playShot(
     if (!validAngle(angle)) throw new GameError("Invalid aim angle.");
     if (!isSupportedRuleset(run.ruleset)) throw new GameError("This match uses a retired ruleset. It can only be forfeited.", 409);
     if (guard.proof) {
-      const findings = inspectShot({ proof: guard.proof, ruleset: run.ruleset, now, previousShotAt: previous_at, previousTicks: previous_ticks, timingStrikes: timing_strikes });
+      const signed = reportSigned(runKey, run.revision, angle, guard);
+      const findings = inspectShot({ proof: guard.proof, signed, ruleset: run.ruleset, now, previousShotAt: previous_at, previousTicks: previous_ticks, timingStrikes: timing_strikes });
       if (findings.some((f) => f.level === "proof")) {
         const { disqualify } = await import("./anti-cheat");
         await disqualify(uid, runKey, findings, now);

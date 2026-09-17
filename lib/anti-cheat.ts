@@ -1,5 +1,21 @@
 import { database, type Database, type Statement } from "@/db/raw";
-import { aimMoves, ANALYSIS_STEP, evaluateShots, FINDING_LABELS, STATS, SUSPENDED_MESSAGE, type AimTrail, type Finding } from "./anti-cheat-rules";
+import {
+  aimMoves,
+  ANALYSIS_STEP,
+  boardValue,
+  evaluateQuality,
+  evaluateShots,
+  evaluateTrend,
+  FINDING_LABELS,
+  QUALITY,
+  qualityPercentile,
+  qualityThreshold,
+  STATS,
+  SUSPENDED_MESSAGE,
+  TREND,
+  type AimTrail,
+  type Finding,
+} from "./anti-cheat-rules";
 import { MAX_ANGLE, MIN_ANGLE, simulate, type Game } from "./engine";
 import { GameError } from "./matches";
 import { PaymentError } from "./payments/errors";
@@ -32,7 +48,11 @@ export function signalInsert(db: Database, uid: string, runKey: string | null, f
     .bind(crypto.randomUUID(), uid, runKey, finding.kind, finding.level, JSON.stringify(finding.detail), now);
 }
 
-const reasonFor = (findings: Finding[]) => findings.map((f) => FINDING_LABELS[f.kind] ?? f.kind).join("; ");
+const reasonFor = (findings: Finding[]) =>
+  findings
+    .filter((f) => f.level !== "watch")
+    .map((f) => FINDING_LABELS[f.kind] ?? f.kind)
+    .join("; ");
 
 /** Suspends a player (unless already suspended or banned), records why, and removes them from this week's race. */
 function suspensionOps(db: Database, uid: string, source: "proof" | "stats" | "admin", reason: string, evidence: unknown, now: number): Statement[] {
@@ -104,22 +124,29 @@ export async function analyzeShot(input: {
 }) {
   const now = input.now ?? Date.now();
   const rows = rowsFor(input.ruleset, input.rowKey);
-  const gainAt = (angle: number) => {
+  // Each angle: its immediate points, and the value of the board it leaves.
+  const outcome = (angle: number) => {
     try {
-      return simulate(input.before, angle, input.ruleset, rows).score - input.before.score;
+      const after = simulate(input.before, angle, input.ruleset, rows);
+      return { gain: after.score - input.before.score, value: boardValue(input.before, after) };
     } catch {
-      return -1;
+      return null;
     }
   };
-  const gain = gainAt(input.angle);
-  const sampled: number[] = [];
-  for (let angle = MIN_ANGLE; angle <= MAX_ANGLE; angle += ANALYSIS_STEP) sampled.push(gainAt(angle));
-  const bestGain = Math.max(gain, ...sampled);
-  const bestShare = sampled.filter((g) => g >= bestGain).length / sampled.length;
+  const chosen = outcome(input.angle) ?? { gain: -1, value: -Infinity };
+  const sampled = [];
+  for (let angle = MIN_ANGLE; angle <= MAX_ANGLE; angle += ANALYSIS_STEP) {
+    const result = outcome(angle);
+    if (result) sampled.push(result);
+  }
+  const gains = sampled.map((s) => s.gain);
+  const bestGain = Math.max(chosen.gain, ...gains);
+  const bestShare = gains.length ? gains.filter((g) => g >= bestGain).length / gains.length : 1;
+  const quality = qualityPercentile(chosen.value, sampled.map((s) => s.value));
   const db = database();
   await db
-    .prepare("INSERT OR IGNORE INTO shot_analysis(run_key, revision, user_id, aim_ms, aim_moves, gain, best_gain, best_share, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .bind(input.runKey, input.revision, input.uid, input.aimMs, input.aim ? aimMoves(input.aim) : null, gain, bestGain, bestShare, now)
+    .prepare("INSERT OR IGNORE INTO shot_analysis(run_key, revision, user_id, aim_ms, aim_moves, gain, best_gain, best_share, quality, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(input.runKey, input.revision, input.uid, input.aimMs, input.aim ? aimMoves(input.aim) : null, chosen.gain, bestGain, bestShare, quality, now)
     .run();
   if (input.evaluate) await evaluatePlayer(input.uid, now);
 }
@@ -127,20 +154,58 @@ export async function analyzeShot(input: {
 export async function playerShotStats(uid: string, now = Date.now()) {
   const { results } = await database()
     .prepare(
-      `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs, aim_moves AS aimMoves FROM shot_analysis
+      `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs, aim_moves AS aimMoves, quality FROM shot_analysis
        WHERE user_id = ? AND created >= ? ORDER BY created DESC, revision DESC LIMIT ?`,
     )
     .bind(uid, now - STATS.windowMs, STATS.maxShots)
-    .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null; aimMoves: number | null }>();
+    .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null; aimMoves: number | null; quality: number | null }>();
   return results;
+}
+
+/** Average shot quality of every player with enough recent analyzed shots, to compare one player with. */
+export async function populationQuality(now = Date.now()) {
+  const { results } = await database()
+    .prepare(
+      `SELECT AVG(quality) AS mean FROM shot_analysis
+       WHERE created >= ? AND quality IS NOT NULL
+       GROUP BY user_id HAVING COUNT(*) >= ? LIMIT 2000`,
+    )
+    .bind(now - STATS.windowMs, QUALITY.minShots)
+    .all<{ mean: number }>();
+  return results.map((r) => Number(r.mean));
+}
+
+/** The player's settled SOL matches, newest first, for the results trend. */
+async function recentSolMatches(uid: string) {
+  const { results } = await database()
+    .prepare(
+      `SELECT CASE WHEN m.winner = r.user_id THEN 1 ELSE 0 END AS won, r.score FROM runs r
+       JOIN matches m ON m.id = r.match_id AND m.asset = 'devnet' AND m.settled = 1 AND m.cancelled = 0
+       WHERE r.user_id = ? ORDER BY m.created DESC LIMIT ?`,
+    )
+    .bind(uid, TREND.recentMatches + 50)
+    .all<{ won: number; score: number }>();
+  return results.map((r) => ({ won: !!r.won, score: Number(r.score) }));
 }
 
 /** Suspends the player for review when their recent shots cross a statistical threshold. */
 export async function evaluatePlayer(uid: string, now = Date.now()) {
   if (await isSuspended(uid)) return [];
-  const findings = evaluateShots(await playerShotStats(uid, now));
+  const [shots, population, matches] = await Promise.all([playerShotStats(uid, now), populationQuality(now), recentSolMatches(uid)]);
+  const qualities = shots.map((s) => s.quality).filter((q): q is number => q !== null);
+  const findings = [...evaluateShots(shots), ...evaluateQuality(qualities, qualityThreshold(population))];
   if (findings.length) await suspendForStats(uid, findings, now);
-  return findings;
+  // A jump in results is only put on the admin's watchlist, at most once a week.
+  const watch = evaluateTrend(matches);
+  if (watch.length) {
+    const db = database();
+    const recent = await db
+      .prepare("SELECT 1 FROM cheat_signals WHERE user_id = ? AND kind = 'sudden_improvement' AND created >= ?")
+      .bind(uid, now - 7 * 24 * 60 * 60_000)
+      .first();
+    if (!recent) await db.batch(watch.map((f) => signalInsert(db, uid, null, f, now)));
+  }
+  return [...findings, ...watch];
 }
 
 export { suspensionOps };

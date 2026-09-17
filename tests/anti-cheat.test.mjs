@@ -19,24 +19,65 @@ const rules = await import("../lib/anti-cheat-rules.ts");
 const antiCheat = await import("../lib/anti-cheat.ts");
 const admin = await import("../lib/anti-cheat-admin.ts");
 const matches = await import("../lib/matches.ts");
-const tournaments = await import("../lib/tournaments.ts");
 const race = await import("../lib/weekly-race.ts");
 const { cashAccountId, ensureCashAccount, HOUSE } = await import("../lib/payments/accounts.ts");
 const tips = await import("../lib/payments/tips.ts");
 const service = await import("../lib/payments/service.ts");
+const { shotKeyFor, signReport } = await import("../lib/shot-key.ts");
 
 const SOL = 1_000_000_000;
-const human = (extra = {}) => ({ v: 1, aimMs: 1800, inputs: 25, trusted: true, webdriver: false, ...extra });
+const human = (extra = {}) => ({ v: 2, aimMs: 1800, inputs: 25, trusted: true, webdriver: false, build: rules.CLIENT_BUILD, flags: 0, synthetic: 0, sig: "0".repeat(64), ...extra });
+/** A shot guard signed like the official client signs it; `tamper` edits the report after signing. */
+const signed = (run, angle, { extra = {}, aim = [[0, 90], [600, angle]], tamper = {}, defer } = {}) => {
+  const runKey = run.id.startsWith("t:") ? `t-${run.id.slice(2)}` : `m-${run.id}`;
+  const proof = human(extra);
+  proof.sig = signReport(shotKeyFor(runKey), rules.reportMessage({ runKey, revision: run.revision, angle, proof, aim }));
+  const parsedAim = rules.parseAim(aim);
+  return { proof: { ...proof, ...tamper }, aim: parsedAim, signedAim: aim, defer };
+};
 
 try {
   // --- Rules ---------------------------------------------------------------
   assert.equal(rules.parseProof(undefined), null, "A shot without a report is from an outdated client");
   assert.equal(rules.parseProof({ v: 1, aimMs: -1, inputs: 0, trusted: true, webdriver: false }), null);
   assert.deepEqual(rules.parseProof(human()), human());
-  const inspect = (over) => rules.inspectShot({ proof: human(), ruleset: 6, now: 10_000, previousShotAt: null, previousTicks: null, timingStrikes: 0, ...over });
+  assert.equal(rules.parseProof({ ...human(), v: 1 }), null, "The first report format is outdated");
+  assert.equal(rules.parseProof({ ...human(), sig: "abc" }), null, "An unsigned report is outdated");
+  assert.equal(rules.parseProof({ ...human(), inputs: 1.5 }), null, "Signed values are never rounded");
+  const inspect = (over) => rules.inspectShot({ proof: human(), signed: true, ruleset: 6, now: 10_000, previousShotAt: null, previousTicks: null, timingStrikes: 0, ...over });
   assert.deepEqual(inspect({}), [], "A normal shot raises nothing");
   assert.deepEqual(inspect({ proof: human({ webdriver: true }) }).map((f) => [f.kind, f.level]), [["automation_browser", "proof"]]);
   assert.deepEqual(inspect({ proof: human({ trusted: false }) }).map((f) => [f.kind, f.level]), [["synthetic_input", "proof"]]);
+  assert.deepEqual(inspect({ signed: false }).map((f) => [f.kind, f.level]), [["forged_report", "proof"]], "A rewritten report is proof");
+  assert.deepEqual(inspect({ proof: human({ synthetic: 2 }) }), [], "A couple of stray synthetic events are tolerated");
+  assert.deepEqual(inspect({ proof: human({ synthetic: 12 }) }).map((f) => [f.kind, f.level]), [["synthetic_aim", "proof"]]);
+  assert.deepEqual(inspect({ proof: human({ flags: 3 }) }).map((f) => [f.kind, f.level, f.detail.replaced.join()]), [["tampered_client", "watch", "fetchPatched,dispatchPatched"]], "A replaced page function is only watched");
+
+  // Shot quality and its thresholds.
+  assert.equal(rules.qualityPercentile(10, [1, 5, 10, 10]), 1, "Nothing better: top percentile");
+  assert.equal(rules.qualityPercentile(5, [1, 5, 10, 10]), 0.5);
+  assert.equal(rules.qualityThreshold([0.7, 0.8]), rules.QUALITY.absoluteMean, "Too few players: the absolute threshold");
+  const crowd = Array.from({ length: 100 }, (_, i) => 0.6 + i * 0.002);
+  assert.equal(rules.qualityThreshold(crowd), rules.QUALITY.floorMean, "A weak population never lowers the bar under the floor");
+  const strong = Array.from({ length: 100 }, (_, i) => 0.8 + i * 0.001);
+  assert.equal(rules.qualityThreshold(strong), 0.899, "A strong population raises the bar to its 99th percentile");
+  assert.deepEqual(rules.evaluateQuality(Array(59).fill(0.95), 0.85), [], "Too few shots");
+  assert.deepEqual(rules.evaluateQuality(Array(80).fill(0.78), 0.85), [], "A careful player");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.85)[0].kind, "superhuman_quality");
+  const board = (bricks, extra = {}) => ({ seed: 1, round: 5, score: 10, balls: 5, x: 200, bricks, over: false, bonus: false, ...extra });
+  const before = board([]);
+  assert.ok(rules.boardValue(before, board([{ col: 0, row: 2, hp: 5 }], { score: 20 })) < rules.boardValue(before, board([{ col: 0, row: 6, hp: 5 }], { score: 18 })), "Bricks near the ground cost more than a few points");
+  assert.equal(rules.boardValue(before, board([], { over: true })), -10_000);
+
+  // Results trend: a sudden jump is watched, steady strength is not.
+  const matchesOf = (n, rate, score) => Array.from({ length: n }, (_, i) => ({ won: i < n * rate, score }));
+  assert.deepEqual(rules.evaluateTrend([...matchesOf(20, 0.6, 500), ...matchesOf(40, 0.6, 480)]), []);
+  assert.equal(rules.evaluateTrend([...matchesOf(20, 0.85, 500), ...matchesOf(40, 0.3, 450)])[0].level, "watch");
+  assert.equal(rules.evaluateTrend([...matchesOf(20, 0.5, 1500), ...matchesOf(40, 0.5, 400)])[0].kind, "sudden_improvement");
+  assert.deepEqual(rules.evaluateTrend(matchesOf(30, 1, 900)), [], "Not enough history");
+
+  // Aim trail shape.
+  assert.deepEqual(rules.aimFeatures([[0, 90], [100, 80], [200, 70], [300, 75], [400, 74.9], [500, 70]]), { samples: 6, durationMs: 500, reversals: 2, gapCv: 0 });
   // 1,080 ticks animate for at least 3 s at 3× speed; a next shot 1 s later is impossible.
   assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: 1_080 }).map((f) => [f.kind, f.level]), [["timing", "stat"]]);
   assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: 1_080, timingStrikes: 2 }).map((f) => [f.kind, f.level]), [["impossible_timing", "proof"]], "The third impossible gap in a run is proof");
@@ -73,13 +114,16 @@ try {
   const annRun = await matches.startMatch(ids.ann, SOL, "devnet");
   const deferred = [];
   const trail = [[0, 90], [400, 85.5], [900, 80]];
-  const saved = await matches.playShot(ids.ann, annRun.id, annRun.revision, "shot", 80, true, { proof: human(), aim: trail, defer: (task) => deferred.push(task) });
+  const saved = await matches.playShot(ids.ann, annRun.id, annRun.revision, "shot", 80, true, signed(annRun, 80, { aim: trail, defer: (task) => deferred.push(task) }));
+  assert.equal(saved.shotKey, shotKeyFor(`m-${annRun.id}`), "Runs carry their shot key to the player");
   assert.equal(saved.revision, 1);
   assert.ok(sqlite.prepare("SELECT ticks FROM run_shots WHERE run_key = ?").get(`m-${annRun.id}`).ticks > 0, "The shot log records animation ticks");
   assert.equal(deferred.length, 1, "Real-money shots are analyzed after the response");
   await deferred[0]();
   const analysis = sqlite.prepare("SELECT gain, best_gain, best_share, aim_ms FROM shot_analysis WHERE run_key = ?").get(`m-${annRun.id}`);
   assert.ok(analysis.best_gain >= analysis.gain && analysis.best_share > 0 && analysis.best_share <= 1 && analysis.aim_ms === 1800);
+  const quality = sqlite.prepare("SELECT quality FROM shot_analysis WHERE run_key = ?").get(`m-${annRun.id}`).quality;
+  assert.ok(quality > 0 && quality <= 1, "Each analyzed shot gets a quality percentile");
   assert.equal(sqlite.prepare("SELECT aim_moves FROM shot_analysis WHERE run_key = ?").get(`m-${annRun.id}`).aim_moves, 2);
   assert.equal(sqlite.prepare("SELECT aim FROM run_shots WHERE run_key = ?").get(`m-${annRun.id}`).aim, JSON.stringify(trail), "The aim trail is logged with the shot");
 
@@ -103,7 +147,7 @@ try {
   const annBefore = cash(ids.ann);
   const houseBefore = cash(HOUSE);
   await assert.rejects(
-    () => matches.playShot(ids.bot, botRun.id, botRun.revision, "shot", 80, true, { proof: human({ webdriver: true }) }),
+    () => matches.playShot(ids.bot, botRun.id, botRun.revision, "shot", 80, true, signed(botRun, 80, { extra: { webdriver: true } })),
     (e) => e.status === 403 && /Automated play was detected/.test(e.message),
   );
   assert.deepEqual({ ...suspension(ids.bot) }, { status: "suspended", source: "proof", reason: "Automation browser (webdriver)" });
@@ -140,20 +184,42 @@ try {
   // Scripted input and repeated impossible timing are proof too; a single timing strike only records a signal.
   const benRun = await matches.startMatch(ids.ben, SOL / 10, "devnet");
   const benKey = `m-${benRun.id}`;
-  let benSaved = await matches.playShot(ids.ben, benRun.id, 0, "shot", 80, true, { proof: human() });
+  let benSaved = await matches.playShot(ids.ben, benRun.id, 0, "shot", 80, true, signed(benRun, 80));
   sqlite.prepare("UPDATE run_shots SET ticks = 1080, created = ? WHERE run_key = ?").run(Date.now() - 500, benKey);
-  benSaved = await matches.playShot(ids.ben, benRun.id, benSaved.revision, "shot", 100, true, { proof: human() });
+  benSaved = await matches.playShot(ids.ben, benRun.id, benSaved.revision, "shot", 100, true, { ...signed(benSaved, 100, { extra: { flags: 1 } }) });
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM cheat_signals WHERE run_key = ? AND kind = 'tampered_client'").get(benKey).n, 1, "A replaced fetch is recorded");
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM cheat_signals WHERE run_key = ? AND kind = 'timing'").get(benKey).n, 1);
   assert.equal(suspension(ids.ben), undefined, "One fast gap is not enough");
   assert.equal(benSaved.revision, 2);
+
+  // A report rewritten after signing (the red-team userscript's approach) is proof, like a key for another shot.
+  const eveRun = await matches.startMatch("ac-eve-private", SOL / 10, "devnet").catch(() => null);
+  assert.equal(eveRun, null, "Unknown players cannot play");
+  sqlite.prepare("INSERT INTO players(id, name, created) VALUES('ac-dan-private', 'dan', 0)").run();
+  await ensureCashAccount("ac-dan-private");
+  sqlite.prepare("INSERT INTO cash_ledger VALUES('fund-dan', ?, 'fixture', ?, 'fixture', 0)").run(cashAccountId("ac-dan-private"), 10 * SOL);
+  const danRun = await matches.startMatch("ac-dan-private", SOL, "devnet");
+  await assert.rejects(
+    () => matches.playShot("ac-dan-private", danRun.id, danRun.revision, "shot", 70, true, signed(danRun, 70, { extra: { trusted: false, inputs: 0 }, tamper: { trusted: true, inputs: 40 } })),
+    (e) => e.status === 403,
+  );
+  assert.equal(sqlite.prepare("SELECT reason FROM player_suspensions WHERE user_id = 'ac-dan-private'").get().reason, "Shot report edited after signing (request rewritten)");
+  sqlite.prepare("DELETE FROM player_suspensions WHERE user_id = 'ac-dan-private'").run();
+  const danNext = await matches.startMatch("ac-dan-private", SOL / 20, "devnet");
+  await assert.rejects(() => matches.playShot("ac-dan-private", danNext.id, danNext.revision, "shot", 70, true, signed(danRun, 70)), (e) => e.status === 403, "A signature for another run does not verify");
+  sqlite.prepare("DELETE FROM player_suspensions WHERE user_id = 'ac-dan-private'").run();
 
   // Statistics: a player whose recent SOL shots look automated is suspended for review, without touching results.
   for (let i = 0; i < 45; i++) {
     sqlite.prepare("INSERT INTO shot_analysis(run_key, revision, user_id, aim_ms, gain, best_gain, best_share, created) VALUES('cat-run', ?, ?, ?, 30, 30, 0.02, ?)").run(i, ids.cat, 650 + (i % 2) * 5, Date.now() - i);
   }
   const catCash = cash(ids.cat);
+  sqlite.prepare("UPDATE shot_analysis SET quality = 0.97 WHERE user_id = ?").run(ids.cat);
+  for (let i = 45; i < 70; i++) {
+    sqlite.prepare("INSERT INTO shot_analysis(run_key, revision, user_id, aim_ms, gain, best_gain, best_share, quality, created) VALUES('cat-run', ?, ?, ?, 10, 30, 0.5, 0.96, ?)").run(i, ids.cat, 1500 + i * 37, Date.now() - 60_000 - i);
+  }
   const findings = await antiCheat.evaluatePlayer(ids.cat);
-  assert.deepEqual(findings.map((f) => f.kind), ["superhuman_precision", "mechanical_rhythm"]);
+  assert.deepEqual(findings.map((f) => f.kind), ["superhuman_precision", "mechanical_rhythm", "superhuman_quality"]);
   assert.equal(suspension(ids.cat).source, "stats");
   assert.equal(cash(ids.cat), catCash, "Statistical suspensions seize nothing on their own");
   assert.deepEqual(await antiCheat.evaluatePlayer(ids.cat), [], "An already suspended player is not flagged twice");
@@ -168,6 +234,8 @@ try {
   const botCase = overview.cases.find((c) => c.name === "bot");
   const catCase = overview.cases.find((c) => c.name === "cat");
   assert.equal(catCase.stats.stillAimRate, null, "No trails, no still-aim rate");
+  assert.ok(catCase.stats.meanQuality > 0.95 && catCase.stats.qualityThreshold === rules.QUALITY.absoluteMean);
+  assert.ok(overview.watchlist.some((w) => w.name === "ben" && w.status === "watch"), "A tampered client puts the player on the watchlist");
   assert.equal(botCase.status, "suspended");
   assert.equal(botCase.signals[0].label, "Automation browser (webdriver)");
   assert.ok(overview.recentSignals.some((s) => s.name === "ben" && s.kind === "timing"));
@@ -194,11 +262,11 @@ try {
 
   await admin.adminSuspend("admin-user", "ben", "Reported by several players");
   assert.equal(suspension(ids.ben).source, "admin");
-  await assert.rejects(() => matches.playShot(ids.ben, benRun.id, benSaved.revision, "shot", 90, true, { proof: human() }), (e) => e.status === 403, "A suspension stops a run mid-match");
+  await assert.rejects(() => matches.playShot(ids.ben, benRun.id, benSaved.revision, "shot", 90, true, signed(benSaved, 90)), (e) => e.status === 403, "A suspension stops a run mid-match");
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%'").get().n, 3);
 
   console.log(
-    "PASS: anti-cheat (report parsing, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
+    "PASS: anti-cheat (report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
   );
 } finally {
   close();

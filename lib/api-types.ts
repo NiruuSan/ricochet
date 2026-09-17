@@ -43,6 +43,8 @@ export type Run = {
   clears: number;
   /** Set when this is a tournament run rather than a 1v1 match. */
   tournamentId?: string;
+  /** Signs this run's shot reports (lib/shot-key.ts). Only ever sent to the run's player. */
+  shotKey?: string;
 };
 
 export type MatchResult = "win" | "loss" | "draw" | "cancelled";

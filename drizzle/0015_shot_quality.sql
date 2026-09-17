@@ -1,0 +1,1 @@
+ALTER TABLE `shot_analysis` ADD `quality` real;
