@@ -24,6 +24,11 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
   if (n.kind === "security_reset") {
     return { tone: "security", title: "Your two-factor authentication was reset", detail: `An administrator reset your authenticator. Withdrawals are paused until ${new Date(n.data.holdUntil).toLocaleString()}. Set up two-factor again in your wallet. If you did not request this, contact support.` };
   }
+  if (n.kind === "race_result") {
+    const { rank, score, sol, gems } = n.data;
+    const prizes = [sol ? `+${units(sol, "devnet")} SOL` : "", gems ? `+${units(gems, "gems")} gems` : ""].filter(Boolean).join(" · ");
+    return { tone: "win", title: `${ordinal(rank)} in the weekly race`, detail: `${prizes || "Podium finish"} · best score ${score.toLocaleString("en")}` };
+  }
   if (n.kind === "tip_received") {
     return { tone: "tip", title: `${n.data.from} tipped you`, detail: `+${units(n.data.amount, "devnet")} SOL` };
   }
@@ -121,6 +126,7 @@ export function Notifications({ items, unread, onOpenMatch, onRead, viewingMatch
     if (!n.read) void request("/api/notifications", { action: "read", ids: [n.id] }).then(onRead, () => {});
     if (n.kind === "match_result") onOpenMatch(n.data.matchId);
     else if (n.kind === "tournament_result") router.push(`/tournaments/${n.data.tournamentId}`);
+    else if (n.kind === "race_result") router.push("/leaderboard?board=race");
     else router.push("/wallet");
   };
 

@@ -86,7 +86,9 @@ for (const value of [bobRun, carolRun, shot, await matches.playerSnapshot(BOB, "
 assert.ok(shot.state.score > 0);
 await assert.rejects(() => matches.playShot(BOB, bobRun.id, bobRun.revision, "shot", 73), (e) => e instanceof matches.GameError && e.status === 409);
 await assert.rejects(() => matches.playShot(BOB, bobRun.id, shot.revision, "shot", 3), /Invalid aim angle/);
+assert.equal(sqlite.prepare("SELECT finished FROM runs WHERE id = ?").get(bobRun.id).finished, null, "A run in progress has no finish time");
 await matches.playShot(BOB, bobRun.id, shot.revision, "forfeit");
+assert.ok(sqlite.prepare("SELECT finished FROM runs WHERE id = ?").get(bobRun.id).finished > 0, "The last shot records when the run finished");
 await matches.playShot(CAROL, carolRun.id, carolRun.revision, "forfeit");
 // Both forfeited: scores decide. Bob scored with his one shot, Carol did not.
 m = matchRow(bobRun.match_id);

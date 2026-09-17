@@ -160,11 +160,37 @@ export type TournamentNotification = {
   refund: number;
 };
 
+export type RaceNotification = { weekStart: number; rank: number; score: number; sol: number; gems: number };
+
+/** One player's best score of the week. `watchId` links the run when others may watch it. */
+export type RaceEntry = { rank: number; name: string; avatar: string | null; score: number; at: number; watchId: string | null };
+/** A place's prize: SOL in lamports and gems. */
+export type RacePrize = { sol: number; gems: number };
+export type RaceWinner = RaceEntry & RacePrize;
+export type WeeklyRace = {
+  weekStart: number;
+  weekEnd: number;
+  prizes: RacePrize[];
+  standings: RaceEntry[];
+  /** Last week's top 3: paid, or awaiting the administrator's review. */
+  previous: { weekStart: number; weekEnd: number; paid: boolean; winners: RaceWinner[] } | null;
+  generated: number;
+};
+export type AdminRaceWeek = {
+  weekStart: number;
+  weekEnd: number;
+  ended: boolean;
+  standings: RaceEntry[];
+  excluded: { name: string; reason: string }[];
+  paid: { at: number; winners: RaceWinner[] } | null;
+};
+
 export type NotificationItem = { id: string; created: number; read: boolean } & (
   | { kind: "match_result"; data: MatchNotification }
   | { kind: "tip_received"; data: TipNotification }
   | { kind: "tournament_result"; data: TournamentNotification }
   | { kind: "security_reset"; data: { holdUntil: number } }
+  | { kind: "race_result"; data: RaceNotification }
 );
 
 export type Snapshot = {

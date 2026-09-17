@@ -492,11 +492,12 @@ export async function playShot(
   }
   // A shot is one round, and `bonus` marks a round that cleared the board.
   const clears = run.clears + (!forfeit && state.bonus ? 1 : 0);
+  const now = Date.now();
   const [result] = await db.batch([
     db
-      .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
-      .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, run.id, uid, run.revision),
-    shotInsert(db, `m-${run.id}`, "runs", run.id, run.revision, forfeit ? null : (angle as number), Date.now()),
+      .prepare("UPDATE runs SET state = ?, score = ?, done = ?, forfeit = ?, clears = ?, finished = ?, revision = revision + 1 WHERE id = ? AND user_id = ? AND revision = ? AND done = 0")
+      .bind(JSON.stringify(state), state.score, state.over ? 1 : 0, forfeit ? 1 : 0, clears, state.over ? now : null, run.id, uid, run.revision),
+    shotInsert(db, `m-${run.id}`, "runs", run.id, run.revision, forfeit ? null : (angle as number), now),
   ]);
   if (!result.meta.changes) throw new GameError("This shot was already processed. Reload to resume.", 409);
   if (state.over) await settle(run.match_id);

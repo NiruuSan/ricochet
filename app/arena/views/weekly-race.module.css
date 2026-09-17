@@ -1,0 +1,41 @@
+/* Weekly race: banner with countdown and prizes; the table reuses the leaderboard styles. */
+.banner { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px 24px; align-items: center; padding: 24px; margin-bottom: 8px; border: 1px solid #c6f56430; border-radius: 18px; background: radial-gradient(ellipse at top left, #c6f5640f, transparent 60%), linear-gradient(135deg, #161e2b, #111925); }
+.bannerText h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -1px; margin-top: 10px; }
+.bannerText p { color: #99a8bd; font-size: 13px; margin-top: 8px; max-width: 560px; }
+.label { display: flex; align-items: center; gap: 7px; color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: 1.6px; }
+.clock { display: flex; align-items: center; gap: 11px; padding: 13px 16px; border: 1px solid #2c384b; border-radius: 12px; background: #0f1622; color: var(--primary); }
+.clock b { display: block; color: var(--foreground); font-size: 20px; font-weight: 800; letter-spacing: -.4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.clock span { display: block; color: #8595ab; font-size: 10px; margin-top: 2px; }
+.prizes { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 0; margin: 0; list-style: none; }
+.prizes li { display: flex; flex-direction: column; gap: 6px; padding: 13px 15px; border-radius: 12px; border: 1px solid #2b3546; background: #121a26; min-width: 0; }
+.prizes li > span { font-size: 9px; font-weight: 800; letter-spacing: 1.2px; color: #8e9cb1; }
+.prizes b { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 750; overflow-wrap: anywhere; }
+.prizes b svg { flex-shrink: 0; color: #8e9cb1; }
+.prize1 { border-color: #c6f56440 !important; background: #c6f5640a !important; }
+.prize1 > span, .prize1 b svg { color: var(--primary) !important; }
+.prize2 > span { color: #bdcfe7 !important; }
+.prize3 > span { color: #d4ad83 !important; }
+.table th:nth-child(4), .table td:nth-child(4) { text-align: right; }
+.score { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--foreground); }
+.whenColumn { color: #8e9cb1; font-size: 11px; white-space: nowrap; }
+.prizeNote { display: block; margin-top: 3px; color: #aabd8f; font-size: 9px; }
+.lastWeek { padding: 5px 8px; }
+.lastWeek ol { list-style: none; padding: 0; margin: 16px 0 12px; display: grid; gap: 10px; }
+.lastWeek li { display: flex; align-items: center; gap: 10px; font-size: 12px; min-width: 0; }
+.lastWeek li a { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+.lastWeek li a:hover { color: var(--primary); }
+.place { display: grid; place-items: center; width: 22px; height: 22px; flex-shrink: 0; border-radius: 6px; background: #1b2535; color: #9dabc2; font-size: 11px; font-weight: 800; }
+.lastWeek li:first-child .place { background: #c6f56415; color: var(--primary); }
+.lastScore { color: #b3c0d2; font-variant-numeric: tabular-nums; font-weight: 700; }
+.lastWeek p { color: #8e9cb1; font-size: 11px; }
+@media (max-width: 760px) {
+  .banner { grid-template-columns: 1fr; padding: 18px; }
+  .clock { justify-self: start; }
+  .prizes { grid-template-columns: 1fr; gap: 8px; }
+  .prizes li { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+  .prizes li > span { width: 100%; }
+}
+@media (max-width: 520px) {
+  .whenColumn { display: none; }
+  .table th:nth-child(3) { width: 90px; }
+}

@@ -81,12 +81,15 @@ export const runs = sqliteTable(
     created: integer("created").notNull(),
     // Boards fully cleared during the run, for the end-of-match recap.
     clears: integer("clears").notNull().default(0),
+    // When the run ended; places the score in a weekly race.
+    finished: integer("finished"),
   },
   (t) => [
     uniqueIndex("one_run_per_player_match").on(t.matchId, t.userId),
     uniqueIndex("one_active_run_per_player").on(t.userId).where(sql`${t.done}=0`),
     index("runs_history").on(t.userId, t.created),
     index("runs_recent").on(t.created),
+    index("runs_finished").on(t.finished),
   ],
 );
 
@@ -248,7 +251,11 @@ export const tournamentEntries = sqliteTable(
     rank: integer("rank"),
     payout: integer("payout").notNull().default(0),
   },
-  (t) => [uniqueIndex("one_entry_per_player").on(t.tournamentId, t.userId), index("tournament_entry_owner").on(t.userId, t.registered)],
+  (t) => [
+    uniqueIndex("one_entry_per_player").on(t.tournamentId, t.userId),
+    index("tournament_entry_owner").on(t.userId, t.registered),
+    index("tournament_entry_finished").on(t.finished),
+  ],
 );
 
 // Every shot of a match run or tournament run, so spectators can animate live
@@ -309,3 +316,35 @@ export const adminAudit = sqliteTable("admin_audit", {
   reason: text("reason").notNull(),
   created: integer("created").notNull(),
 }, (t) => [index("admin_audit_recent").on(t.created)]);
+
+// Weekly race: best real-money score of the week (Monday 00:00 UTC). A row exists
+// once an administrator has paid the week's prizes; its primary key makes paying
+// a week twice impossible.
+export const weeklyRaces = sqliteTable("weekly_races", {
+  weekStart: integer("week_start").primaryKey(),
+  // JSON: the paid places with name, score and prizes.
+  winners: text("winners").notNull(),
+  paidBy: text("paid_by").notNull(),
+  paidAt: integer("paid_at").notNull(),
+});
+
+// Players an administrator removed from one week's race, e.g. for a suspicious score.
+export const weeklyRaceExclusions = sqliteTable(
+  "weekly_race_exclusions",
+  {
+    weekStart: integer("week_start").notNull(),
+    userId: text("user_id").notNull(),
+    reason: text("reason").notNull(),
+    adminId: text("admin_id").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.weekStart, t.userId] })],
+);
+
+// Administrator-editable settings, one JSON value per key.
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedBy: text("updated_by").notNull(),
+  updated: integer("updated").notNull(),
+});

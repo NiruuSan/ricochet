@@ -85,6 +85,13 @@
       "when": 1789554389533,
       "tag": "0011_two_factor_recovery_admin",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1789645427172,
+      "tag": "0012_weekly_race",
+      "breakpoints": true
     }
   ]
 }
