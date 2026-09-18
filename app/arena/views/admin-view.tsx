@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Lock } from "lucide-react";
 import type { AdminOverview } from "@/lib/api-types";
 import { request } from "../api";
@@ -16,12 +16,15 @@ import tournamentStyles from "./tournaments.module.css";
 import { AdminVolume } from "./volume-chart";
 
 const REFRESH_MS = 15_000;
+const noSubscription = () => () => {};
 
 export function AdminView({ player }: { player: PlayerState }) {
   const { data, loaded } = player;
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"overview" | "games" | "tournaments" | "race" | "anti-cheat" | "security">("overview");
+  const requestedReview = useSyncExternalStore(noSubscription, () => new URLSearchParams(window.location.search).get("tab") === "anti-cheat", () => false);
+  const [chosenTab, setTab] = useState<"overview" | "games" | "tournaments" | "race" | "anti-cheat" | "security" | null>(null);
+  const tab = chosenTab ?? (requestedReview ? "anti-cheat" : "overview");
 
   useEffect(() => {
     if (!data.isAdmin) return;

@@ -186,6 +186,27 @@ async function findPlayer(nameInput: unknown) {
   return player;
 }
 
+/** A direct review lookup remains available even when the case leaves the overview's latest 50. */
+export async function antiCheatCase(name: string, now = Date.now()): Promise<CheatCase> {
+  const player = await findPlayer(name);
+  const db = database();
+  let row = await db.prepare(
+    `SELECT s.user_id, p.name, s.status, s.source, s.reason, s.created, s.reviewed_at, s.note
+     FROM player_suspensions s JOIN players p ON p.id = s.user_id WHERE s.user_id = ?`,
+  ).bind(player.id).first<CaseRow>();
+  if (!row) {
+    row = await db.prepare(
+      `SELECT c.user_id, p.name, 'watch' AS status, 'watch' AS source, GROUP_CONCAT(DISTINCT c.kind) AS reason,
+              MAX(c.created) AS created, NULL AS reviewed_at, NULL AS note
+       FROM cheat_signals c JOIN players p ON p.id = c.user_id
+       WHERE c.user_id = ? AND c.level = 'watch' AND c.created >= ? GROUP BY c.user_id`,
+    ).bind(player.id, now - MONTH).first<CaseRow>();
+    if (row) row.reason = row.reason.split(",").map((kind) => FINDING_LABELS[kind] ?? kind).join("; ");
+  }
+  if (!row) throw new GameError("No anti-cheat case found for this player.", 404);
+  return caseFor(row, now, qualityThreshold(await populationQuality(now)));
+}
+
 /** Administrator: suspends a player by hand, e.g. after a report. */
 export async function adminSuspend(adminUid: string, nameInput: unknown, reasonInput: unknown, now = Date.now()) {
   const player = await findPlayer(nameInput);

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { ENTRY_BATCH, ShowMore } from "@/components/ui/show-more";
 import Link from "next/link";
 import { ArrowRight, History, Medal } from "lucide-react";
 import type { MatchSummary, TournamentHistoryItem } from "@/lib/api-types";
@@ -30,6 +31,7 @@ function tournamentOutcome(t: TournamentHistoryItem) {
 export function MatchesView({ player }: { player: PlayerState }) {
   const { data, asset, setAsset } = player;
   const [filter, setFilter] = useState<Filter>("all");
+  const [limit, setLimit] = useState(ENTRY_BATCH);
   const tournaments = data.tournaments ?? [];
   const stats = matchStats(data.matches);
   const settledTournaments = tournaments.filter((t) => t.status === "settled");
@@ -47,7 +49,7 @@ export function MatchesView({ player }: { player: PlayerState }) {
         YOUR TRACK RECORD
       </div>
       <h1>Every run has a story.</h1>
-      <AssetTabs asset={asset} onChange={setAsset} />
+      <AssetTabs asset={asset} onChange={(next) => { setAsset(next); setLimit(ENTRY_BATCH); }} />
       <p className="muted">Live runs, open challenges, tournaments and settled rivalries.</p>
       <div className="stat-grid">
         <div className="stat-card">
@@ -63,7 +65,7 @@ export function MatchesView({ player }: { player: PlayerState }) {
           <b className={pnl >= 0 ? "lime" : ""}>{signedAmount(pnl, asset)}</b>
         </div>
       </div>
-      <Tabs value={filter} onValueChange={(v) => setFilter(v as Filter)}>
+      <Tabs value={filter} onValueChange={(v) => { setFilter(v as Filter); setLimit(ENTRY_BATCH); }}>
         <TabsList className="mode-tabs" style={{ maxWidth: 390, marginBottom: 20 }}>
           <TabsTrigger value="all">All matches</TabsTrigger>
           <TabsTrigger value="open">Open</TabsTrigger>
@@ -84,7 +86,7 @@ export function MatchesView({ player }: { player: PlayerState }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shown.map((row) => {
+              {shown.slice(0, limit).map((row) => {
                 if (row.kind === "tournament") {
                   const t = row.t;
                   return (
@@ -163,8 +165,9 @@ export function MatchesView({ player }: { player: PlayerState }) {
           </div>
         )}
       </div>
+      <ShowMore shown={Math.min(limit, shown.length)} total={shown.length} onShowMore={() => setLimit((current) => current + ENTRY_BATCH)} label="matches" />
       <p className="fine" style={{ marginTop: 14 }}>
-        Showing your latest 50 matches and 50 tournament entries. Open entries are reserved and excluded from settled P&L.
+        History includes up to 50 matches and 50 tournament entries. Open entries are reserved and excluded from settled P&L.
       </p>
     </section>
   );

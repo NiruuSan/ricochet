@@ -1,0 +1,5 @@
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; min-height: 38px; }
+.footer > span { color: #8e9cb1; font-size: 11px; }
+.footer :global(.btn) { min-height: 38px; padding: 9px 14px; font-size: 12px; border-color: #c6f56430; color: #c6f564; background: #c6f56409; }
+.footer :global(.btn):hover { background: #c6f56415; border-color: #c6f56460; }
+.footer button:focus-visible { outline: 2px solid #c6f564; outline-offset: 4px; }

@@ -264,10 +264,18 @@ try {
   assert.equal(botCase.signals[0].label, "Automation browser (webdriver)");
   assert.ok(overview.recentSignals.some((s) => s.name === "ben" && s.kind === "timing"));
   assert.ok(!JSON.stringify(overview).includes("-private"), "No player IDs in the admin view");
+  const directCase = await admin.antiCheatCase("BOT");
+  assert.equal(directCase.name, "bot", "Direct case lookup accepts the public name, case-insensitively");
+  assert.equal(directCase.status, botCase.status);
+  assert.deepEqual(directCase.signals, botCase.signals, "The review page retains the case evidence");
+  assert.equal((await admin.antiCheatCase("ben")).status, "watch", "Watchlist cards have a direct review too");
+  assert.ok(!JSON.stringify(directCase).includes("-private"), "Direct reviews do not expose internal player IDs");
+  await assert.rejects(() => admin.antiCheatCase("missing-player"), (e) => e.status === 404);
 
   await assert.rejects(() => admin.adminLift("admin-user", "cat", ""), /note/);
   await admin.adminLift("admin-user", "cat", "Checked the replays, legitimate player");
   assert.equal(suspension(ids.cat).status, "lifted");
+  assert.equal((await admin.antiCheatCase("cat")).status, "lifted", "Review remains accessible after a decision");
   assert.ok((await race.weeklyRace()).standings.some((s) => s.name === "cat"), "Lifting restores the race");
   await assert.rejects(() => admin.adminLift("admin-user", "cat", "again"), /not suspended/);
 

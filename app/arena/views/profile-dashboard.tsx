@@ -5,6 +5,7 @@ import { useEffect, useId, useState, type PointerEvent } from "react";
 import Link from "next/link";
 import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, Crosshair, Eye, Flame, Gem, History, Medal, Swords, Search, Settings2, Share2, TrendingUp, UserRound, Wallet, Zap } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { ENTRY_BATCH, ShowMore } from "@/components/ui/show-more";
 import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, ProfileStats, PublicPlayerProfile } from "@/lib/api-types";
 import type { PlayerState } from "../arena";
 import { request } from "../api";
@@ -137,6 +138,7 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
   const [filter, setFilter] = useState<"open" | "settled">("settled");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("recent");
+  const [limit, setLimit] = useState(ENTRY_BATCH);
   const matches = performance.history.filter((match) => (filter === "settled" ? !!match.settled : !match.settled) && `${match.tournament ? `tournament ${match.tournament.name}` : match.opponent ?? "open seat"} ${match.id} ${match.result ?? "open"}`.toLowerCase().includes(search.toLowerCase().trim()))
     .sort((a, b) => sort === "pnl" ? b.net - a.net : sort === "stake" ? b.stake - a.stake : b.created - a.created);
   const status = (match: ProfileMatch) => {
@@ -149,14 +151,14 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
   return <section className={styles.historySection} aria-label="Player match history">
     <div className={styles.sectionHeading}><div><h2><History size={18} />Match history</h2><p>The wins, the lessons, and the close calls.</p></div><span className={styles.statsScope}>{matches.length} {matches.length === 1 ? "result" : "results"}</span></div>
     <div className={styles.toolbar}>
-      <div className={styles.filters} role="group" aria-label="Match status"><button aria-pressed={filter === "open"} onClick={() => setFilter("open")}>Open</button><button aria-pressed={filter === "settled"} onClick={() => setFilter("settled")}>Settled</button></div>
-      <label className={styles.search}><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search matches, players or tournaments" aria-label="Search match history" /></label>
-      <div className={styles.sort}><ArrowDownUp size={15} /><Select label="Sort match history" value={sort} onValueChange={setSort} options={[{ value: "recent", label: "Recent" }, { value: "pnl", label: "Profit / Loss" }, { value: "stake", label: "Entry value" }]} /></div>
+      <div className={styles.filters} role="group" aria-label="Match status"><button aria-pressed={filter === "open"} onClick={() => { setFilter("open"); setLimit(ENTRY_BATCH); }}>Open</button><button aria-pressed={filter === "settled"} onClick={() => { setFilter("settled"); setLimit(ENTRY_BATCH); }}>Settled</button></div>
+      <label className={styles.search}><Search size={18} /><input value={search} onChange={(event) => { setSearch(event.target.value); setLimit(ENTRY_BATCH); }} placeholder="Search matches, players or tournaments" aria-label="Search match history" /></label>
+      <div className={styles.sort}><ArrowDownUp size={15} /><Select label="Sort match history" value={sort} onValueChange={(value) => { setSort(value); setLimit(ENTRY_BATCH); }} options={[{ value: "recent", label: "Recent" }, { value: "pnl", label: "Profit / Loss" }, { value: "stake", label: "Entry value" }]} /></div>
     </div>
     <div className={styles.tableScroll}>
       <table className={styles.table}>
         <thead><tr><th>Match</th><th>Entry</th><th>Result</th><th>Profit / Loss</th></tr></thead>
-        <tbody>{matches.map((match) => <tr key={match.id}>
+        <tbody>{matches.slice(0, limit).map((match) => <tr key={match.id}>
           <td><div className={styles.matchIdentity}>
             {match.opponent ? <Avatar name={match.opponent} src={match.opponentAvatar} size={40} /> : <span className={styles.matchIcon}>{match.tournament ? <Medal size={22} /> : <Zap size={22} />}</span>}
             <div><div className={styles.matchName}>{match.tournament ? <Link href={`/tournaments/${match.id}`}>{match.tournament.name}</Link> : match.opponent ? <>vs <Link href={`/players/${encodeURIComponent(match.opponent)}`}>{match.opponent}</Link></> : "Open challenge"}</div>
@@ -169,6 +171,7 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
       </table>
     </div>
     {!matches.length && <div className={styles.empty}><History size={28} /><h3>{search ? "No matching games" : filter === "open" ? "No open matches" : "No settled matches yet"}</h3><p>{search ? "Try another player, tournament or match ID." : "Every angle counts. Your matches and tournaments will appear here."}</p></div>}
+    <ShowMore shown={Math.min(limit, matches.length)} total={matches.length} onShowMore={() => setLimit((current) => current + ENTRY_BATCH)} label="matches" />
     <p className={styles.historyNote}>Latest {performance.history.length} of {performance.played} matches and tournaments · PNL chart includes all settled history. Tips and wallet transfers are excluded.</p>
   </section>;
 }
@@ -239,7 +242,7 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
         </section>
       </div>
       <StatsSection stats={performance.stats} asset={asset} />
-      <MatchRows key={asset} performance={performance} asset={asset} />
+      <MatchRows key={`${name}:${asset}`} performance={performance} asset={asset} />
     </>}
   </section>;
 }

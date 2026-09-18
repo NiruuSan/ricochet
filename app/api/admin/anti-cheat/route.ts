@@ -1,17 +1,19 @@
 import { administrator } from "@/lib/auth-user";
 import { setAntiCheatEnabled } from "@/lib/anti-cheat";
-import { adminBan, adminLift, adminSuspend, antiCheatOverview } from "@/lib/anti-cheat-admin";
+import { adminBan, adminLift, adminSuspend, antiCheatCase, antiCheatOverview } from "@/lib/anti-cheat-admin";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
   try {
-    return json(await antiCheatOverview());
+    const name = new URL(req.url).searchParams.get("name");
+    return json(name !== null ? await antiCheatCase(name) : await antiCheatOverview());
   } catch (e) {
+    if (e instanceof GameError) return json({ error: e.message }, e.status);
     console.error(e);
     return json({ error: "Anti-cheat data is unavailable." }, 503);
   }

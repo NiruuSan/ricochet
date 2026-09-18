@@ -1,0 +1,43 @@
+.caseGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.caseCard { display: flex; flex-direction: column; min-width: 0; padding: 19px; border: 1px solid #2b3546; border-radius: 12px; background: #141c28; transition: border-color .15s, background .15s; }
+.caseCard:hover { border-color: #c6f56465; background: #1a2430; }
+.cardTop { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 9px; font-weight: 800; letter-spacing: .7px; }
+.cardTop svg { flex-shrink: 0; color: #8293a9; }
+.caseCard h3 { margin-top: 12px; font-size: 19px; letter-spacing: -.4px; overflow-wrap: anywhere; }
+.reason { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 12px; line-height: 1.6; color: #a5b3c7; margin: 7px 0 18px; min-height: 38px; }
+.cardMetrics { display: flex; flex-wrap: wrap; gap: 10px 20px; margin-top: auto; font-size: 10px; color: #8e9cb1; }
+.cardMetrics b { display: block; color: #d6dfed; font-size: 15px; margin-top: 4px; }
+.cardFooter { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid #283448; padding-top: 12px; margin-top: 15px; font-size: 10px; color: #8e9cb1; }
+.cardFooter > span:last-child { display: flex; gap: 5px; align-items: center; color: #c6f564; }
+.signalTable { overflow-x: auto; margin-top: 14px; }
+.signalTable table { width: 100%; min-width: 580px; }
+.signalTable td { vertical-align: top; }
+.signalTable td > div { max-width: 650px; }
+.suspendForm { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; }
+.page { max-width: 1180px; margin: 0 auto; padding-bottom: 32px; }
+.back { display: inline-flex; gap: 8px; align-items: center; color: #9eafc5; font-size: 12px; margin-bottom: 24px; }
+.back:hover { color: #c6f564; }
+.heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; margin-bottom: 26px; }
+.eyebrow { display: flex; align-items: center; gap: 8px; color: #c6f564; font-size: 10px; font-weight: 800; letter-spacing: 1.5px; margin-bottom: 12px; }
+.heading h1 { font-size: clamp(30px, 4vw, 48px); letter-spacing: -1.5px; overflow-wrap: anywhere; }
+.heading p { color: #8e9cb1; font-size: 13px; margin-top: 10px; }
+.heading > div { min-width: 0; }
+.heading > a { display: inline-flex; align-items: center; gap: 8px; color: #c6f564; font-size: 12px; }
+.evidenceHeading { font-size: 18px; margin-top: 28px; }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
+.metrics > div { min-width: 0; padding: 17px; background: #0e162180; border: 1px solid #2b3546; border-radius: 10px; overflow-wrap: anywhere; }
+.metrics > div > b { font-size: 22px; }
+.state { border: 1px dashed #354155; border-radius: 12px; padding: 32px; color: #a5b3c7; font-size: 14px; }
+.error { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid #ff91a035; border-radius: 10px; color: #ffafbb; margin-bottom: 16px; }
+.caseCard:focus-visible, .page :is(a, button):focus-visible { outline: 2px solid #c6f564; outline-offset: 4px; }
+@media (max-width: 1000px) { .caseGrid, .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) {
+  .caseGrid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .caseCard { padding: 17px; }
+  .reason { min-height: 0; }
+  .cardMetrics { gap: 24px; }
+  .cardMetrics b { display: inline; margin-left: 6px; font-size: 13px; }
+  .suspendForm { grid-template-columns: minmax(0, 1fr); }
+  .heading h1 { letter-spacing: -.8px; }
+  .metrics { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+}

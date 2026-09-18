@@ -13,6 +13,7 @@ import type { View } from "./views";
 import { usePlayerData } from "./use-player-data";
 // Each page only downloads the view it shows; the others load when you navigate to them.
 const AdminView = dynamic(() => import("./views/admin-view").then((m) => m.AdminView));
+const AdminCaseView = dynamic(() => import("./views/admin-case-view").then((m) => m.AdminCaseView));
 const AuthView = dynamic(() => import("./views/auth-view").then((m) => m.AuthView));
 const LeaderboardView = dynamic(() => import("./views/leaderboard-view").then((m) => m.LeaderboardView));
 const LiveView = dynamic(() => import("./views/live-view").then((m) => m.LiveView));
@@ -38,9 +39,9 @@ const NAVIGATION = [
   { href: "/faq", view: "faq", label: "How to play", short: "Help", Icon: HelpCircle },
 ];
 
-type ArenaProps = { view: View; profileName?: string; initialMatchId?: string; initialTournamentId?: string; tournamentId?: string; watchId?: string };
+type ArenaProps = { view: View; profileName?: string; adminCaseName?: string; initialMatchId?: string; initialTournamentId?: string; tournamentId?: string; watchId?: string };
 
-export default function Arena({ view, profileName, initialMatchId, initialTournamentId, tournamentId, watchId }: ArenaProps) {
+export default function Arena({ view, profileName, adminCaseName, initialMatchId, initialTournamentId, tournamentId, watchId }: ArenaProps) {
   const player = usePlayerData();
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
@@ -191,7 +192,7 @@ export default function Arena({ view, profileName, initialMatchId, initialTourna
         {view === "profile" && (profileName ? <PublicProfileView key={profileName} name={profileName} player={player} /> : <ProfileView player={player} />)}
         {(view === "login" || view === "signup") && <AuthView player={player} signup={view === "signup"} />}
         {(view === "faq" || view === "rules") && <RulesView rules={view === "rules"} />}
-        {view === "admin" && <AdminView player={player} />}
+        {view === "admin" && (adminCaseName ? <AdminCaseView key={adminCaseName} name={adminCaseName} player={player} /> : <AdminView player={player} />)}
         <footer className="foot">
           <span>© {new Date().getFullYear()} Bounce · A good angle changes everything.</span>
           <div className="links">
