@@ -8,6 +8,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import type { PlayerState } from "../arena";
 import { ProfileDashboard } from "./profile-dashboard";
+import styles from "./profile-dashboard.module.css";
 
 const AVATAR_PX = 256;
 
@@ -70,15 +71,16 @@ export function ProfileView({ player }: { player: PlayerState }) {
   // Your own dashboard loads by itself (as `me`), so it starts before the account snapshot arrives.
   if (loaded && !profile) {
     return (
-      <section className="panel auth-card">
-        <UserRound style={{ marginBottom: 20 }} />
-        <h1>{loaded ? "No player profile yet." : "Loading your profile…"}</h1>
+      <section className={styles.page}><div className={styles.empty}>
+        <UserRound size={32} />
+        <h1>Your story starts here.</h1>
+        <p>Build your player profile, track your progress, and make your mark in the arena.</p>
         {loaded && (
-          <Link href={data.authenticated ? "/signup" : "/login"} className="btn btn-primary full" style={{ marginTop: 25 }}>
+          <Link href={data.authenticated ? "/signup" : "/login"} className="btn btn-primary">
             {data.authenticated ? "Create your profile" : "Sign in"} <ArrowRight />
           </Link>
         )}
-      </section>
+      </div></section>
     );
   }
 

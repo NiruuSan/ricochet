@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useId, useState, type PointerEvent } from "react";
 import Link from "next/link";
-import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Crosshair, Eye, Flame, Gem, History, Medal, Swords, Search, Settings2, Share2, TrendingUp, Wallet, Zap } from "lucide-react";
+import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Crosshair, Eye, Flame, Gem, History, Medal, Swords, Search, Settings2, Share2, TrendingUp, UserRound, Wallet, Zap } from "lucide-react";
 import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, ProfileStats, PublicPlayerProfile } from "@/lib/api-types";
 import type { PlayerState } from "../arena";
 import { request } from "../api";
@@ -80,7 +80,7 @@ function StatsSection({ stats, asset }: { stats: ProfileStats; asset: Asset }) {
   const streak = matches.streak > 0 ? `${matches.streak}W` : matches.streak < 0 ? `${-matches.streak}L` : "—";
   const whole = (n: number | null) => (n === null ? "—" : n.toLocaleString("en"));
   return <section className={styles.statsSection} aria-label="Player statistics">
-    <h2 className={styles.historyTitle}>Stats <span className={styles.statsScope}>{asset === "gems" ? "Gems" : "Devnet SOL"} · finished games</span></h2>
+    <div className={styles.sectionHeading}><div><h2>Performance breakdown</h2><p>A closer look at the finished games.</p></div><span className={styles.statsScope}>{asset === "gems" ? "Gems" : "Devnet SOL"} · finished games</span></div>
     <div className={styles.statsGrid}>
       <div className={`${styles.card} ${styles.statsCard}`}>
         <h3><Swords size={15} /> Matches</h3>
@@ -144,7 +144,7 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
   const won = (match: ProfileMatch) => match.tournament ? match.settled && match.net > 0 : match.result === "win";
   const lost = (match: ProfileMatch) => match.tournament ? match.tournament.status === "settled" && match.net < 0 : match.result === "loss";
   return <section className={styles.historySection} aria-label="Player match history">
-    <h2 className={styles.historyTitle}>Matches</h2>
+    <div className={styles.sectionHeading}><div><h2><History size={18} />Match history</h2><p>The wins, the lessons, and the close calls.</p></div><span className={styles.statsScope}>{matches.length} {matches.length === 1 ? "result" : "results"}</span></div>
     <div className={styles.toolbar}>
       <div className={styles.filters} role="group" aria-label="Match status"><button aria-pressed={filter === "open"} onClick={() => setFilter("open")}>Open</button><button aria-pressed={filter === "settled"} onClick={() => setFilter("settled")}>Settled</button></div>
       <label className={styles.search}><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search matches, players or tournaments" aria-label="Search match history" /></label>
@@ -159,9 +159,9 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
             <div><div className={styles.matchName}>{match.tournament ? <Link href={`/tournaments/${match.id}`}>{match.tournament.name}</Link> : match.opponent ? <>vs <Link href={`/players/${encodeURIComponent(match.opponent)}`}>{match.opponent}</Link></> : "Open challenge"}</div>
               <span className={styles.matchSub}>{match.tournament ? "Tournament" : `#${shortId(match.id)}`} <span>·</span> {new Date(match.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{match.watchId && <> <span>·</span> <Link className={styles.watchLink} href={`/watch/${match.watchId}`}><Eye size={12} /> Watch</Link></>}</span></div>
           </div></td>
-          <td data-label="Entry">{match.stake ? <>{number(match.stake, asset)} <small>{currency(asset)}</small></> : "Free"}</td>
+          <td data-label="Entry"><span>{match.stake ? <>{number(match.stake, asset)} <small>{currency(asset)}</small></> : "Free"}</span></td>
           <td data-label="Result"><span className={`${styles.status} ${won(match) ? styles.won : lost(match) ? styles.lost : ""}`}>{status(match)}</span></td>
-          <td data-label="Profit / Loss"><strong className={match.net > 0 ? styles.positive : match.net < 0 ? styles.negative : ""}>{match.settled ? `${signed(match.net, asset)} ${currency(asset)}` : "—"}</strong><span className={styles.return}>{!match.settled ? (match.stake ? "Entry committed" : "Free entry") : match.stake ? `${match.net > 0 ? "+" : ""}${Math.round(match.net / match.stake * 100)}% return` : "Free entry"}</span></td>
+          <td data-label="Profit / Loss"><div><strong className={match.net > 0 ? styles.positive : match.net < 0 ? styles.negative : ""}>{match.settled ? `${signed(match.net, asset)} ${currency(asset)}` : "—"}</strong><span className={styles.return}>{!match.settled ? (match.stake ? "Entry committed" : "Free entry") : match.stake ? `${match.net > 0 ? "+" : ""}${Math.round(match.net / match.stake * 100)}% return` : "Free entry"}</span></div></td>
         </tr>)}</tbody>
       </table>
     </div>
@@ -193,38 +193,47 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
   const own = privateView && profile?.isYou;
   const available = asset === "gems" ? player.data.player?.balance ?? 0 : player.data.cashBalance ?? 0;
   return <section className={styles.page}>
+    {profile && <header className={styles.hero}>
+      <div className={styles.heroContent}>
+        <div className={styles.eyebrow}><UserRound size={15} />{own ? "YOUR PLAYER PROFILE" : "PLAYER PROFILE"}</div>
+        <div className={styles.identity}>
+          <div className={styles.avatar}><Avatar name={profile.name} src={own ? player.data.player?.avatar : profile.avatar} size={88} /></div>
+          <div className={styles.nameBlock}><h1>{profile.name}</h1><p>In the arena since {new Date(profile.created).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</p></div>
+        </div>
+        <p className={styles.heroDescription}>{own ? "Your best runs, closest matches, and next milestone." : "The runs, results, and ranks behind the player."}</p>
+        <div className={styles.profileActions}>
+          {own ? <><button className={styles.editButton} onClick={onEdit}><Settings2 size={15} />Edit profile</button><Link href={`/players/${encodeURIComponent(profile.name)}`}>Public profile <ArrowUpRight size={14} /></Link></> : profile.isYou ? <Link className={styles.editButton} href="/profile"><Settings2 size={15} />Manage profile</Link> : <TipButton profile={profile} player={player} />}
+          <button className={styles.shareButton} aria-label="Copy public profile link" onClick={async () => {
+            try { await navigator.clipboard.writeText(`${window.location.origin}/players/${encodeURIComponent(profile.name)}`); setShared(true); setShareError(""); }
+            catch { setShareError("Could not copy the link. Open the public profile to copy its address."); }
+          }}>{shared ? <Check size={15} /> : <Share2 size={15} />}{shared ? "Link copied" : "Share profile"}</button>
+          <span className={styles.srOnly} role="status">{shared ? "Public profile link copied" : ""}</span>
+        </div>
+      </div>
+      <div className={styles.rankShowcase}>
+        <div className={styles.rankArt} aria-hidden="true"><div className={styles.rankRing} /><RankEmblem tier={profile.level.tier} division={profile.level.division} size={110} /></div>
+        <div className={styles.rankCaption}>EVERY RUN. A LITTLE HIGHER.</div>
+        <div className={styles.rankProgress}><RankProgress level={profile.level} own={!!profile.isYou} /></div>
+      </div>
+    </header>}
     <div className={styles.assetBar}>
       <div className={styles.assetTabs} role="group" aria-label="Profile currency"><button aria-pressed={asset === "devnet"} onClick={() => player.setAsset("devnet")}><Zap size={17} /> Devnet SOL</button><button aria-pressed={asset === "gems"} onClick={() => player.setAsset("gems")}><Gem size={17} /> Gems</button></div>
       <Link className={styles.back} href={privateView ? "/wallet" : "/leaderboard"}>{privateView ? <Wallet size={15} /> : <ArrowLeft size={15} />}{privateView ? "My wallet" : "Leaderboard"}</Link>
     </div>
-    {error && <div className="error" role="alert"><span>{error}</span><button onClick={() => setRetry((value) => value + 1)}>Retry</button></div>}
+    {error && <div className={styles.error} role="alert"><span>{error}</span><button onClick={() => setRetry((value) => value + 1)}>Retry</button></div>}
     {shareError && <p className="error" role="alert">{shareError}</p>}
-    {!profile || !performance ? <div className={styles.summary} aria-busy="true"><div className={`${styles.card} ${styles.loading}`}>{error ? "Profile unavailable" : "Loading player profile…"}</div><div className={`${styles.card} ${styles.loading}`}>Loading performance…</div></div> : <>
+    {!profile || !performance ? <div className={styles.empty} aria-busy={!error}><UserRound size={30} /><h1>{error ? "Profile unavailable" : "Loading player profile…"}</h1><p>{error ? "Try again to load this player's profile." : "Getting the latest runs, results, and rank."}</p></div> : <>
       <div className={styles.summary}>
-        <section className={`${styles.card} ${styles.identityCard}`} aria-label="Player summary">
-          <div className={styles.identity}>
-            <div className={styles.avatar}><Avatar name={profile.name} src={own ? player.data.player?.avatar : profile.avatar} size={76} /><span className={styles.badge} title={profile.level.name}><RankEmblem tier={profile.level.tier} division={profile.level.division} size={17} /></span></div>
-            <div className={styles.nameBlock}><h1>{profile.name}</h1><p>Joined {new Date(profile.created).toLocaleDateString(undefined, { month: "short", year: "numeric" })}<span>·</span>{privateView ? "Your profile" : "Player profile"}</p></div>
-            <div className={styles.iconActions}>
-              {own && <button className={styles.iconButton} aria-label="Edit profile" title="Edit profile" onClick={onEdit}><Settings2 size={18} /></button>}
-              <button className={styles.iconButton} aria-label="Copy public profile link" title="Copy public profile link" onClick={async () => {
-                try { await navigator.clipboard.writeText(`${window.location.origin}/players/${encodeURIComponent(profile.name)}`); setShared(true); setShareError(""); }
-                catch { setShareError("Could not copy the link. Open the public profile to copy its address."); }
-              }}>{shared ? <Check size={18} /> : <Share2 size={18} />}</button>
-            </div>
-          </div>
-          <RankProgress level={profile.level} own={!!profile.isYou} />
-          <div className={styles.profileActions}>
-            {own ? <><button className={styles.editButton} onClick={onEdit}>Edit profile</button><Link href={`/players/${encodeURIComponent(profile.name)}`}>Public profile <ArrowUpRight size={14} /></Link></> : profile.isYou ? <Link className={styles.editButton} href="/profile">Manage profile</Link> : <TipButton profile={profile} player={player} />}
-            {shared && <span className={styles.copied} role="status">Link copied</span>}
-          </div>
-          <div className={styles.playerStats}>
-            <div><strong>{number(own ? available : performance.openEntries, asset)} <small>{currency(asset)}</small></strong><span>{own ? "Available balance" : "Open stakes"}</span></div>
-            <div><strong>{number(performance.bestWin, asset)} <small>{currency(asset)}</small></strong><span>Biggest win</span></div>
-            <div><strong>{performance.played.toLocaleString()}</strong><span>Games played</span></div>
-          </div>
-        </section>
         <PnlCard key={asset} performance={performance} asset={asset} />
+        <section className={`${styles.card} ${styles.overviewCard}`} aria-label="Player summary">
+          <div className={styles.overviewHeading}><h2><Crosshair size={16} />At a glance</h2><span>{asset === "gems" ? "GEMS" : "DEVNET SOL"}</span></div>
+          <div className={styles.playerStats}>
+            <div><span><Wallet size={16} />{own ? "Available balance" : "Open stakes"}</span><strong>{number(own ? available : performance.openEntries, asset)} <small>{currency(asset)}</small></strong></div>
+            <div><span><Zap size={16} />Biggest win</span><strong>{number(performance.bestWin, asset)} <small>{currency(asset)}</small></strong></div>
+            <div><span><Swords size={16} />Games played</span><strong>{performance.played.toLocaleString("en")}</strong></div>
+          </div>
+          <Link className={styles.overviewLink} href={own ? "/" : "/leaderboard"}>{own ? "Make your next run count" : "Explore the leaderboard"}<ArrowUpRight size={16} /></Link>
+        </section>
       </div>
       <StatsSection stats={performance.stats} asset={asset} />
       <MatchRows key={asset} performance={performance} asset={asset} />
