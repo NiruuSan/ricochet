@@ -4,16 +4,20 @@ import { refundMatch } from "./refunds";
 
 // Nothing should stay open forever. A run whose player never came back ends at
 // the score they left, so their opponent is paid instead of waiting; a seat
-// nobody took hands the entry back. Both run on a schedule (app/api/cron) and
-// again whenever a player loads the arena, so a waiting opponent triggers them.
+// nobody took hands the entry back.
+//
+// The sweep runs whenever a player loads the arena, behind a short lease, which
+// is what keeps it prompt: a waiting opponent triggers it themselves. The
+// scheduled call (app/api/cron) is only the backstop for a quiet site, and it is
+// daily because that is all a Vercel Hobby project may schedule.
 
 export const EXPIRY = {
   /** A run with no shot for this long ends where it is, as a forfeit would. */
   runIdleMs: 24 * 60 * 60_000,
   /** A match nobody joined in this long closes and the entry goes back in full. */
   seatIdleMs: 48 * 60 * 60_000,
-  /** Matches handled per sweep, so one call stays cheap. */
-  batch: 10,
+  /** Matches handled per sweep: enough for the daily backstop, still one quick call. */
+  batch: 25,
 };
 
 export const SEAT_EXPIRED_REASON = "No opponent took the seat in time. Your entry is back in your balance.";
