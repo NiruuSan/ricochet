@@ -34,6 +34,42 @@
 .you { color: var(--primary); background: #c6f56415; border: 1px solid #c6f56426; padding: 1px 5px; border-radius: 4px; font-size: 8px; font-weight: 700; letter-spacing: .5px; }
 .podiumProfit strong.negative { color: #ff91a0; }
 .podiumCard { transition: transform .2s, border-color .2s; }
+/* A brighter podium for the leaderboard; tournament detail keeps its original treatment. */
+.leaderboard { gap: 18px; padding-top: 10px; margin-bottom: 30px; }
+.leaderboard .podiumCard { border-radius: 16px; background: #131b24; }
+.leaderboard .podiumTop { font-size: 10px; }
+.leaderboard .podiumAvatar { border-radius: 50%; padding: 6px; }
+.leaderboard .podiumAvatar :global(.avatar) { border-radius: 50%; }
+.leaderboard .podiumIdentity { padding-top: 24px; padding-bottom: 22px; }
+.leaderboard .podiumProfit { padding-top: 18px; padding-bottom: 20px; }
+.leaderboard .podiumWatermark { top: 25px; right: -3px; color: #a9bdd308; }
+.leaderboard .place1 { background: #c6f564; border-color: #ddffab; color: #152008; box-shadow: 0 5px 0 #718e35; }
+.leaderboard .place1 .podiumIdentity { padding-top: 34px; padding-bottom: 32px; }
+.leaderboard .place1 .podiumTop { color: #2f4312; }
+.leaderboard .place1 .podiumAvatar { border-color: #15200840; box-shadow: 0 0 0 5px #15200808; }
+.leaderboard .place1 .podiumAvatar :global(.avatar) { background: #26381c; color: #c6f564; }
+.leaderboard .place1 .podiumAvatar > span:last-child { background: #152008; color: #c6f564; border-color: #c6f564; }
+.leaderboard .place1 .podiumMeta { color: #3d531e; }
+.leaderboard .place1 .podiumProfit { border-color: #15200826; }
+.leaderboard .place1 .podiumProfit > span, .leaderboard .place1 .podiumProfit small { color: #3d531e; }
+.leaderboard .place1 .podiumProfit strong { color: #152008; }
+.leaderboard .place1 .podiumProfit strong.negative { color: #8c263b; }
+.leaderboard .place1 .podiumWatermark { color: #1520080b; }
+.leaderboard .place1 .you { background: #152008; color: #c6f564; border-color: #152008; }
+.leaderboard .place2 { border-color: #7fd6ff30; }
+.leaderboard .place2 .podiumTop, .leaderboard .place2 .podiumProfit strong:not(.negative) { color: #b8d9f1; }
+.leaderboard .place3 { border-color: #b6a1fc30; }
+.leaderboard .place3 .podiumTop, .leaderboard .place3 .podiumProfit strong:not(.negative) { color: #cbbcff; }
+.leaderboard .place3 .podiumAvatar { border-color: #b6a1fc40; }
+.leaderboard .place3 .podiumAvatar > span:last-child { background: #b6a1fc; border-color: #131b24; }
+.leaderboard .podiumCard:focus-visible { outline: 2px solid #c6f564; outline-offset: 5px; }
+.leaderboard .podiumCard:only-child { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 28px; max-width: none; }
+.leaderboard .podiumCard:only-child .podiumTop { grid-column: 1 / -1; }
+.leaderboard .podiumCard:only-child .podiumIdentity { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 18px; row-gap: 6px; align-content: center; }
+.leaderboard .podiumCard:only-child .podiumAvatar { grid-row: span 2; }
+.leaderboard .podiumCard:only-child .podiumIdentity h2 { text-align: left; margin: 0; }
+.leaderboard .podiumCard:only-child .podiumMeta { margin: 0; }
+.leaderboard .podiumCard:only-child .podiumProfit { align-self: center; text-align: right; border-top: 0; border-left: 1px solid #15200826; padding: 8px 0 8px 28px; }
 @media (max-width: 1000px) {
   .podiumCard { padding-left: 16px; padding-right: 16px; }
   .podiumIdentity h2 { font-size: 18px; }
@@ -70,6 +106,13 @@
   .podiumProfit { padding: 12px 0 15px; }
   .podiumProfit strong { font-size: 23px; }
   .podiumProfit > span { font-size: 8px; }
+  .leaderboard { gap: 12px; }
+  .leaderboard .place1 .podiumIdentity { padding-top: 19px; padding-bottom: 20px; }
+  .leaderboard .podiumAvatar :global(.avatar) { border-radius: 50%; }
+  .leaderboard .place1 .podiumProfit { padding-top: 14px; padding-bottom: 17px; }
+  .leaderboard .podiumCard:only-child { grid-template-columns: 1fr; }
+  .leaderboard .podiumCard:only-child .podiumMeta { justify-content: flex-start; }
+  .leaderboard .podiumCard:only-child .podiumProfit { text-align: left; border-left: 0; border-top: 1px solid #15200826; padding: 14px 0 17px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .podiumCard:hover { transform: none; }

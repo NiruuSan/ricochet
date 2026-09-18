@@ -129,6 +129,7 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
 
       {top.length > 0 && (
         <Podium
+          variant="leaderboard"
           label="Weekly race top three"
           titles={["LEADING THE RACE", "SECOND PLACE", "THIRD PLACE"]}
           entries={top.map((s, i) => ({
@@ -145,6 +146,13 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
         />
       )}
 
+      {mine && (
+        <a className={styles.positionSummary} href="#race-title">
+          <Trophy size={24} />
+          <span><b>You’re #{mine.rank} this week</b><small>{mine.score.toLocaleString("en")} points · View the standings</small></span>
+          <ArrowUpRight size={17} />
+        </a>
+      )}
       <div className={styles.contentGrid}>
         <section className={styles.standings} aria-labelledby="race-title">
           <div className={styles.standingsHeading}>

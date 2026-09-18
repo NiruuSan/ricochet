@@ -883,25 +883,8 @@ h3 {
   text-align: center;
   margin-top: 12px;
 }
-.aim-controls {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-  margin-top: 13px;
-}
-.aim-controls .btn {
-  padding: 8px 13px;
-  font-size: 12px;
-}
 .round-banner:empty {
   display: none;
-}
-.aim-controls output {
-  font-size: 13px;
-  color: #aebbd0;
-  min-width: 44px;
-  text-align: center;
 }
 .live-note {
   font-size: 13px;
@@ -1149,14 +1132,11 @@ h3 {
     display: flex;
     justify-content: center;
   }
-  /* The board gives up height rather than pushing the aim controls off a short screen. */
+  /* Keep the board within a short screen. */
   .game-canvas {
     width: auto;
     max-width: 100%;
     max-height: calc(100dvh - 355px);
-  }
-  .aim-controls {
-    margin-top: 9px;
   }
   .subpage {
     padding: 10px 0 35px;

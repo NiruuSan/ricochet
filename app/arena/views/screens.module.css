@@ -2,38 +2,118 @@
 
 /* ---------- Lobby ---------- */
 .lobby {
-  max-width: 1080px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 18px 0 40px;
+  padding: 0 0 32px;
 }
 .lobbyHead {
-  text-align: center;
-  margin-bottom: 34px;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  overflow: hidden;
+  margin-bottom: 32px;
+  padding: 12px 0 30px;
+  border-bottom: 1px solid #263040;
+}
+.heroCopy {
+  position: relative;
+  z-index: 1;
+}
+.heroEyebrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #b9c7a3;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+.heroEyebrow > span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #c6f564;
+  box-shadow: 0 0 12px #c6f56455;
 }
 .lobbyHead h1 {
-  font-size: clamp(38px, 6vw, 68px);
-  letter-spacing: -2.5px;
-  line-height: 1;
-  margin: 12px 0 14px;
+  font-size: clamp(46px, 5.3vw, 72px);
+  letter-spacing: -3.6px;
+  line-height: 1.02;
+  margin: 20px 0 16px;
+}
+.lobbyHead h1 span {
+  color: #c6f564;
 }
 .lobbyHead p {
   color: #a5b0c5;
-  font-size: 16px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.heroLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 12px;
+  color: #d4dded;
+}
+.heroLink:hover {
+  color: #c6f564;
+}
+.heroArt {
+  position: relative;
+  background: radial-gradient(ellipse at 55% 48%, #c6f5640b, transparent 65%);
+}
+.heroArt svg {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+.artCaption {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  margin: 0 20px 0 0;
+  color: #7f8d9f;
+  font-size: 9px;
+  letter-spacing: 2.5px;
+}
+.artCaption span {
+  font-size: 24px;
+  color: #c6f564;
+}
+.modeHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.modeHeading h2 {
+  font-size: 20px;
+  letter-spacing: -.6px;
+}
+.modeHeading > span {
+  color: #8e9cb1;
+  font-size: 12px;
 }
 .modes {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
 }
 .mode {
+  --mode-accent: #c6f564;
   position: relative;
   overflow: hidden;
   text-align: left;
-  min-height: 250px;
-  padding: 26px;
-  border-radius: 22px;
-  border: 1px solid #2b3546;
-  background: linear-gradient(160deg, #1a2230, #121a26);
+  min-height: 258px;
+  padding: 24px 24px 0;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--mode-accent) 22%, #263040);
+  background: radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--mode-accent) 9%, transparent), transparent 65%), #131b24;
   color: #f6f8fd;
   display: flex;
   flex-direction: column;
@@ -51,57 +131,90 @@
 }
 .mode:hover:not(:disabled),
 .mode[aria-pressed="true"] {
-  transform: translateY(-5px);
-  border-color: #c6f564;
-  box-shadow:
-    0 18px 50px #0007,
-    0 0 0 1px #c6f56455 inset;
+  transform: translateY(-3px);
+  border-color: var(--mode-accent);
+  box-shadow: 0 12px 30px #0003;
+}
+.mode:focus-visible {
+  outline: 2px solid var(--mode-accent);
+  outline-offset: 4px;
 }
 .mode:disabled {
-  opacity: 0.55;
+  opacity: 0.6;
   cursor: not-allowed;
 }
 .modeIcon {
-  width: 52px;
-  height: 52px;
+  position: absolute;
+  right: 22px;
+  top: 22px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
-  border-radius: 15px;
-  background: #c6f5641a;
-  color: #c6f564;
-  /* Content starts at the top, so titles line up whatever the description length. */
-  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--mode-accent) 20%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--mode-accent) 7%, transparent);
+  color: var(--mode-accent);
+  transform: rotate(-8deg);
 }
 .modeIcon svg {
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
 }
-.modeGems .modeIcon {
-  background: #7fd6ff1a;
-  color: #7fd6ff;
+.modeGems {
+  --mode-accent: #b6a1fc;
 }
-.modeSol .modeIcon {
-  background: #b6a1fc1c;
-  color: #b6a1fc;
+.modeSol {
+  --mode-accent: #7fd6ff;
 }
-.mode small {
+.mode > small {
   display: block;
-  margin-top: 26px;
-  font-size: 11px;
+  padding-right: 54px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 1.6px;
-  color: #93a1b8;
+  letter-spacing: 1.2px;
+  color: var(--mode-accent);
 }
-.mode strong {
+.mode > strong {
   display: block;
   font-size: 28px;
   letter-spacing: -1px;
-  margin: 6px 0 8px;
+  margin: 26px 0 10px;
 }
-.mode span {
+.modeDescription {
   color: #a5b0c5;
   font-size: 14px;
+  line-height: 1.6;
+  max-width: 270px;
+}
+.modeBalance {
+  color: #8e9cb1;
+  font-size: 11px;
   line-height: 1.5;
+  margin: 12px 0 16px;
+}
+.modeAction {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: auto -24px 0;
+  padding: 15px 24px;
+  border-top: 1px solid color-mix(in srgb, var(--mode-accent) 18%, transparent);
+  background: color-mix(in srgb, var(--mode-accent) 4%, transparent);
+  color: var(--mode-accent);
+  font-size: 13px;
+  font-weight: 750;
+}
+.mode:first-child .modeAction {
+  background: #c6f564;
+  color: #12170b;
+}
+.modeAction svg {
+  transition: transform .2s;
+}
+.mode:hover:not(:disabled) .modeAction svg {
+  transform: translate(2px, -2px);
 }
 .stakePanel {
   margin-top: 22px;
@@ -1012,18 +1125,84 @@
   }
 }
 @media (max-width: 900px) {
-  .modes {
-    grid-template-columns: 1fr;
+  .lobbyHead h1 {
+    font-size: 54px;
   }
   .mode {
-    min-height: 0;
+    padding: 20px 18px 0;
   }
   .modeIcon {
-    margin-bottom: 0;
+    top: 16px;
+    right: 14px;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+  .modeIcon svg {
+    width: 20px;
+    height: 20px;
+  }
+  .mode > strong {
+    font-size: 24px;
+  }
+  .modeAction {
+    margin-right: -18px;
+    margin-left: -18px;
+    padding-right: 18px;
+    padding-left: 18px;
   }
   .stakes {
     grid-template-columns: repeat(3, 1fr);
   }
+}
+@media (max-width: 720px) {
+  .lobbyHead {
+    grid-template-columns: 1fr;
+    padding-top: 8px;
+    margin-bottom: 24px;
+  }
+  .lobbyHead h1 {
+    font-size: 52px;
+    letter-spacing: -2.8px;
+  }
+  .heroArt {
+    position: absolute;
+    width: 255px;
+    right: -130px;
+    top: 25px;
+    opacity: .2;
+    pointer-events: none;
+  }
+  .artCaption {
+    display: none;
+  }
+  .modeHeading > span {
+    display: none;
+  }
+  .modes {
+    grid-template-columns: 1fr;
+  }
+  .mode {
+    min-height: 228px;
+    padding: 22px 22px 0;
+  }
+  .mode > strong {
+    margin-top: 20px;
+  }
+  .modeIcon {
+    width: 44px;
+    height: 44px;
+    right: 22px;
+    top: 22px;
+  }
+  .modeAction {
+    margin-right: -22px;
+    margin-left: -22px;
+    padding-right: 22px;
+    padding-left: 22px;
+  }
+}
+@media (max-width: 900px) {
   /* Phones: the outcome and the comparison fit one screen; the final boards stay on larger screens. */
   .result {
     grid-template-columns: 1fr;

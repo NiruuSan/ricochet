@@ -1,0 +1,132 @@
+.page { max-width: 1240px; margin: 0 auto; padding-bottom: 32px; }
+.hero { display: grid; grid-template-columns: 1.3fr 1fr; align-items: center; gap: 30px; padding: 12px 0 32px; }
+.eyebrow { display: flex; align-items: center; gap: 9px; font-size: 10px; letter-spacing: 2px; font-weight: 800; color: #b9c7a3; }
+.hero h1 { font-size: clamp(46px, 5.3vw, 72px); letter-spacing: -3.6px; line-height: 1.02; margin: 20px 0 16px; }
+.hero h1 > span { color: #c6f564; }
+.hero p { font-size: 15px; color: #a5b0c5; line-height: 1.65; }
+.heroLink { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; color: #d4dded; font-size: 12px; }
+.heroLink:hover { color: #c6f564; }
+.heroArt { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 278px; isolation: isolate; background: radial-gradient(ellipse at 50% 45%, #c6f5640c, transparent 65%); }
+.heroRing { position: absolute; z-index: -1; width: 248px; height: 248px; border: 1px solid #c6f56418; border-radius: 50%; top: 0; }
+.heroRing::after { content: ""; position: absolute; inset: 22px; border: 1px dashed #c6f56425; border-radius: 50%; }
+.walletArt { position: relative; width: 224px; height: 170px; margin: 20px 0 32px; transform: rotate(-8deg); }
+.artCard { position: absolute; top: 0; left: 20px; right: 20px; height: 116px; display: flex; align-items: flex-start; justify-content: space-between; padding: 18px; background: #b68aff; color: #24143e; border: 1px solid #cfb2ff; border-radius: 12px; box-shadow: 0 5px 0 #604779; }
+.artCard span { font-size: 9px; letter-spacing: 2px; font-weight: 900; padding-top: 6px; }
+.artBody { position: absolute; inset: 48px 0 0; display: flex; align-items: flex-end; padding: 22px; border-radius: 13px; border: 1px solid #dfff9f; background: #c6f564; color: #20300d; box-shadow: 0 7px 0 #718e35; }
+.artBody > span { font-size: 9px; font-weight: 900; letter-spacing: 1.8px; }
+.artClasp { position: absolute; width: 68px; height: 44px; top: 21px; right: -7px; display: flex; align-items: center; padding-left: 18px; background: #a4d343; border: 1px solid #718e35; border-radius: 9px; box-shadow: 0 3px 0 #718e35; }
+.artClasp i { width: 12px; height: 12px; border: 3px solid #dfff9f; border-radius: 50%; background: #526c30; }
+.artCaption { color: #8e9cb1; font-size: 9px; letter-spacing: 2.5px; }
+.wallet { min-width: 0; }
+.sectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 24px; margin-bottom: 18px; border-top: 1px solid #263040; }
+.sectionHeading h2 { font-size: 20px; letter-spacing: -.5px; }
+.network { flex-shrink: 0; display: inline-flex; align-items: center; padding: 5px 8px; border: 1px solid #a78bfa25; border-radius: 5px; background: #a78bfa0d; color: #b8a5e6; font-size: 9px; font-weight: 800; letter-spacing: .7px; }
+.balances { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; margin-bottom: 24px; }
+.solBalance, .gemBalance { min-width: 0; position: relative; padding: 26px; border-radius: 14px; overflow: hidden; }
+.solBalance { background: linear-gradient(120deg, #1d2a1e, #131e1a); border: 1px solid #c6f56438; }
+.gemBalance { background: linear-gradient(120deg, #202039, #171c2b); border: 1px solid #a78bfa30; }
+.balanceLabel { position: relative; z-index: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #bac8ab; font-size: 10px; letter-spacing: 1.1px; font-weight: 750; }
+.balanceLabel > span { margin-left: auto; font-size: 9px; color: #8b9b81; letter-spacing: .7px; }
+.gemBalance .balanceLabel { color: #c2b0e5; }
+.balanceValue { position: relative; z-index: 1; display: flex; align-items: baseline; flex-wrap: wrap; column-gap: 12px; margin: 20px 0 4px; color: #d5ff89; font-size: clamp(32px, 3.8vw, 48px); letter-spacing: -1.8px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.balanceValue > span { font-size: 18px; letter-spacing: -.4px; color: #99b479; font-weight: 650; }
+.gemBalance .balanceValue { color: #d4b7ff; }
+.gemBalance .balanceValue > span { color: #a892c4; }
+.solBalance > p, .gemBalance > p { position: relative; z-index: 1; color: #99a899; font-size: 12px; line-height: 1.6; }
+.gemBalance > p { color: #a69db9; }
+.balanceActions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+.balanceActions :global(.btn) { min-height: 40px; padding: 10px 17px; font-size: 12px; }
+.balanceActions :global(.btn:not(.btn-primary)) { background: #131c17; border-color: #c6f56435; color: #d0dfbe; }
+.gemLink { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px; margin-top: 34px; font-size: 12px; color: #d1b6ff; }
+.gemLink:hover { color: #eaddff; }
+.gemWatermark { position: absolute; width: 135px; height: 135px; right: -18px; bottom: -27px; color: #a78bfa1c; transform: rotate(-15deg); pointer-events: none; }
+.fundingGrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
+.deposit, .security { min-width: 0; padding: 24px; border: 1px solid #263246; border-radius: 14px; background: #111822; }
+.deposit { scroll-margin-top: 28px; }
+.cardHeading { display: flex; align-items: center; gap: 11px; }
+.cardHeading > svg { flex-shrink: 0; color: #c6f564; }
+.cardHeading h2 { font-size: 16px; letter-spacing: -.3px; }
+.cardHeading p { margin-top: 3px; color: #8e9cb1; font-size: 11px; }
+.cardHeading .network { margin-left: auto; }
+.addressField { display: block; margin-top: 24px; color: #9caac0; font-size: 11px; }
+.addressInput { display: block; width: 100%; min-width: 0; margin-top: 9px; padding: 13px 12px; background: #0c121b; border: 1px solid #2d3a4e; border-radius: 8px; color: #cbd6e7; font: 12px/1.5 ui-monospace, monospace; }
+.deposit :global(.fine), .deposit :global(.callout-inline) { font-size: 11px; line-height: 1.7; }
+.depositActions { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 20px; }
+.depositActions :global(.btn) { min-height: 40px; padding: 10px 14px; font-size: 12px; }
+.depositActions :global(.btn) > svg { width: 15px; height: 15px; }
+.explorerLink { display: inline-flex; align-items: center; gap: 7px; color: #a4b1c5; font-size: 11px; min-height: 36px; }
+.explorerLink:hover { color: #c6f564; }
+.depositNote { color: #8e9cb1; font-size: 11px; line-height: 1.7; margin-top: 20px; }
+.securityLabel { display: flex; align-items: center; gap: 8px; color: #a0b18c; font-weight: 750; font-size: 10px; letter-spacing: 1px; }
+.security :global(.callout) { padding: 0; margin: 23px 0 0; border: 0; background: transparent; gap: 11px; }
+.security :global(.callout) > svg { width: 20px; height: 20px; flex-shrink: 0; }
+.security :global(.callout) h3 { font-size: 15px; line-height: 1.5; }
+.security :global(.callout) p { font-size: 12px; line-height: 1.8; }
+.security :global(.row-actions) { flex-wrap: wrap; gap: 8px; }
+.security :global(.btn) { font-size: 11px; padding: 10px 12px; min-height: 39px; }
+.security :global(.btn) > svg { width: 15px; height: 15px; }
+.history { margin-top: 32px; padding-top: 26px; border-top: 1px solid #263040; }
+.historyHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.historyHeading h2 { display: flex; align-items: center; gap: 9px; font-size: 20px; letter-spacing: -.5px; }
+.historyHeading h2 > svg { color: #c6f564; }
+.historyHeading p { margin-top: 6px; color: #8e9cb1; font-size: 12px; }
+.historyHeading > span { color: #8e9cb1; font-size: 11px; white-space: nowrap; }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.filters button { padding: 9px 14px; border: 1px solid transparent; border-radius: 7px; color: #94a3b8; font-size: 12px; }
+.filters button:hover { color: #d4dded; background: #1b2533; }
+.filters button[aria-pressed="true"] { color: #c6f564; background: #c6f56410; border-color: #c6f56430; }
+.history :global(.transfer-list) { margin: 0; border: 1px solid #263246; border-radius: 12px; overflow: hidden; background: #111822; }
+.history :global(.transfer-list) li { grid-template-columns: 36px minmax(0, 1fr) auto auto 28px; gap: 16px; padding: 18px; font-size: 13px; }
+.history :global(.transfer-list) li:last-child { border-bottom: 0; }
+.history :global(.transfer-list) li > div { min-width: 0; }
+.history :global(.transfer-list) strong { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.history :global(.transfer-list) li > a { display: flex; align-items: center; justify-content: center; min-height: 32px; }
+.history :global(.transfer-list) li > a:hover { color: #c6f564; }
+.transferIcon { display: grid; place-items: center; width: 36px; height: 36px; background: #a78bfa12; color: #bd9ff1; border-radius: 9px; }
+.incoming { background: #c6f56410; color: #c6f564; }
+.historyEmpty { display: flex; align-items: center; gap: 18px; padding: 30px; border: 1px dashed #2d3a4e; border-radius: 12px; background: #11182280; }
+.historyEmpty > svg { color: #81946a; flex-shrink: 0; }
+.historyEmpty h3 { font-size: 14px; }
+.historyEmpty p { color: #8e9cb1; font-size: 12px; line-height: 1.7; margin-top: 5px; }
+.tips { margin-top: 30px; }
+.tips h3 { display: flex; align-items: center; gap: 10px; font-size: 18px; margin-bottom: 14px; }
+.tips h3 > span { font-size: 9px; letter-spacing: 1px; color: #8e9cb1; }
+.tips table { font-size: 12px; }
+.loading, .empty { border: 1px dashed #2d3a4e; border-radius: 14px; padding: 40px 24px; color: #9aa9bd; text-align: center; }
+.empty > svg { margin: 0 auto 16px; color: #c6f564; }
+.empty h2 { color: #e5ecf7; font-size: 22px; letter-spacing: -.5px; }
+.empty p { font-size: 13px; margin: 10px 0 20px; }
+.empty :global(.btn) { display: inline-flex; }
+.page :is(a, button, input):focus-visible, .wallet :is(a, button, input):focus-visible { outline: 2px solid #c6f564; outline-offset: 4px; }
+@media (max-width: 900px) {
+  .fundingGrid { grid-template-columns: minmax(0, 1fr); }
+  .hero { gap: 16px; }
+  .hero h1 { font-size: 54px; letter-spacing: -2.8px; }
+  .balanceLabel > span { display: none; }
+  .solBalance, .gemBalance { padding: 22px; }
+}
+@media (max-width: 620px) {
+  .hero { grid-template-columns: minmax(0, 1fr); padding-top: 0; gap: 0; }
+  .hero h1 { font-size: 48px; letter-spacing: -2.5px; }
+  .hero p { font-size: 13px; }
+  .heroArt { display: none; }
+  .balances { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .balanceLabel > span { display: inline; }
+  .balanceValue { font-size: 40px; }
+  .gemLink { margin-top: 22px; }
+  .deposit, .security { padding: 20px; }
+  .cardHeading { flex-wrap: wrap; }
+  .cardHeading .network { font-size: 8px; padding: 4px 6px; }
+  .historyHeading { align-items: flex-start; }
+  .historyHeading h2 { font-size: 18px; }
+  .historyHeading p { line-height: 1.6; }
+  .filters { gap: 4px; }
+  .filters button { padding: 9px 11px; font-size: 11px; }
+  .history :global(.transfer-list) li { grid-template-columns: 36px minmax(0, 1fr) 28px; gap: 6px 12px; padding: 16px; }
+  .transferIcon { grid-column: 1; grid-row: 1 / span 2; align-self: start; }
+  .history :global(.transfer-list) li > div { grid-column: 2; grid-row: 1; }
+  .history :global(.transfer-list) li > strong { grid-column: 2 / 4; grid-row: 2; }
+  .history :global(.transfer-list) :global(.transfer-status) { grid-column: 2 / 4; grid-row: 3; justify-self: start; margin-top: 3px; }
+  .history :global(.transfer-list) li > a { grid-column: 3; grid-row: 1; }
+  .historyEmpty { align-items: flex-start; gap: 12px; padding: 24px 20px; }
+}

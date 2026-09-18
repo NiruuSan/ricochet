@@ -139,7 +139,7 @@ export function ArenaDashboard({ overview, now, signedIn, onOpenMatch }: Props) 
             <Trophy size={17} /> {overview?.tournament?.status === "live" ? "Tournament live" : "Next tournament"}
           </h2>
           <Link href="/tournaments" className="lime">
-            All <ArrowRight size={13} />
+            View all <ArrowRight size={13} />
           </Link>
         </header>
         {overview?.tournament ? (
@@ -147,7 +147,9 @@ export function ArenaDashboard({ overview, now, signedIn, onOpenMatch }: Props) 
         ) : (
           <div className={styles.empty}>
             <Medal size={26} />
-            <p>{overview ? "No tournament scheduled yet. New ones show up here first." : "Loading…"}</p>
+            <b>{overview ? "The next challenge is on its way" : "Checking the schedule…"}</b>
+            <p>{overview ? "Upcoming tournaments will appear here. Keep your angles sharp." : "Looking for your next tournament."}</p>
+            <Link href="/tournaments" className={styles.emptyLink}>Explore tournaments <ArrowRight size={14} /></Link>
           </div>
         )}
       </section>
@@ -155,7 +157,7 @@ export function ArenaDashboard({ overview, now, signedIn, onOpenMatch }: Props) 
       <section className={styles.panel} aria-labelledby="arena-recent">
         <header>
           <h2 id="arena-recent">
-            <History size={17} /> Your last games
+            <History size={17} /> Recent games
           </h2>
           {signedIn && (
             <Link href="/profile" className="lime">
@@ -190,7 +192,7 @@ export function ArenaDashboard({ overview, now, signedIn, onOpenMatch }: Props) 
       <section className={styles.panel} aria-labelledby="arena-pulse">
         <header>
           <h2 id="arena-pulse">
-            <Radio size={17} className={styles.pulseIcon} /> Arena pulse
+            <Radio size={17} className={styles.pulseIcon} /> In the arena
           </h2>
           <Link href="/live">
             Live board <ArrowRight size={14} />
@@ -230,7 +232,7 @@ export function ArenaDashboard({ overview, now, signedIn, onOpenMatch }: Props) 
               ))}
             </div>
           ) : (
-            <p className={styles.quiet}>Nobody is mid-run right now. Start one and you might be the show.</p>
+            <p className={styles.quiet}>{overview ? "A quiet moment. Your next run could steal the show." : "Checking live games…"}</p>
           )}
         </div>
       </section>

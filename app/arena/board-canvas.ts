@@ -50,10 +50,7 @@ function drawBackground(ctx: CanvasRenderingContext2D) {
       ctx.fill();
     }
   }
-  ctx.fillStyle = "#a8b8d233";
   ctx.textAlign = "center";
-  ctx.font = "700 10px Arial";
-  ctx.fillText("S K Y", W / 2, 26);
   ctx.strokeStyle = "#29374b";
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -62,9 +59,6 @@ function drawBackground(ctx: CanvasRenderingContext2D) {
   ctx.stroke();
   ctx.fillStyle = "#111d2d";
   ctx.fillRect(0, GROUND + 1, W, H - GROUND);
-  ctx.fillStyle = "#8394af";
-  ctx.font = "600 11px Arial";
-  ctx.fillText("G R O U N D", W / 2, H - 24);
 }
 
 function drawFlight(ctx: CanvasRenderingContext2D, flight: Flight) {

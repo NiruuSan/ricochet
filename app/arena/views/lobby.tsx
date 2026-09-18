@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Gem, Target, Zap } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Gem, Target, Zap } from "lucide-react";
 import { STAKES, winnerPayout, type Asset } from "@/lib/api-types";
 import { amount, CURRENCY, units } from "../format";
 import type { PlayerState } from "../arena";
@@ -9,6 +9,12 @@ import { ArenaDashboard, useArenaOverview } from "./arena-dashboard";
 import dashboard from "./arena-dashboard.module.css";
 
 export type LobbyChoice = "practice" | Asset;
+
+const HERO_BRICKS = [
+  [0, 0, "#bb8cff", 8], [76, 0, "#68d9d6", 12], [152, 0, "#c6f564", 6], [228, 0, "#ffd17b", 9],
+  [0, 76, "#9fccfc", 4], [76, 76, "#fa98b4", 7], [228, 76, "#bb8cff", 5],
+  [0, 152, "#c6f564", 3], [228, 152, "#68d9d6", 2],
+] as const;
 
 type Props = {
   player: PlayerState;
@@ -34,21 +40,47 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
   return (
     <section className={styles.lobby}>
       <div className={styles.lobbyHead}>
-        <div className="tag lime">THE BRICK-BREAKER ARENA</div>
-        <h1>
-          Pick your <span className="lime">game.</span>
-        </h1>
-        <p>Same seed. Same chances. Make every bounce count.</p>
+        <div className={styles.heroCopy}>
+          <div className={styles.heroEyebrow}><span /> THE BRICK-BREAKER ARENA</div>
+          <h1>Same board.<br /><span>Your angle.</span></h1>
+          <p>Find your shot. Break the board. Beat your rival.<br />One good angle can change everything.</p>
+          <Link href="/rules" className={styles.heroLink}>New to bounce? Here’s how to play <ArrowUpRight size={15} /></Link>
+        </div>
+        <div className={styles.heroArt} aria-hidden="true">
+          <svg viewBox="0 0 520 290" fill="none">
+            <g transform="translate(110 28) rotate(-9 150 90)">
+              {HERO_BRICKS.map(([x, y, color, hp]) => (
+                <g key={`${x}:${y}`}>
+                  <rect x={x} y={y + 5} width="65" height="65" rx="8" fill={color} opacity=".35" />
+                  <rect x={x} y={y} width="65" height="65" rx="8" fill={color} />
+                  <path d={`M${x + 10} ${y + 5}h45`} stroke="white" strokeOpacity=".3" strokeWidth="2" />
+                  <text x={x + 32.5} y={y + 39} fill="#162238" textAnchor="middle" fontSize="18" fontWeight="800">{hp}</text>
+                </g>
+              ))}
+              {/* Reflect below brick 6, then off brick 2's left edge; allow for the ball's radius. */}
+              <path d="M132 253 184 71 222 204 212 239" stroke="#c6f564" strokeWidth="2" strokeDasharray="3 9" strokeLinecap="round" opacity=".65" />
+              <circle cx="212" cy="239" r="23" stroke="#c6f564" strokeOpacity=".2" />
+              <circle cx="212" cy="239" r="13" fill="#c6f564" fillOpacity=".1" />
+              <circle cx="212" cy="239" r="6" fill="#eaffc0" />
+            </g>
+          </svg>
+          <span className={styles.artCaption}>EVERY BOUNCE COUNTS <span>↗</span></span>
+        </div>
       </div>
 
-      <div className={styles.modes}>
+      <div className={styles.modeHeading}>
+        <h2>Make your next move</h2>
+        <span>Three ways to play. One more round.</span>
+      </div>
+      <div className={styles.modes} aria-label="Game modes">
         <button className={styles.mode} onClick={() => onChoose("practice")}>
+          <small>01 / SOLO · FREE</small>
           <span className={styles.modeIcon}>
             <Target />
           </span>
-          <small>SOLO · FREE</small>
           <strong>Practice</strong>
-          <span>No entry, no wallet. Jump straight onto a fresh board.</span>
+          <span className={styles.modeDescription}>Chase your best score.<br />No entry. No pressure. Just bounce.</span>
+          <span className={styles.modeAction}>Play for free <ArrowUpRight size={19} /></span>
         </button>
         <button
           className={`${styles.mode} ${styles.modeSol}`}
@@ -56,20 +88,24 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           disabled={!solConfigured}
           onClick={() => onChoose(choice === "devnet" ? null : "devnet")}
         >
+          <small>02 / 1V1 · DEVNET SOL</small>
           <span className={styles.modeIcon}>
             <Zap />
           </span>
-          <small>1V1 · DEVNET SOL</small>
           <strong>Solana match</strong>
-          <span>{!solConfigured ? "Solana matches are not available yet." : data.player ? `${units(balance("devnet"), "devnet")} SOL available. Test SOL only.` : "Sign in and fund your wallet with devnet SOL."}</span>
+          <span className={styles.modeDescription}>{!solConfigured ? "Solana matches are not available yet." : "Same board. Head to head. Put your angles to the test."}</span>
+          <span className={styles.modeBalance}>{data.player && solConfigured ? `${units(balance("devnet"), "devnet")} SOL available · Test SOL only` : "Devnet test SOL · No monetary value"}</span>
+          <span className={styles.modeAction}>{!solConfigured ? "Coming soon" : choice === "devnet" ? "Choosing your entry" : "Play with SOL"}<ArrowUpRight size={19} /></span>
         </button>
         <button className={`${styles.mode} ${styles.modeGems}`} aria-pressed={choice === "gems"} onClick={() => onChoose(choice === "gems" ? null : "gems")}>
+          <small>03 / 1V1 · GEMS</small>
           <span className={styles.modeIcon}>
             <Gem />
           </span>
-          <small>1V1 · GEMS</small>
           <strong>Gem match</strong>
-          <span>{data.player ? `${units(balance("gems"), "gems")} gems available. Winner takes both entries.` : "Sign in to play for gems. Every profile starts with 2,000."}</span>
+          <span className={styles.modeDescription}>Bring your best shot.<br />The winner takes both entries.</span>
+          <span className={styles.modeBalance}>{data.player ? `${units(balance("gems"), "gems")} gems available` : "Start with 2,000 free gems when you sign up"}</span>
+          <span className={styles.modeAction}>{choice === "gems" ? "Choosing your entry" : "Play with gems"}<ArrowUpRight size={19} /></span>
         </button>
       </div>
 

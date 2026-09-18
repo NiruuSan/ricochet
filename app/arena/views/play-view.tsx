@@ -1,8 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Flag, LogOut, Play } from "lucide-react";
+import { Flag, LogOut } from "lucide-react";
 import type { Asset, MatchRecap, Run, TournamentDetail } from "@/lib/api-types";
-import { MAX_ANGLE, MIN_ANGLE } from "@/lib/engine";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import { Board } from "../board";
@@ -37,7 +36,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMatchId, tournamentId, clearTournament }: Props) {
   const { data, setAsset, setError, refresh } = player;
-  const { game, run, started, flying, syncing, angle, clears } = session;
+  const { game, run, started, flying, syncing, clears } = session;
   // Waiting for the server's next row counts as busy: no shot or forfeit until it lands.
   const busy = session.busy || session.awaitingRow;
   const [choice, setChoice] = useState<Asset | null>(null);
@@ -196,19 +195,6 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
             )}
           </div>
           <Board session={session} />
-          <div className="aim-controls">
-            <button className="btn" aria-label="Aim more left" disabled={flying || busy} onClick={() => session.setAngle((a) => Math.min(MAX_ANGLE, a + 3))}>
-              <ChevronLeft />
-            </button>
-            <output>{Math.round(angle)}°</output>
-            <button className="btn" aria-label="Aim more right" disabled={flying || busy} onClick={() => session.setAngle((a) => Math.max(MIN_ANGLE, a - 3))}>
-              <ChevronRight />
-            </button>
-            <button className="btn btn-primary" disabled={game.over || flying || busy} onClick={(e) => session.shoot(e.nativeEvent)}>
-              <Play size={14} />
-              Launch
-            </button>
-          </div>
           <p className="round-banner">{game.bonus ? "Board cleared! +4 bonus balls +1 round ball." : ""}</p>
         </section>
       )}

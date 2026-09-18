@@ -26,9 +26,9 @@ const DEFAULT_TITLES = ["LEADING THE PACK", "SECOND PLACE", "THIRD PLACE"];
  * Card styles follow the position on the podium; the badge shows the real rank,
  * so ties display correctly.
  */
-export function Podium({ entries, titles = DEFAULT_TITLES, label = "Top three players" }: { entries: PodiumEntry[]; titles?: string[]; label?: string }) {
+export function Podium({ entries, titles = DEFAULT_TITLES, label = "Top three players", variant = "default" }: { entries: PodiumEntry[]; titles?: string[]; label?: string; variant?: "default" | "leaderboard" }) {
   return (
-    <div className={styles.podium} aria-label={label}>
+    <div className={`${styles.podium} ${variant === "leaderboard" ? styles.leaderboard : ""}`} role="group" aria-label={label}>
       {entries.slice(0, 3).map((p, i) => (
         <Link key={`${p.name}:${i}`} href={p.href} className={`${styles.podiumCard} ${styles[`place${i + 1}`]}`}>
           <span className={styles.podiumWatermark} aria-hidden>

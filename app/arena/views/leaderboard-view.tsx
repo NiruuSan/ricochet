@@ -71,12 +71,24 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
 
   return <section className={styles.page}>
     <header className={styles.hero}>
-      <div><div className={styles.eyebrow}><span />THE LEADERBOARD</div><h1>Good angles.<br /><span>Great company.</span></h1><p>Every match leaves a mark. Meet the players making theirs.</p></div>
-      <Link href="/" className={`btn btn-primary ${styles.playButton}`}>Take your shot <ArrowUpRight /></Link>
+      <div>
+        <div className={styles.eyebrow}><span />THE LEADERBOARD</div>
+        <h1>Make your mark.<br /><span>Climb the ranks.</span></h1>
+        <p>Good angles get noticed. Great players keep climbing.<br />Meet the names setting the pace in the arena.</p>
+        <Link href="/" className={styles.heroLink}>Your next match could move you up <ArrowUpRight size={15} /></Link>
+      </div>
+      <div className={styles.heroArt} aria-hidden="true">
+        <div className={styles.heroRing} />
+        <div className={styles.emblem}>
+          <div className={styles.ribbons}><span /><span /></div>
+          <div className={styles.medal}><Crown strokeWidth={1.4} /><strong>01</strong></div>
+        </div>
+        <span className={styles.artCaption}>EVERY PLACE IS EARNED</span>
+      </div>
     </header>
 
     <div className={styles.boardBar}>
-      <div className={styles.currencyTabs} role="group" aria-label="Leaderboard currency">
+      <div className={styles.currencyTabs} role="group" aria-label="Leaderboard view">
         {(["devnet", "gems"] as const).map((which) => <button key={which} aria-pressed={boardMode === "profit" && asset === which} onClick={() => { setAsset(which); setBoard("profit"); setPage(0); }}>
           {which === "devnet" ? <Wallet size={16} /> : <Gem size={16} />}{which === "devnet" ? "Devnet SOL" : "Gems"}
         </button>)}
@@ -88,12 +100,24 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
     {boardMode === "race" ? <WeeklyRaceBoard me={me} /> : <>
 
     {error && <div className={styles.error} role="alert"><Info size={17} /><span>{rows ? "Could not refresh. Showing the last available standings." : error}</span><button onClick={refresh} disabled={refreshing}>Try again</button></div>}
-    {rows?.length ? <Podium entries={rows.slice(0, 3).map((p, i) => ({ name: p.name, avatar: p.avatar, href: profileHref(p.name), rank: i + 1, meta: `${count(p.games)} settled ${p.games === 1 ? "match" : "matches"}`, valueLabel: "NET PROFIT", value: signedAmount(p.pnl, asset), unit: CURRENCY[asset], negative: p.pnl < 0, isYou: p.name === me }))} /> : !rows && !error ? <div className={styles.podiumSkeleton} role="status" aria-label="Loading leaderboard"><div /><div /><div /><span className={styles.srOnly}>Loading leaderboard…</span></div> : null}
+    {rows?.length ? (
+      <section aria-labelledby="leaders-title">
+        <div className={styles.leadersHeading}><h2 id="leaders-title">Leading the way</h2><span>All-time net profit · {asset === "devnet" ? "Devnet SOL" : "Gems"}</span></div>
+        <Podium variant="leaderboard" entries={rows.slice(0, 3).map((p, i) => ({ name: p.name, avatar: p.avatar, href: profileHref(p.name), rank: i + 1, meta: `${count(p.games)} settled ${p.games === 1 ? "match" : "matches"}`, valueLabel: "NET PROFIT", value: signedAmount(p.pnl, asset), unit: CURRENCY[asset], negative: p.pnl < 0, isYou: p.name === me }))} />
+      </section>
+    ) : !rows && !error ? <div className={styles.podiumSkeleton} role="status" aria-label="Loading leaderboard"><div /><div /><div /><span className={styles.srOnly}>Loading leaderboard…</span></div> : null}
 
+    {mine && (
+      <a className={styles.positionSummary} href="#standings" onClick={() => { setSearch(""); setPage(Math.floor(myIndex / PAGE_SIZE)); }}>
+        <Avatar name={mine.name} src={mine.avatar} size={36} />
+        <span><b>You’re #{myIndex + 1}</b><small>{signedAmount(mine.pnl, asset)} {CURRENCY[asset]} net profit · Find your position</small></span>
+        <ArrowRight size={17} />
+      </a>
+    )}
     <div className={styles.contentGrid}>
       <section className={styles.standings} id="standings" aria-labelledby="standings-title">
         <div className={styles.standingsHeading}>
-          <div><h2 id="standings-title">The standings <span>{rows ? count(rows.length) : "—"}</span></h2><p>Ranked by net profit. Earned in the arena.</p></div>
+          <div><h2 id="standings-title">The full standings <span>{rows ? count(rows.length) : "—"}</span></h2><p>Ranked by net profit from settled 1v1 matches.</p></div>
           <button className={styles.refresh} aria-label="Refresh standings" disabled={refreshing} onClick={refresh}><RefreshCw size={16} className={refreshing ? styles.spinning : undefined} /></button>
         </div>
         <form className={styles.search} onSubmit={(event) => { event.preventDefault(); if (validProfileName) router.push(profileHref(search.trim())); }}>
@@ -129,7 +153,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
 
       <aside className={styles.sidebar}>
         <section className={styles.personalCard}>
-          <div className={styles.cardLabel}><Swords size={15} />YOUR NEXT MOVE</div>
+          <div className={styles.cardLabel}><Swords size={15} />{mine ? "YOUR POSITION" : "YOUR NEXT MOVE"}</div>
           {mine ? <>
             <div className={styles.myIdentity}><Avatar name={mine.name} src={mine.avatar} size={42} /><div><b>{mine.name}</b><span>{mine.level ? `${mine.level.name} · ${mine.level.xp.toLocaleString("en")} XP` : "Your place in the pack"}</span></div></div>
             <div className={styles.myRank}>#{myIndex + 1}<span>of {rows!.length} ranked players</span></div>

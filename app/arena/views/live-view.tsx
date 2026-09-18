@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Eye, Lock, Medal, RefreshCw, Swords } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Eye, Lock, Medal, Radio, RefreshCw, RotateCcw, Swords, Target } from "lucide-react";
 import type { LiveGame } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -16,30 +16,43 @@ const LOCKED: Record<"seat" | "playing", string> = {
   playing: "Finish your own run in this tournament to watch the others.",
 };
 
-function LiveCard({ game, now }: { game: LiveGame; now: number }) {
+function LiveCard({ game, now, featured = false }: { game: LiveGame; now: number; featured?: boolean }) {
   const context = game.kind === "tournament" ? game.context : game.context ? `vs ${game.context}` : "Open seat";
   const body = (
     <>
+      <div className={styles.cardTop}>
+        <span className={styles.runBadge}>
+          {game.locked ? <Lock size={12} /> : <Radio size={12} />}
+          {game.locked ? "BOARD LOCKED" : featured ? "IN THE SPOTLIGHT" : "LIVE RUN"}
+        </span>
+        <span className={styles.age}>Active {timeAgo(game.at, now)}</span>
+      </div>
       <div className={styles.cardHead}>
-        <Avatar name={game.name} src={game.avatar} size={40} />
+        <Avatar name={game.name} src={game.avatar} size={featured ? 54 : 40} />
         <span className={styles.who}>
           <b>
             {game.name}
             {game.isYou && <small className={styles.you}>YOU</small>}
           </b>
-          <small>
-            {context} · {amount(game.stake, game.asset)}
-          </small>
+          <small>{context}</small>
         </span>
         <span className={styles.kind} title={game.kind === "tournament" ? "Tournament run" : "1v1 match"}>
           {game.kind === "tournament" ? <Medal size={15} /> : <Swords size={15} />}
         </span>
       </div>
+      <div className={styles.gameStats}>
+        <div className={styles.score}>
+          <small>CURRENT SCORE</small>
+          <strong>{game.score === null ? <i>Hidden</i> : game.score.toLocaleString("en")}</strong>
+        </div>
+        <div className={styles.round}>
+          <small>ROUND</small>
+          <strong>{String(game.round).padStart(2, "0")}</strong>
+        </div>
+        {featured && <Radio className={styles.scoreArt} aria-hidden="true" strokeWidth={.8} />}
+      </div>
       <div className={styles.cardFoot}>
-        <span className={styles.score}>
-          {game.score === null ? <i>Score hidden</i> : game.score.toLocaleString("en")}
-          <small>Round {game.round}</small>
-        </span>
+        <span className={styles.entry}>{game.kind === "tournament" ? "Tournament" : "1v1 match"}<small>{game.stake ? `${amount(game.stake, game.asset)} entry` : "Free entry"}</small></span>
         <span className={styles.action}>
           {game.locked ? (
             <>
@@ -47,7 +60,7 @@ function LiveCard({ game, now }: { game: LiveGame; now: number }) {
             </>
           ) : (
             <>
-              <Eye size={14} /> Watch
+              <Eye size={15} /> Watch run <ArrowUpRight size={15} />
             </>
           )}
         </span>
@@ -55,8 +68,7 @@ function LiveCard({ game, now }: { game: LiveGame; now: number }) {
     </>
   );
   return (
-    <div className={`${styles.card} ${game.isYou ? styles.mine : ""}`}>
-      <span className={styles.age}>{timeAgo(game.at, now)}</span>
+    <article className={`${styles.card} ${featured ? styles.featured : ""} ${game.isYou ? styles.mine : ""} ${game.locked ? styles.locked : ""}`}>
       {game.locked ? (
         <div className={styles.cardInner} title={LOCKED[game.locked]}>
           {body}
@@ -67,7 +79,7 @@ function LiveCard({ game, now }: { game: LiveGame; now: number }) {
         </Link>
       )}
       {game.locked && <p className={styles.note}>{LOCKED[game.locked]}</p>}
-    </div>
+    </article>
   );
 }
 
@@ -78,6 +90,7 @@ export function LiveView() {
   const [refreshing, setRefreshing] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [reload, setReload] = useState(0);
+  const [filter, setFilter] = useState<"all" | "watchable" | "match" | "tournament">("all");
 
   useEffect(() => {
     let active = true;
@@ -102,61 +115,112 @@ export function LiveView() {
   }, [reload]);
 
   const watchable = games?.filter((g) => !g.locked).length ?? 0;
+  const matches = games?.filter((g) => g.kind === "match").length ?? 0;
+  const tournaments = games?.filter((g) => g.kind === "tournament").length ?? 0;
+  const filters = [
+    { id: "all", label: "All runs", count: games?.length ?? 0 },
+    { id: "watchable", label: "Ready to watch", count: watchable },
+    { id: "match", label: "1v1 matches", count: matches },
+    { id: "tournament", label: "Tournaments", count: tournaments },
+  ] as const;
+  const visible = games?.filter((g) => filter === "all" || (filter === "watchable" ? !g.locked : g.kind === filter)) ?? [];
+  const featured = visible.find((g) => !g.locked);
+  const otherGames = visible.filter((g) => g.watchId !== featured?.watchId);
+  const refresh = () => {
+    setRefreshing(true);
+    setReload((n) => n + 1);
+  };
   return (
     <section className={styles.page}>
       <header className={styles.hero}>
         <div>
           <div className={styles.eyebrow}>
             <span />
-            RIGHT NOW
+            THE SPECTATOR LOUNGE
           </div>
           <h1>
-            Playing live.
+            Every shot.
             <br />
-            <span>Pull up a chair.</span>
+            <span>Front-row seat.</span>
           </h1>
-          <p>Every run in progress across the arena. Open one and follow it shot by shot, aim included.</p>
+          <p>Find a player. Follow their angles. Catch the next great run.<br />The best seat in the arena is yours.</p>
+          <Link href="/" className={styles.heroLink}>Rather be the show? Take your shot <ArrowUpRight size={15} /></Link>
         </div>
-        <Link href="/" className={`btn btn-primary ${styles.playButton}`}>
-          Take your shot <ArrowUpRight />
-        </Link>
+        <div className={styles.heroArt} aria-hidden="true">
+          <div className={styles.broadcastRing} />
+          <div className={styles.screen}>
+            <div className={styles.screenTop}><span />SPECTATOR VIEW<Radio size={14} /></div>
+            <div className={styles.viewfinder}><Eye size={74} strokeWidth={1.2} /></div>
+            <div className={styles.screenFoot}><span>SHOT BY SHOT</span><span className={styles.signal}><i /><i /><i /><i /></span></div>
+          </div>
+          <span className={styles.artCaption}>FOLLOW EVERY BOUNCE</span>
+        </div>
       </header>
 
-      <div className={styles.bar}>
-        <h2>
-          {games ? `${games.length} ${games.length === 1 ? "run" : "runs"} in progress` : "Loading live games…"}
-          {!!games?.length && <span>{watchable} to watch</span>}
-        </h2>
-        <button className={styles.refresh} aria-label="Refresh live games" disabled={refreshing} onClick={() => { setRefreshing(true); setReload((n) => n + 1); }}>
+      <div className={styles.activity}>
+        <div><Radio size={19} /><span><b>{games?.length ?? "–"}</b><small>Runs on the board</small></span></div>
+        <div><Eye size={19} /><span><b>{games ? watchable : "–"}</b><small>Ready to watch</small></span></div>
+        <div><Medal size={19} /><span><b>{games ? tournaments : "–"}</b><small>Tournament runs</small></span></div>
+        <button className={styles.refresh} aria-label="Refresh live games" disabled={refreshing} onClick={refresh}>
           <RefreshCw size={16} className={refreshing ? styles.spinning : undefined} />
+          <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
         </button>
       </div>
 
       {error && <div className={styles.error} role="alert"><span>{games ? "Could not refresh. Showing the last games." : error}</span></div>}
 
-      {games?.length ? (
-        <div className={styles.grid}>
-          {games.map((g) => (
-            <LiveCard key={g.watchId} game={g} now={now} />
-          ))}
-        </div>
-      ) : games ? (
-        <div className={styles.empty}>
-          <Swords size={26} />
-          <h3>Nobody is mid-run.</h3>
-          <p>Runs show up here while they are played, and stay for a few minutes after the last shot. Start one and you might be the show.</p>
-          <Link href="/" className="btn btn-primary">Play a match <ArrowUpRight /></Link>
-        </div>
-      ) : (
-        <div className={styles.loading} role="status" aria-label="Loading live games">
-          <div />
-          <div />
-          <div />
-          <div />
-        </div>
-      )}
+      <div className={styles.filters} role="group" aria-label="Filter live runs">
+        {filters.map((f) => (
+          <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>{f.label}<span>{games ? f.count : "–"}</span></button>
+        ))}
+        <span className={styles.updateNote}>Updates every {REFRESH_MS / 1000}s</span>
+      </div>
 
-      <p className={styles.footnote}>Runs refresh every {REFRESH_MS / 1000} seconds. A match nobody has joined stays hidden until someone takes the seat, so the board cannot be studied first.</p>
+      <div className={styles.stage}>
+        <div className={styles.main}>
+          {!games && error ? (
+            <div className={styles.empty}>
+              <Radio size={32} /><h2>The live board couldn’t load</h2>
+              <p>Try refreshing to reconnect to the arena.</p>
+              <button className="btn btn-primary" onClick={refresh} disabled={refreshing}><RefreshCw size={15} />{refreshing ? "Reconnecting…" : "Try again"}</button>
+            </div>
+          ) : !games ? (
+            <div className={styles.loading} role="status"><span>Finding live runs…</span><div /><div /></div>
+          ) : featured ? (
+            <LiveCard game={featured} now={now} featured />
+          ) : visible.length ? (
+            <div className={styles.waiting}>
+              <Lock size={28} /><h2>These boards aren’t open yet</h2>
+              <p>Some runs become watchable once an opponent joins, or after you finish your own tournament run. You’ll find the details below.</p>
+            </div>
+          ) : (
+            <div className={styles.empty}>
+              <span className={styles.emptyIcon}><Radio size={28} /></span>
+              <small>{games.length ? "NOTHING IN THIS VIEW" : "A MOMENT BETWEEN BOUNCES"}</small>
+              <h2>{games.length ? "No matching runs right now" : "The next great run could be yours."}</h2>
+              <p>{games.length ? "Try another filter to see what’s happening across the arena." : "The arena is quiet for now. Start a match, find your angle, and give the crowd something to watch."}</p>
+              {games.length ? (
+                <button className="btn btn-primary" onClick={() => setFilter("all")}>See all runs <ArrowRight size={16} /></button>
+              ) : (
+                <Link href="/" className="btn btn-primary">Enter the arena <ArrowUpRight size={16} /></Link>
+              )}
+            </div>
+          )}
+        </div>
+        <aside className={styles.guide}>
+          <div className={styles.guideHeading}><Eye size={18} /><h2>More than the final score</h2></div>
+          <div className={styles.guideItem}><Target size={17} /><div><h3>See the angle</h3><p>Watch the aim, the shot, and every bounce as the run unfolds.</p></div></div>
+          <div className={styles.guideItem}><RotateCcw size={17} /><div><h3>Catch what you missed</h3><p>Replay from the start, change the speed, then jump back to live.</p></div></div>
+          <Link href="/tournaments" className={styles.tournamentLink}><Medal size={18} /><span>Follow the competition<small>Explore tournaments</small></span><ArrowUpRight size={17} /></Link>
+        </aside>
+      </div>
+
+      {!!otherGames.length && (
+        <section className={styles.more}>
+          <h2>{featured ? "More from the arena" : "Waiting to open"}<span>{otherGames.length}</span></h2>
+          <div className={styles.grid}>{otherGames.map((g) => <LiveCard key={g.watchId} game={g} now={now} />)}</div>
+        </section>
+      )}
     </section>
   );
 }

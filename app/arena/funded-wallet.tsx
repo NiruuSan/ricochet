@@ -1,13 +1,14 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpFromLine, Check, Copy, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
+import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, Check, Copy, ExternalLink, Gem, History, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { MIN_DEPOSIT, type Transfer, type TreasurySnapshot } from "@/lib/api-types";
 import { request, RequestError } from "./api";
 import { CodeInput, TwoFactorPanel, useTwoFactor } from "./two-factor-panel";
 import { shortDate } from "./format";
+import styles from "./wallet.module.css";
 
 type WalletData = {
   configured: boolean;
@@ -30,7 +31,7 @@ const STATUS_LABELS: Record<string, string> = { pending: "Confirming…", review
 /** Poll faster while a transfer is confirming, so balances update without clicking. */
 const pollMs = (data: WalletData | null, treasury: boolean) => (data?.transfers.some(isOpen) || data?.open?.length ? 5_000 : treasury ? 10_000 : 15_000);
 
-export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
+export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolean; gems?: number }) {
   const path = treasury ? "/api/treasury" : "/api/wallet";
   const [data, setData] = useState<WalletData | null>(null);
   const [error, setError] = useState("");
@@ -44,6 +45,7 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
   const [amount, setAmount] = useState("");
   const [destination, setDestination] = useState("");
   const [copied, setCopied] = useState(false);
+  const [transferFilter, setTransferFilter] = useState<"all" | "deposit" | "withdrawal">("all");
   // Operation IDs survive failed attempts, so a retry can never create a second payment.
   const withdrawalId = useRef<string | null>(null);
   const depositId = useRef<string | null>(null);
@@ -159,12 +161,17 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
   };
 
   const incoming = data?.transfers.find((t) => t.kind === "deposit" && isOpen(t));
+  const visibleTransfers = data?.transfers.filter((t) => treasury || transferFilter === "all" || t.kind === transferFilter) ?? [];
+  const openWithdrawal = () => {
+    setDialogOpen(true);
+    setStage("edit");
+  };
 
   return (
-    <section className="panel funded-wallet" style={{ margin: "26px 0 32px" }}>
-      <div className="panel-title">
-        <h2>{treasury ? "Solana house treasury" : "Your Solana wallet"}</h2>
-        <span className="demo-tag">DEVNET · TEST SOL</span>
+    <section className={treasury ? "panel funded-wallet" : styles.wallet} style={treasury ? { margin: "26px 0 32px" } : undefined}>
+      <div className={treasury ? "panel-title" : styles.sectionHeading}>
+        <h2>{treasury ? "Solana house treasury" : "Your balances"}</h2>
+        <span className={treasury ? "demo-tag" : styles.network}>DEVNET · TEST SOL</span>
       </div>
       {treasury && (
         <p className="muted">Deposits add SOL to the house. Withdrawals can only spend the house balance; player balances and match pots stay untouchable.</p>
@@ -180,8 +187,8 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
         </p>
       )}
       {!data ? (
-        <p className="muted" style={{ marginTop: 20 }}>
-          {error ? "Sign in and create a player profile to use the wallet." : "Loading your wallet…"}
+        <p className={treasury ? "muted" : styles.loading} role="status" style={{ marginTop: 20 }}>
+          {error ? "The wallet could not be loaded. It will retry automatically." : "Loading your wallet…"}
         </p>
       ) : !data.configured ? (
         <div className="callout">
@@ -202,9 +209,28 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
         </div>
       ) : (
         <>
-          <div className="wallet-value">
-            {fullSol(data.balance)} <small>{treasury ? "devnet SOL · house balance" : "devnet SOL available"}</small>
-          </div>
+          {treasury ? (
+            <div className="wallet-value">{fullSol(data.balance)} <small>devnet SOL · house balance</small></div>
+          ) : (
+            <div className={styles.balances}>
+              <section className={styles.solBalance}>
+                <div className={styles.balanceLabel}><Wallet size={17} />AVAILABLE TO PLAY<span>DEVNET SOL</span></div>
+                <div className={styles.balanceValue}>{fullSol(data.balance)}<span>SOL</span></div>
+                <p>Test-network SOL. No monetary value.</p>
+                <div className={styles.balanceActions}>
+                  {data.address ? <a className="btn btn-primary" href="#wallet-deposit"><ArrowDownToLine size={16} />Deposit</a> : <button className="btn btn-primary" disabled><ArrowDownToLine size={16} />Deposit</button>}
+                  <button className="btn" disabled={busy || data.balance <= 0} onClick={openWithdrawal}><ArrowUpFromLine size={16} />Withdraw</button>
+                </div>
+              </section>
+              <section className={styles.gemBalance}>
+                <div className={styles.balanceLabel}><Gem size={17} />YOUR GEMS</div>
+                <div className={styles.balanceValue}>{gems.toLocaleString("en")}<span>gems</span></div>
+                <p>Your in-game balance for gem matches.</p>
+                <Link href="/" className={styles.gemLink}>Find your next game <ArrowUpRight size={16} /></Link>
+                <Gem className={styles.gemWatermark} aria-hidden="true" strokeWidth={.8} />
+              </section>
+            </div>
+          )}
           {treasury && (
             <div className="live-grid">
               <div>
@@ -234,11 +260,15 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
               )}
             </div>
           )}
+          <div className={treasury ? undefined : styles.fundingGrid}>
+          <section className={treasury ? undefined : styles.deposit} id={treasury ? undefined : "wallet-deposit"}>
+          {!treasury && <div className={styles.cardHeading}><ArrowDownToLine size={18} /><div><h2>Add devnet SOL</h2><p>Your personal deposit address</p></div><span className={styles.network}>DEVNET ONLY</span></div>}
+          {!treasury && !data.address && <p className={styles.depositNote}>Your deposit address isn’t available yet. It will appear here when your wallet is ready.</p>}
           {data.address && (
             <>
-              <label className="field">
+              <label className={treasury ? "field" : styles.addressField}>
                 {treasury ? "Treasury deposit address · devnet only" : "Your deposit address · devnet only"}
-                <input readOnly className="input" value={data.address} onFocus={(e) => e.target.select()} />
+                <input readOnly className={treasury ? "input" : styles.addressInput} value={data.address} onFocus={(e) => e.target.select()} />
               </label>
               {incoming ? (
                 <p className="callout-inline" role="status">
@@ -259,7 +289,7 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
               )}
             </>
           )}
-          <div className="wallet-actions">
+          <div className={treasury ? "wallet-actions" : styles.depositActions}>
             {data.address && (
               <button
                 className="btn btn-primary"
@@ -276,17 +306,15 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
                 {copied ? "Copied" : "Copy address"}
               </button>
             )}
-            <button
+            {treasury && <button
               className="btn"
               disabled={busy || data.balance <= 0}
-              onClick={() => {
-                setDialogOpen(true);
-                setStage("edit");
-              }}
+              onClick={openWithdrawal}
             >
               <ArrowUpFromLine />
-              {treasury ? "Withdraw from treasury" : "Withdraw"}
-            </button>
+              Withdraw from treasury
+            </button>}
+            {!treasury && data.address && <a href={explorer("address", data.address)} className={styles.explorerLink} target="_blank" rel="noreferrer">View on explorer <ExternalLink size={14} /></a>}
             {treasury && (
               <button className="btn" disabled={busy} onClick={() => void deposit()}>
                 <RefreshCw />
@@ -294,11 +322,26 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
               </button>
             )}
           </div>
-          <TwoFactorPanel twoFactor={twoFactor} />
-          {data.transfers.length > 0 && (
+          {!treasury && <p className={styles.depositNote}>Send only Solana devnet SOL to this address. Minimum deposit: {fullSol(MIN_DEPOSIT)} SOL.</p>}
+          </section>
+          <section className={treasury ? undefined : styles.security}>
+            {!treasury && <div className={styles.securityLabel}><ShieldCheck size={15} />WALLET SECURITY</div>}
+            <TwoFactorPanel twoFactor={twoFactor} />
+            {!treasury && !twoFactor.status && <p className={styles.depositNote}>Loading security settings…</p>}
+          </section>
+          </div>
+          <section className={treasury ? undefined : styles.history}>
+          {!treasury && <>
+            <div className={styles.historyHeading}><div><h2><History size={18} />Transfer history</h2><p>Your deposits and withdrawals, all in one place.</p></div><span>{data.transfers.length} {data.transfers.length === 1 ? "transfer" : "transfers"}</span></div>
+            <div className={styles.filters} role="group" aria-label="Filter wallet transfers">
+              {(["all", "deposit", "withdrawal"] as const).map((filter) => <button key={filter} type="button" aria-pressed={transferFilter === filter} onClick={() => setTransferFilter(filter)}>{filter === "all" ? "All transfers" : filter === "deposit" ? "Deposits" : "Withdrawals"}</button>)}
+            </div>
+          </>}
+          {visibleTransfers.length > 0 ? (
             <ul className="transfer-list">
-              {data.transfers.map((t) => (
+              {visibleTransfers.map((t) => (
                 <li key={t.id}>
+                  {!treasury && <span className={`${styles.transferIcon} ${t.kind === "deposit" ? styles.incoming : ""}`}>{t.kind === "deposit" ? <ArrowDownToLine size={17} /> : <ArrowUpFromLine size={17} />}</span>}
                   <div>
                     <b>{TRANSFER_LABELS[t.kind] ?? t.kind}</b>
                     <span className="fine">{shortDate(t.created)}</span>
@@ -316,10 +359,11 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
                 </li>
               ))}
             </ul>
-          )}
+          ) : !treasury && <div className={styles.historyEmpty}><History size={23} /><div><h3>{data.transfers.length ? "No transfers in this view" : "Your history starts here"}</h3><p>{data.transfers.length ? "Choose another filter to see your transfers." : "Deposits and withdrawals will appear here with their confirmation status."}</p></div></div>}
+          </section>
           {!treasury && !!data.tips?.length && (
-            <section style={{ marginTop: 25 }}>
-              <h3 style={{ marginBottom: 14 }}>Tips · devnet SOL</h3>
+            <section className={styles.tips}>
+              <h3>Tips <span>DEVNET SOL</span></h3>
               <div className="table-card">
                 <Table>
                   <TableHeader><TableRow><TableHead>Tip</TableHead><TableHead>Player</TableHead><TableHead>Amount · SOL</TableHead></TableRow></TableHeader>
@@ -420,7 +464,7 @@ export function FundedWallet({ treasury = false }: { treasury?: boolean }) {
                 <CodeInput value={code} onChange={setCode} autoFocus />
               ) : (
                 <p className="callout-inline" role="status">
-                  <ShieldCheck size={14} /> Turn on two-factor authentication below the wallet to withdraw.
+                  <ShieldCheck size={14} /> Turn on two-factor authentication in the security panel to withdraw.
                 </p>
               )}
               {error && (
