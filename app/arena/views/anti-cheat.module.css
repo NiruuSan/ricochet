@@ -41,3 +41,20 @@
   .heading h1 { letter-spacing: -.8px; }
   .metrics { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 }
+.pairList { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.pairRow { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 16px; padding: 16px 18px; border: 1px solid #2b3546; border-radius: 12px; background: #141c28; }
+.pairPlayers { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.pairPlayer { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pairPlayer :global(.avatar) { flex-shrink: 0; border-radius: 9px; }
+.pairPlayer span { min-width: 0; }
+.pairPlayer b { display: block; font-size: 14px; overflow-wrap: anywhere; }
+.pairPlayer:hover b { color: #c6f564; }
+.pairPlayer small { display: block; margin-top: 3px; color: #8e9cb1; font-size: 11px; }
+.pairFacts { display: flex; flex-direction: column; gap: 8px; font-size: 10px; letter-spacing: .6px; text-transform: uppercase; color: #8e9cb1; }
+.pairFacts b { display: block; margin-top: 3px; font-size: 14px; letter-spacing: 0; text-transform: none; color: #d6dfed; overflow-wrap: anywhere; }
+.pairReasons { display: flex; flex-wrap: wrap; align-content: center; gap: 6px; }
+.pairReasons span { padding: 5px 9px; border-radius: 7px; border: 1px solid #5d5230; background: #ffd17b0d; color: #ffd17b; font-size: 11px; font-weight: 700; }
+.pairReasons small { flex-basis: 100%; color: #8e9cb1; font-size: 10px; }
+@media (max-width: 760px) {
+  .pairRow { grid-template-columns: 1fr; gap: 14px; }
+}

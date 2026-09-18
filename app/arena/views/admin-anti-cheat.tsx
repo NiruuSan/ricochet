@@ -7,7 +7,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Power, ShieldAlert, UserX } from "lucide-react";
 import type { AntiCheatOverview, CheatCase } from "@/lib/anti-cheat-admin";
+import type { CollusionPair } from "@/lib/collusion";
 import { request } from "../api";
+import { Avatar } from "../avatar";
+import { units } from "../format";
 import { CASE_STATUS, SignalRow } from "./anti-cheat-case-details";
 import review from "./anti-cheat.module.css";
 import styles from "./tournaments.module.css";
@@ -22,6 +25,56 @@ function CaseSummary({ item }: { item: CheatCase }) {
     <div className={review.cardFooter}><span>{new Date(item.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><span>Review case <ArrowUpRight size={12} /></span></div>
   </Link>;
 }
+const PAIR_REASON: Record<CollusionPair["reasons"][number], string> = {
+  mostly_each_other: "They mostly play each other",
+  one_sided: "One of them wins nearly every time",
+  tips_between: "Tips between them",
+};
+
+/** One pair of accounts whose real-money history together is worth a look. */
+function PairRow({ pair }: { pair: CollusionPair }) {
+  const [winner, loser] = pair.net >= 0 ? pair.players : [pair.players[1], pair.players[0]];
+  return (
+    <div className={review.pairRow}>
+      <div className={review.pairPlayers}>
+        {pair.players.map((side) => (
+          <Link key={side.name} href={`/players/${encodeURIComponent(side.name)}`} className={review.pairPlayer}>
+            <Avatar name={side.name} src={side.avatar} size={28} />
+            <span>
+              <b>{side.name}</b>
+              <small>
+                {side.wins} {side.wins === 1 ? "win" : "wins"} · {Math.round(side.share * 100)}% of their SOL matches
+              </small>
+            </span>
+          </Link>
+        ))}
+      </div>
+      <div className={review.pairFacts}>
+        <span>
+          Matches <b>{pair.matches}</b>
+        </span>
+        <span>
+          Money moved{" "}
+          <b>
+            {units(Math.abs(pair.net), "devnet")} SOL → {winner.name}
+          </b>
+        </span>
+        <span>
+          Tips <b>{pair.tips ? `${pair.tips} · ${units(pair.tipped, "devnet")} SOL` : "—"}</b>
+        </span>
+      </div>
+      <div className={review.pairReasons}>
+        {pair.reasons.map((reason) => (
+          <span key={reason}>{PAIR_REASON[reason]}</span>
+        ))}
+        <small>
+          Last match {new Date(pair.lastAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })} · from {loser.name}
+        </small>
+      </div>
+    </div>
+  );
+}
+
 export function AdminAntiCheat() {
   const dialog = useActionDialog();
   const [data, setData] = useState<AntiCheatOverview | null>(null);
@@ -149,6 +202,20 @@ export function AdminAntiCheat() {
             <div className={review.caseGrid}>{data.watchlist.map((item) => <CaseSummary key={item.name} item={item} />)}</div>
           ) : (
             <p className={styles.empty}>Nobody on the watchlist.</p>
+          )}
+          <h2 style={{ margin: "30px 0 4px" }}>Paired accounts</h2>
+          <p className={styles.muted}>
+            Real-money pairs whose history together looks arranged rather than played: they mostly meet each other, or one of them wins nearly every time. Friends do play each other,
+            so nothing happens automatically — open a profile and suspend only if the pattern convinces you.
+          </p>
+          {data.collusion.length ? (
+            <div className={review.pairList}>
+              {data.collusion.map((pair) => (
+                <PairRow key={pair.players.map((side) => side.name).join("-")} pair={pair} />
+              ))}
+            </div>
+          ) : (
+            <p className={styles.empty}>No pair worth a look.</p>
           )}
           <h2 style={{ margin: "30px 0 4px" }}>Latest signals</h2>
           <p className={styles.muted}>Every observation, including those below a sanction threshold.</p>

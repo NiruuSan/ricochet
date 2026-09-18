@@ -3,6 +3,7 @@ import { aimFeatures, evaluateShots, FINDING_LABELS, qualityThreshold, STATS, ty
 import { antiCheatEnabled, playerShotStats, populationQuality, suspensionOps } from "./anti-cheat";
 import type { Finding } from "./anti-cheat-rules";
 import { adminAudit, adminNote } from "./admin";
+import { collusionPairs, type CollusionPair } from "./collusion";
 import { GameError } from "./matches";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
 
@@ -46,6 +47,8 @@ export type AntiCheatOverview = {
   /** Players with a watch signal in the last 30 days who are not suspended. */
   watchlist: CheatCase[];
   recentSignals: (CheatSignalView & { name: string })[];
+  /** Pairs whose real-money history together looks arranged (lib/collusion.ts). */
+  collusion: CollusionPair[];
   thresholds: typeof STATS;
 };
 
@@ -141,7 +144,7 @@ async function caseFor(row: CaseRow, now: number, threshold: number): Promise<Ch
 
 export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOverview> {
   const db = database();
-  const [cases, recent, watched, population, enabled] = await Promise.all([
+  const [cases, recent, watched, population, enabled, collusion] = await Promise.all([
     db
       .prepare(
         `SELECT s.user_id, p.name, s.status, s.source, s.reason, s.created, s.reviewed_at, s.note
@@ -167,6 +170,7 @@ export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOver
       .all<CaseRow>(),
     populationQuality(now),
     antiCheatEnabled(),
+    collusionPairs(now),
   ]);
   const threshold = qualityThreshold(population);
   return {
@@ -176,6 +180,7 @@ export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOver
       watched.results.map((row) => caseFor({ ...row, reason: row.reason.split(",").map((kind) => FINDING_LABELS[kind] ?? kind).join("; ") }, now, threshold)),
     ),
     recentSignals: recent.results.map((row) => ({ ...signalView(row), name: row.name })),
+    collusion,
     thresholds: STATS,
   };
 }
