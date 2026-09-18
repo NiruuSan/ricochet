@@ -1,3 +1,5 @@
+import { wageredSql } from "./experience";
+import { experienceFromWagered, levelFor } from "./levels";
 import { database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, validAngle, type Game } from "./engine";
 import { inspectShot, SUSPENDED_MESSAGE } from "./anti-cheat-rules";
@@ -617,9 +619,9 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
   const [t, entries] = await Promise.all([
     db.prepare(`${SUMMARY_SQL} WHERE t.id = ?`).bind(id).first<SummaryRow>(),
     db
-      .prepare("SELECT e.*, p.name, p.avatar FROM tournament_entries e JOIN players p ON p.id = e.user_id WHERE e.tournament_id = ?")
+      .prepare(`SELECT e.*, p.name, p.avatar, ${wageredSql("p.id")} AS wagered FROM tournament_entries e JOIN players p ON p.id = e.user_id WHERE e.tournament_id = ?`)
       .bind(id)
-      .all<EntryRow & { name: string; avatar: string | null }>(),
+      .all<EntryRow & { name: string; avatar: string | null; wagered: number }>(),
   ]);
   if (!t) throw new GameError("Tournament not found.", 404);
   const you = uid ? entries.results.find((e) => e.user_id === uid) : undefined;
@@ -634,6 +636,7 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
   const standings: TournamentStanding[] = [
     ...ranked.map((e, i) => ({
       rank: live ? projected.ranks[i] : e.rank,
+      level: levelFor(experienceFromWagered(e.wagered)),
       name: e.name,
       avatar: avatarUrl(e.avatar),
       score: e.score,
@@ -645,10 +648,10 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
     })),
     ...entries.results
       .filter((e) => e.state === null)
-      .map((e) => ({ rank: null, name: e.name, avatar: avatarUrl(e.avatar), score: 0, done: !!e.done, started: false, payout: 0, isYou: e.user_id === uid, watchId: null })),
+      .map((e) => ({ rank: null, level: levelFor(experienceFromWagered(e.wagered)), name: e.name, avatar: avatarUrl(e.avatar), score: 0, done: !!e.done, started: false, payout: 0, isYou: e.user_id === uid, watchId: null })),
   ];
   const ladder = distribute(base.status === "registration" ? base.maxPot : base.pot, t.payout, PAYOUT_SHARES[t.payout].map((_, i) => -i));
-  return { ...base, prizes: ladder.amounts, standings: standings.slice(0, 200) };
+  return { ...base, prizes: ladder.amounts, standings: standings.slice(0, 200), yourStanding: standings.find((s) => s.isYou) ?? null };
 }
 
 /** Administrator list, including counts of who played and finished. */

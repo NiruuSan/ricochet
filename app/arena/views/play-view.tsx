@@ -175,7 +175,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
     : started && game.over && !intro && !run?.tournamentId
       ? run
         ? { kind: "match", matchId: run.match_id, ready: !syncing }
-        : { kind: "practice", game, clears, name: data.player?.name ?? "You", avatar: data.player?.avatar ?? null }
+        : { kind: "practice", game, clears, name: data.player?.name ?? "You", avatar: data.player?.avatar ?? null, level: data.player?.level }
       : null;
 
   return (

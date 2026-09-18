@@ -77,7 +77,7 @@ export type Leader = { name: string; avatar: string | null; is_you: number; pnl:
 
 export type LaunchStatus = { mode: string; configured: boolean; mainnetEnabled: boolean; message: string };
 
-export type Profile = { publicId: string; name: string; balance: number; avatar: string | null; created: number };
+export type Profile = { publicId: string; name: string; balance: number; avatar: string | null; created: number; level: PlayerLevel };
 export type PublicPlayerProfile = {
   publicId: string;
   name: string;
@@ -121,7 +121,7 @@ export type ProfilePerformance = {
 };
 
 /** One player's side of a finished run, for the end-of-match screen. */
-export type RecapSide = { name: string; avatar: string | null; score: number; balls: number; clears: number; rounds: number; forfeit: boolean; board: Game };
+export type RecapSide = { name: string; avatar: string | null; level?: PlayerLevel; score: number; balls: number; clears: number; rounds: number; forfeit: boolean; board: Game };
 
 export type MatchRecap = {
   matchId: string;
@@ -139,7 +139,7 @@ export type MatchRecap = {
   bonusGems: number;
   you: RecapSide;
   /** The opponent's stats appear only once the match has settled; scores stay hidden until both finish. */
-  opponent: { name: string; avatar: string | null; stats: RecapSide | null } | null;
+  opponent: { name: string; avatar: string | null; level: PlayerLevel; stats: RecapSide | null } | null;
 };
 
 export type MatchNotification = {
@@ -254,10 +254,23 @@ export type VolumePoint = { start: number; end: number; value: number };
 export type VolumeTotals = PeriodTotals & { series: Record<Period, VolumePoint[]> };
 
 export type AdminOverview = {
+  growth: AdminGrowth;
   players: { registered: number; online: number; offline: number; onlineNames: { name: string; avatar: string | null }[] };
   devnet: { entries: VolumeTotals; matches: VolumeTotals; deposits: VolumeTotals; withdrawals: VolumeTotals; fees: VolumeTotals };
   gems: { entries: VolumeTotals; matches: VolumeTotals; fees: VolumeTotals };
   generated: number;
+};
+
+export type AdminGrowth = {
+  trackedSince: number;
+  active: { day: number; week: number; month: number };
+  retention: { day: number; eligible: number; returned: number; rate: number | null; from: number; to: number }[];
+  deposits: {
+    registered: number; converted: number; rate: number | null;
+    eligible7d: number; converted7d: number; rate7d: number | null;
+    cohortFrom: number; cohortTo: number;
+    firstDepositors: PeriodTotals;
+  };
 };
 
 export type TreasurySnapshot = {
@@ -314,6 +327,7 @@ export type TournamentSummary = {
 };
 
 export type TournamentStanding = {
+  level: PlayerLevel;
   rank: number | null;
   name: string;
   avatar: string | null;
@@ -330,6 +344,8 @@ export type TournamentDetail = TournamentSummary & {
   /** Amount per rank if the tournament ended now with every ranked player distinct. */
   prizes: number[];
   standings: TournamentStanding[];
+  /** Own row even when it falls below the public standings limit. */
+  yourStanding: TournamentStanding | null;
 };
 
 /** One of a player's tournament entries, shown alongside their matches. */

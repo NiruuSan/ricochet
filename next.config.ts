@@ -54,7 +54,7 @@ const nextConfig: NextConfig = {
   // Identifies the deployed client in shot reports (lib/anti-cheat-rules.ts): a tab from an older deployment is asked to reload.
   env: { BOUNCE_BUILD: (process.env.VERCEL_GIT_COMMIT_SHA ?? "dev").slice(0, 12) },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [{ source: "/:path*", headers: securityHeaders }, { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
   },
 };
 

@@ -134,6 +134,13 @@
       "when": 1789733964264,
       "tag": "0018_private_challenges",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1789744253073,
+      "tag": "0019_push_retention",
+      "breakpoints": true
     }
   ]
 }

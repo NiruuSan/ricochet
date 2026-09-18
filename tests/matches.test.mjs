@@ -305,6 +305,8 @@ assert.ok(!JSON.stringify(overview).includes("user-"), "The overview carries no 
   recap = await matches.matchRecap(ALICE, aliceStart.match_id);
   assert.equal(recap.status, "opponent_playing");
   assert.equal(recap.opponent.name, "dan");
+  assert.deepEqual(recap.you.level, await (await import("../lib/experience.ts")).playerLevel(ALICE));
+  assert.deepEqual(recap.opponent.level, await (await import("../lib/experience.ts")).playerLevel(DAN));
   assert.equal(recap.opponent.stats, null, "The opponent's score stays hidden until they finish");
   assert.deepEqual([recap.you.score, recap.you.clears, recap.you.forfeit, recap.you.balls], [cleared.state.score, 1, true, cleared.state.balls]);
   const danView = await matches.matchRecap(DAN, aliceStart.match_id);

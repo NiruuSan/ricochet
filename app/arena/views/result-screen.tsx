@@ -1,7 +1,8 @@
 "use client";
+import { RankBadge } from "../rank-badge";
 import { useEffect, useRef, useState } from "react";
 import { Swords, ArrowRight } from "lucide-react";
-import type { Asset, MatchRecap, RecapSide } from "@/lib/api-types";
+import type { Asset, MatchRecap, RecapSide, PlayerLevel } from "@/lib/api-types";
 import type { Game } from "@/lib/engine";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -12,7 +13,7 @@ import styles from "./screens.module.css";
 const POLL_MS = 4_000;
 
 export type ResultTarget =
-  | { kind: "practice"; game: Game; clears: number; name: string; avatar: string | null }
+  | { kind: "practice"; game: Game; clears: number; name: string; avatar: string | null; level?: PlayerLevel }
   /** `ready` is false while the final shots are still being saved. */
   | { kind: "match"; matchId: string; ready: boolean };
 
@@ -128,6 +129,7 @@ function PracticeDetails({ you }: { you: RecapSide }) {
         <Avatar name={you.name} src={you.avatar} size={48} />
         <div>
           <b>{you.name}</b>
+          {you.level && <RankBadge level={you.level} />}
           <span className={`${styles.chip} ${styles.you}`}>PRACTICE RUN</span>
         </div>
       </header>
@@ -163,7 +165,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
 
   const practice = target.kind === "practice";
   const you: RecapSide | null = practice
-    ? { name: target.name, avatar: target.avatar, score: target.game.score, balls: target.game.balls, clears: target.clears, rounds: target.game.round, forfeit: false, board: target.game }
+    ? { name: target.name, avatar: target.avatar, level: target.level, score: target.game.score, balls: target.game.balls, clears: target.clears, rounds: target.game.round, forfeit: false, board: target.game }
     : (recap?.you ?? null);
 
   if (!you || (!practice && !recap)) {
@@ -287,6 +289,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
               <Avatar name={you.name} src={you.avatar} size={48} />
               <div>
                 <b>{you.name}</b>
+                {you.level && <RankBadge level={you.level} />}
                 <span className={`${styles.chip} ${styles.you}`}>YOU</span>
               </div>
             </div>
@@ -294,6 +297,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
             <div className={`${styles.side} ${styles.sideRight}`}>
               <div>
                 <b>{opponent?.name ?? "Open seat"}</b>
+                {opponent && <RankBadge level={opponent.level} />}
                 <span className={`${styles.chip} ${status === "opponent_playing" ? styles.live : ""}`}>
                   {status === "opponent_playing" ? "PLAYING" : opponent ? (them?.forfeit ? "FORFEIT" : "OPP") : "WAITING"}
                 </span>

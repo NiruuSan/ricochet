@@ -36,8 +36,10 @@ export function usePlayerData() {
   const hasPlayer = !!data.player;
   useEffect(() => {
     if (!hasPlayer) return;
-    const timer = setInterval(() => void refresh(), POLL_MS);
-    return () => clearInterval(timer);
+    const visibleRefresh = () => { if (!document.hidden) void refresh(); };
+    const timer = setInterval(visibleRefresh, POLL_MS);
+    document.addEventListener("visibilitychange", visibleRefresh);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", visibleRefresh); };
   }, [hasPlayer, refresh]);
 
   return { asset, setAsset, data, setData, loaded, error, setError, refresh };

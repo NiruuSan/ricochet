@@ -80,3 +80,27 @@ Changing the physics: add a new ruleset number in `lib/engine.ts`, keep every ol
 ### Public profile migration
 
 Vercel production builds run pending migrations before building the application, using the production `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. A migration failure stops deployment. Local and preview builds do not migrate databases automatically; use `npm run db:migrate` with the intended database configured. Migration `0004_public_player_ids` backfills random public IDs and assigns one to every new player; existing balances and match history are preserved. `tests/profiles-tips.test.mjs` verifies all-time PNL, historical results, profile privacy, tip idempotency, concurrent spending, failed-credit rollback, wallet history and devnet-only operation. `tests/deployment.test.mjs` reproduces the missing-column account-loading failure and checks that the production build migrates before publishing.
+
+
+### Ranks, web push and growth metrics
+
+Player rank badges now appear in match recaps (including the opponent while scores remain hidden), signed-in practice recaps, tournament result screens, standings and podiums. They use the existing settled devnet wager XP calculation. Tournament recaps receive their own standing even below the 200-row public standings limit.
+
+Migration `0019_push_retention` adds daily authenticated activity, push subscriptions and a durable delivery queue. Production migrations still run through the existing build pipeline. For local or preview databases, run `npm run db:migrate` with the intended database configured before using the new code.
+
+To enable web push:
+
+1. Generate a persistent key pair with `npx web-push generate-vapid-keys`.
+2. Set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (a real operator `mailto:` address or HTTPS URL) in the deployment environment, then redeploy. Keep the private key secret; the public key is served by the authenticated settings API. No keys are committed.
+3. On HTTPS (or localhost), open the notification bell and select **Enable push notifications**. This explicitly asks for browser permission. On iOS, open Bounce from its installed Home Screen app. The same control disables notifications for this device.
+4. Keep `CRON_SECRET` configured for the existing `/api/cron/sweep` schedule. Finishing a run queues its opponent's push in the same database transaction; `/api/game` dispatches after responding, including when the receiving player has closed the site. Transient failures retry during subsequent game requests or the scheduled sweep. The existing daily Hobby schedule is a backstop, so retries on a quiet site can wait until the next daily run. A more frequent authenticated scheduler can call this route if needed.
+
+The queue uses per-device event IDs and leases, retries transient failures up to six attempts, removes expired subscriptions on 404/410 and expires queue rows after seven days. Notification tags collapse duplicate deliveries after a process failure; Web Push cannot guarantee exactly-once display. A click opens the authenticated match recap without navigating away from an active game. Push contents contain no scores or account identities. Subscriptions are device-specific; explicitly enabling another account on the same browser reassigns the subscription and clears queued notices for its previous owner. Changing VAPID keys requires renewing browser subscriptions. Delivery uses [web-push](https://github.com/web-push-libs/web-push#api-reference).
+
+The admin overview includes:
+
+- Daily/weekly/monthly active players: distinct accounts seen today or in the last 7/30 UTC calendar days, including today. Hidden tabs no longer send account polling heartbeats.
+- Exact-day D1/D7/D30 retention: returned accounts divided by eligible signups, with counts and cohort dates. Each metric covers up to 30 signup days with a fully elapsed target return day. Only complete signup days after tracking began are eligible; past visits are not fabricated. Empty denominators display a dash.
+- All-time registered-to-first-deposit conversion, first-deposit conversion within seven days for the latest 30 fully mature signup days, and first depositors over rolling 24h/7d/30d windows. Only positive finalized devnet deposits count, once per player, using finalization time. Treasury transfers, tips, pending/failed transfers and repeat deposits do not count as first deposits.
+
+`tests/engagement.test.mjs` covers cohort maturity and UTC boundaries, daily deduplication, deposit exclusions, endpoint validation, transactional push queueing, concurrent dispatch, retries, expired subscriptions, account reassignment and rollback. Real browser push delivery still requires configured keys and permission on the target device.

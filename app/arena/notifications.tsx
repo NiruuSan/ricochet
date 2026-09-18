@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Bell, Equal, Gift, Medal, ShieldAlert, Trophy, X } from "lucide-react";
 import type { NotificationItem } from "@/lib/api-types";
 import { request } from "./api";
+import { PushControl } from "./push-control";
 import { CURRENCY, timeAgo, units } from "./format";
 import styles from "./notifications.module.css";
 
@@ -162,6 +163,7 @@ export function Notifications({ items, unread, onOpenMatch, onRead, viewingMatch
                 </button>
               )}
             </div>
+            <PushControl />
             {!items?.length ? (
               <p className={styles.empty}>Match results and tips will show up here.</p>
             ) : (

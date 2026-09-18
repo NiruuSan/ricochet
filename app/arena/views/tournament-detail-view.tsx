@@ -1,4 +1,5 @@
 "use client";
+import { RankBadge } from "../rank-badge";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Eye, Play } from "lucide-react";
@@ -178,6 +179,7 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
               titles={t.status === "settled" ? ["CHAMPION", "SECOND PLACE", "THIRD PLACE"] : t.status === "cancelled" ? ["TOP SCORE", "SECOND", "THIRD"] : ["IN THE LEAD", "SECOND PLACE", "THIRD PLACE"]}
               entries={podium.map((s) => ({
                 name: s.name,
+                level: s.level,
                 avatar: s.avatar,
                 href: `/players/${encodeURIComponent(s.name)}`,
                 rank: s.rank!,
@@ -196,7 +198,7 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
         )}
         {t.standings.length ? (
           <div style={{ overflowX: "auto" }}>
-            <table className={styles.table}>
+            <table className={`${styles.table} ${styles.standings}`}>
               <thead>
                 <tr>
                   <th>Rank</th>
@@ -215,8 +217,8 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
                     <td>
                       <Link className={styles.player} href={`/players/${encodeURIComponent(s.name)}`}>
                         <Avatar name={s.name} src={s.avatar} size={30} />
-                        <span>
-                          <b>{s.name}</b>
+                        <span className={styles.identity}>
+                          <b>{s.name}</b> <RankBadge level={s.level} />
                           {s.isYou && <span className={styles.muted}> · you</span>}
                           <br />
                           <span className={styles.muted}>{!s.started ? "Not played yet" : s.done ? "Finished" : "Playing"}</span>

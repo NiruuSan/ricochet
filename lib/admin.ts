@@ -2,6 +2,7 @@ import { database } from "@/db/raw";
 import type { AdminOverview } from "./api-types";
 import { GameError } from "./matches";
 import { volumeHistory } from "./admin-volume";
+import { adminGrowth } from "./admin-growth";
 import { avatarUrl, ONLINE_MS } from "./matches";
 import { HOUSE } from "./payments/accounts";
 
@@ -40,6 +41,7 @@ export async function adminOverview(now = Date.now()): Promise<AdminOverview> {
   const registered = Number(players?.registered ?? 0);
   const onlineCount = Number(players?.online ?? 0);
   return {
+    growth: await adminGrowth(now),
     players: {
       registered,
       online: onlineCount,

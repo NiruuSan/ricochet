@@ -1,3 +1,4 @@
+import { dispatchPush } from "@/lib/push";
 import { sweepStaleMatches } from "@/lib/expiry";
 import { json } from "@/lib/http";
 import { settleDueTournaments } from "@/lib/tournaments";
@@ -16,6 +17,7 @@ export async function GET(req: Request) {
   try {
     const swept = await sweepStaleMatches();
     await settleDueTournaments();
+    await dispatchPush();
     return json({ ok: true, ...swept });
   } catch (e) {
     console.error(e);

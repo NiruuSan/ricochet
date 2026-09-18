@@ -247,7 +247,12 @@
 }
 .player :global(.avatar) {
   border-radius: 50%;
+  flex-shrink: 0;
 }
+.identity { min-width: 0; }
+.identity b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.standings th:nth-child(2) { width: 48%; }
+.standings td:nth-child(2) { width: 48%; }
 .muted {
   color: #93a1b8;
   font-size: 12px;

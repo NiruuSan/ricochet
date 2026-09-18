@@ -97,6 +97,7 @@ try {
 
   const detail = await t.tournamentDetail("u-cat", paidId, live);
   assert.equal(detail.status, "live");
+  assert.ok(detail.standings.every(s => s.level.name === "Iron 1"));
   assert.equal(detail.pot, 352_000_000);
   assert.deepEqual(detail.prizes, [176_000_000, 105_600_000, 70_400_000]);
   assert.deepEqual(detail.standings.map((s) => [s.name, s.rank, s.started]), [["Ann", 1, true], ["Ben", 1, true], ["Cat", 3, true], ["Dom", null, false]]);
@@ -116,6 +117,7 @@ try {
   assert.equal(totalCash(), liabilitiesWithEve, "Settlement conserves SOL");
   const settled = await t.tournamentDetail("u-ann", paidId, end);
   assert.equal(settled.status, "settled");
+  assert.equal(settled.standings.find(s => s.name === "Ann").level.xp, 1, "Settled tournament updates XP");
   assert.deepEqual(settled.you, { score: 40, done: true, started: true, rank: 1, payout: cash("u-ann") - 900_000_000 });
   const inbox = await listNotifications("u-cat");
   assert.deepEqual([inbox.items[0].kind, inbox.items[0].data.rank, inbox.items[0].data.players, inbox.items[0].data.payout], ["tournament_result", 3, 3, 70_400_000]);

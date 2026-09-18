@@ -14,6 +14,7 @@ import { AdminTournaments } from "./admin-tournaments";
 import { AdminSecurity } from "./admin-security";
 import tournamentStyles from "./tournaments.module.css";
 import { AdminVolume } from "./volume-chart";
+import { AdminGrowth } from "./admin-growth";
 
 const REFRESH_MS = 15_000;
 const noSubscription = () => () => {};
@@ -128,6 +129,7 @@ export function AdminView({ player }: { player: PlayerState }) {
           <p className="fine">Online means active in the last minute. Open pages check in every 15 seconds.</p>
 
           <AdminVolume overview={overview} />
+          <AdminGrowth growth={overview?.growth} />
 
           <h2 style={{ marginTop: 35 }}>Treasury</h2>
           <FundedWallet treasury />

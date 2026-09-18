@@ -320,12 +320,12 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
   const [player, history, active, cash, inbox, tournaments, daily] = await Promise.all([
     db
       .prepare(
-        `SELECT public_id AS publicId, name, balance, avatar, created,
+        `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
            (SELECT reason FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS suspension
          FROM players WHERE id = ?`,
       )
       .bind(uid)
-      .first<Profile & { suspension: string | null }>(),
+      .first<Profile & { suspension: string | null; wagered: number }>(),
     db
       .prepare(
         `SELECT m.id, m.stake, m.fee, m.settled, m.created,
@@ -360,7 +360,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     asset,
     cashBalance: cash?.balance ?? 0,
     launch: launchStatus(settings()),
-    player: player && { publicId: player.publicId, name: player.name, balance: player.balance, avatar: avatarUrl(player.avatar), created: player.created },
+    player: player && { publicId: player.publicId, name: player.name, balance: player.balance, avatar: avatarUrl(player.avatar), created: player.created, level: levelFor(experienceFromWagered(player.wagered)) },
     suspension: player?.suspension ? { reason: player.suspension } : null,
     daily,
     matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
@@ -391,6 +391,8 @@ type RecapRow = {
   other_clears: number | null;
   other_done: number | null;
   other_forfeit: number | null;
+  wagered: number;
+  other_wagered: number;
   other_name: string | null;
   other_avatar: string | null;
   bonus: number | null;
@@ -416,6 +418,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
            r.user_id AS me, r.state, r.clears, r.done, r.forfeit, p.name, p.avatar,
            o.state AS other_state, o.clears AS other_clears, o.done AS other_done, o.forfeit AS other_forfeit,
            op.name AS other_name, op.avatar AS other_avatar,
+           ${wageredSql("p.id")} AS wagered, ${wageredSql("op.id")} AS other_wagered,
            (SELECT amount FROM ledger WHERE id = ?) AS bonus
          FROM runs r
          JOIN matches m ON m.id = r.match_id
@@ -444,10 +447,11 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
     result,
     net: settled ? netResult(result, row.stake, row.fee) : null,
     bonusGems: row.bonus ?? 0,
-    you: recapSide(row.name, row.avatar, row.state, row.clears, row.forfeit),
+    you: { ...recapSide(row.name, row.avatar, row.state, row.clears, row.forfeit), level: levelFor(experienceFromWagered(row.wagered)) },
     opponent: row.other_name
       ? {
           name: row.other_name,
+          level: levelFor(experienceFromWagered(row.other_wagered)),
           avatar: avatarUrl(row.other_avatar),
           stats: reveal ? recapSide(row.other_name, row.other_avatar, row.other_state!, row.other_clears ?? 0, row.other_forfeit ?? 0) : null,
         }

@@ -1,4 +1,5 @@
 "use client";
+import { RankBadge } from "../rank-badge";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -55,7 +56,7 @@ export function TournamentResult({ tournamentId, ready, board, onClose }: Props)
   }, [onClose]);
 
   const you = t?.you;
-  const mine = t?.standings.find((s) => s.isYou);
+  const mine = t?.yourStanding;
   const settled = t?.status === "settled";
   const top = t?.standings.slice(0, 8) ?? [];
   const tone = settled && (you?.payout ?? 0) > 0 ? "win" : "pending";
@@ -69,6 +70,7 @@ export function TournamentResult({ tournamentId, ready, board, onClose }: Props)
           <span>{title[0]}</span>
           <span>{title[1]}</span>
         </h1>
+        {mine && <RankBadge level={mine.level} />}
         <p className={screens.summary}>
           {!t || !mine ? (
             "Saving your final score…"
@@ -104,7 +106,7 @@ export function TournamentResult({ tournamentId, ready, board, onClose }: Props)
       <section className={screens.details}>
         <p className={screens.eyebrow}>{settled ? "FINAL STANDINGS" : "STANDINGS SO FAR"}</p>
         {t ? (
-          <table className={styles.table}>
+          <table className={`${styles.table} ${styles.standings}`}>
             <tbody>
               {top.map((s, i) => (
                 <tr key={i} className={s.isYou ? styles.mine : undefined}>
@@ -112,7 +114,7 @@ export function TournamentResult({ tournamentId, ready, board, onClose }: Props)
                   <td>
                     <span className={styles.player}>
                       <Avatar name={s.name} src={s.avatar} size={28} />
-                      <b>{s.name}</b>
+                      <span className={styles.identity}><b>{s.name}</b> <RankBadge level={s.level} /></span>
                     </span>
                   </td>
                   <td>{s.started ? s.score.toLocaleString("en") : "—"}</td>

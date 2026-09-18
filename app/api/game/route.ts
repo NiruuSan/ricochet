@@ -1,3 +1,4 @@
+import { dispatchPush } from "@/lib/push";
 import { after } from "next/server";
 import { currentUser } from "@/lib/auth-user";
 import { database } from "@/db/raw";
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
     // Presence, the payouts of ended tournaments and the sweep of abandoned runs
     // and stale seats do not change this response: run them afterwards. The sweep
     // holds a short lease, so it costs one query on most requests.
-    after(() => Promise.all([touchPlayer(uid), settleDueTournaments(), sweepIfDue()]).catch((e) => console.error(e)));
+    after(() => Promise.all([touchPlayer(uid), settleDueTournaments(), sweepIfDue().then(() => dispatchPush())]).catch((e) => console.error(e)));
     const [limited, snapshot] = await Promise.all([rateLimited("gameRead", uid), playerSnapshot(uid, asset)]);
     if (limited) return json({ error: TOO_MANY_REQUESTS }, 429);
     return json({ authenticated: true, ...snapshot });
@@ -49,6 +50,8 @@ export async function POST(req: Request) {
     const parsed = await readBody(req, 4096);
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
     const b = parsed.body;
+
+    after(() => dispatchPush().catch(() => console.error("Push dispatch failed")));
 
     // Shots are the hot path: the rate limit runs alongside loading the run, and
     // owning a run already proves the profile exists.

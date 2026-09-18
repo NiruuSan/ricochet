@@ -21,8 +21,38 @@ export const players = sqliteTable(
     uniqueIndex("player_name_unique").on(sql`lower(${t.name})`),
     uniqueIndex("player_public_id_unique").on(t.publicId),
     index("player_presence").on(t.lastSeen),
+    index("player_created").on(t.created),
   ],
 );
+
+export const playerActivity = sqliteTable("player_activity", {
+  userId: text("user_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  day: integer("day").notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.day] }), index("activity_day").on(t.day)]);
+
+export const analyticsMetadata = sqliteTable("analytics_metadata", {
+  key: text("key").primaryKey(),
+  value: integer("value").notNull(),
+});
+
+export const pushSubscriptions = sqliteTable("push_subscriptions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => players.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  created: integer("created").notNull(),
+}, (t) => [uniqueIndex("push_endpoint").on(t.endpoint), index("push_owner").on(t.userId)]);
+
+export const pushDeliveries = sqliteTable("push_deliveries", {
+  id: text("id").primaryKey(),
+  subscriptionId: text("subscription_id").notNull().references(() => pushSubscriptions.id, { onDelete: "cascade" }),
+  matchId: text("match_id").notNull(),
+  created: integer("created").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  nextAttempt: integer("next_attempt").notNull().default(0),
+  sent: integer("sent"),
+}, (t) => [index("push_pending").on(t.sent, t.nextAttempt)]);
 
 // Profile pictures, already resized by the browser. The key is random, so
 // serving a picture never reveals whose it is.
