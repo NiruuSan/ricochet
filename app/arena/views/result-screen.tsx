@@ -127,9 +127,11 @@ function PracticeDetails({ you }: { you: RecapSide }) {
     <section className={styles.details}>
       <header className={styles.practiceHeader}>
         <Avatar name={you.name} src={you.avatar} size={48} />
-        <div>
-          <b>{you.name}</b>
-          {you.level && <RankBadge level={you.level} />}
+        <div className={styles.identity}>
+          <div className={styles.nameRow}>
+            <b>{you.name}</b>
+            {you.level && <RankBadge level={you.level} />}
+          </div>
           <span className={`${styles.chip} ${styles.you}`}>PRACTICE RUN</span>
         </div>
       </header>
@@ -287,17 +289,21 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
           <header className={styles.versus}>
             <div className={styles.side}>
               <Avatar name={you.name} src={you.avatar} size={48} />
-              <div>
-                <b>{you.name}</b>
-                {you.level && <RankBadge level={you.level} />}
+              <div className={styles.identity}>
+                <div className={styles.nameRow}>
+                  <b>{you.name}</b>
+                  {you.level && <RankBadge level={you.level} />}
+                </div>
                 <span className={`${styles.chip} ${styles.you}`}>YOU</span>
               </div>
             </div>
             <span className={styles.vs}>VS</span>
             <div className={`${styles.side} ${styles.sideRight}`}>
-              <div>
-                <b>{opponent?.name ?? "Open seat"}</b>
-                {opponent && <RankBadge level={opponent.level} />}
+              <div className={styles.identity}>
+                <div className={styles.nameRow}>
+                  <b>{opponent?.name ?? "Open seat"}</b>
+                  {opponent && <RankBadge level={opponent.level} />}
+                </div>
                 <span className={`${styles.chip} ${status === "opponent_playing" ? styles.live : ""}`}>
                   {status === "opponent_playing" ? "PLAYING" : opponent ? (them?.forfeit ? "FORFEIT" : "OPP") : "WAITING"}
                 </span>
