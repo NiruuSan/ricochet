@@ -123,6 +123,16 @@ try {
   await assert.rejects(() => watchRun(CAT, "m-not-a-run"), /not found/);
   await assert.rejects(() => watchRun(CAT, `m-${crypto.randomUUID()}`), /not found/);
 
+  // Provably fair: the commitment is public from the start, the key only once
+  // nobody can play that board any more.
+  const { createHash } = await import("node:crypto");
+  const liveKey = sqlite.prepare("SELECT row_key FROM matches WHERE id = ?").get(ann.match_id).row_key;
+  assert.equal(benOwn.fairness.key, null, "The key stays secret while the match is being played");
+  assert.equal(benOwn.fairness.hash, createHash("sha256").update(liveKey).digest("hex"));
+  assert.equal(benDone.fairness.key, liveKey, "A settled match reveals its key");
+  assert.equal(createHash("sha256").update(benDone.fairness.key).digest("hex"), benDone.fairness.hash);
+  assert.ok(!JSON.stringify(benOwn).includes(liveKey), "A live run never carries the key");
+
   // A tournament: registered players who have not finished cannot watch the others.
   const now = Date.now();
   const cup = await t.createTournament(
@@ -152,6 +162,10 @@ try {
   assert.equal(domDetail.standings.find((s) => s.name === "Ann").watchId, annTournamentWatch);
   assert.equal(domDetail.standings.find((s) => s.name === "Cat").watchId, null, "Runs that have not started cannot be watched");
   await assert.rejects(() => watchRun(DOM, `t-${sqlite.prepare("SELECT id FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").get(cup, CAT).id}`), /not started/);
+
+  const cupKey = sqlite.prepare("SELECT row_key FROM tournaments WHERE id = ?").get(cup).row_key;
+  assert.equal(domTournament.fairness.key, null, "A running tournament keeps its key: every entrant plays that board");
+  assert.equal(domTournament.fairness.hash, createHash("sha256").update(cupKey).digest("hex"));
 
   assert.ok((await liveGames(DOM, now)).some((g) => g.watchId === annTournamentWatch && g.context === "Watch Cup"));
   const benTournament = (await liveGames(BEN, now)).find((g) => g.watchId === annTournamentWatch);
@@ -190,7 +204,7 @@ try {
   noIds(publicBoard, "The public leaderboard");
 
   console.log(
-    "PASS: public leaderboard for visitors. arena overview (tournament pick, last games, open seats, best run). shot log for match and tournament runs (shots, aim trails, forfeits, stale shots), replays match the server board, open seats hidden, players still on a seed limited to their own run, side switching, polling from a revision, live list rules, history and standings watch links, no player IDs.",
+    "PASS: public leaderboard for visitors. arena overview (tournament pick, last games, open seats, best run). provably-fair commitments revealed only once a board is closed, shot log for match and tournament runs (shots, aim trails, forfeits, stale shots), replays match the server board, open seats hidden, players still on a seed limited to their own run, side switching, polling from a revision, live list rules, history and standings watch links, no player IDs.",
   );
 } finally {
   close();

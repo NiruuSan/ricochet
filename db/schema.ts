@@ -60,8 +60,14 @@ export const matches = sqliteTable(
     cancelled: integer("cancelled").notNull().default(0),
     // Player removed for automated play (lib/anti-cheat.ts); the other player wins.
     disqualified: text("disqualified"),
+    // A private match: set on a challenge, and the code its link carries. Never
+    // handed out by public matchmaking (lib/matches.ts).
+    invite: text("invite"),
+    // The only player who may take the seat, when the challenge names one.
+    invited: text("invited"),
   },
   (t) => [
+    uniqueIndex("match_invite").on(t.invite),
     index("match_queue").on(t.stake, t.settled, t.p2, t.created),
     // A player's matches, from either seat.
     index("match_p1").on(t.p1, t.created),
@@ -354,6 +360,22 @@ export const weeklyRaceExclusions = sqliteTable(
 );
 
 // Administrator-editable settings, one JSON value per key.
+// The free daily gems, one row per player and UTC day. The primary key is the
+// claim: a second attempt on the same day inserts nothing (lib/daily.ts).
+export const dailyClaims = sqliteTable(
+  "daily_claims",
+  {
+    userId: text("user_id").notNull(),
+    // Days since the epoch, UTC.
+    day: integer("day").notNull(),
+    // Consecutive days claimed up to and including this one.
+    streak: integer("streak").notNull(),
+    amount: integer("amount").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day] })],
+);
+
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

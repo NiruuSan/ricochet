@@ -1,5 +1,6 @@
 import { database } from "@/db/raw";
 import { initial, seedRows, type Game, type RowSource } from "./engine";
+import { fairnessFor } from "./fairness";
 import { rowsFor } from "./secret-rows";
 import type { Asset, LiveGame, WatchData, WatchShot, WatchSide } from "./api-types";
 import { avatarUrl, GameError } from "./matches";
@@ -135,6 +136,8 @@ async function watchMatchRun(viewer: string | null, runId: string, since: number
     ...board(target.seed, target.ruleset, target.row_key, state),
     shots,
     replayable: logged === target.revision,
+    // The key is only revealed once the match is settled: nobody can still play this board.
+    fairness: fairnessFor(target.row_key, settled),
     sides,
   };
 }
@@ -181,6 +184,8 @@ async function watchTournamentRun(viewer: string | null, entryId: string, since:
     ...board(target.seed, target.ruleset, target.row_key, state),
     shots,
     replayable: logged === target.revision,
+    // Entrants share one board, so the key waits for the tournament to close.
+    fairness: fairnessFor(target.row_key, final),
     sides: [],
   };
 }
@@ -192,6 +197,40 @@ export async function watchRun(viewer: string | null, watchIdInput: unknown, sin
   const match = /^([mt])-([0-9a-f-]{36})$/.exec(watchId);
   if (!match) throw new GameError("Game not found.", 404);
   return match[1] === "m" ? watchMatchRun(viewer, match[2], since) : watchTournamentRun(viewer, match[2], since, now);
+}
+
+/** What a run shows to anyone with its link: enough for a share card, nothing more. */
+export type RunCard = { name: string; score: number; kind: "match" | "tournament"; context: string; asset: Asset; done: boolean };
+
+/**
+ * The public face of a run, or null when the link is not open to visitors (a
+ * match whose seat nobody has taken yet, or a run that does not exist).
+ */
+export async function runCard(watchIdInput: unknown): Promise<RunCard | null> {
+  const watchId = String(watchIdInput ?? "");
+  const parsed = /^([mt])-([0-9a-f-]{36})$/.exec(watchId);
+  if (!parsed) return null;
+  const db = database();
+  if (parsed[1] === "m") {
+    const row = await db
+      .prepare(
+        `SELECT p.name, r.score, r.done, m.asset, m.stake, (SELECT o.name FROM players o WHERE o.id = CASE WHEN m.p1 = r.user_id THEN m.p2 ELSE m.p1 END) AS opponent
+         FROM runs r JOIN matches m ON m.id = r.match_id JOIN players p ON p.id = r.user_id
+         WHERE r.id = ? AND (m.p2 IS NOT NULL OR m.settled = 1)`,
+      )
+      .bind(parsed[2])
+      .first<{ name: string; score: number; done: number; asset: Asset; stake: number; opponent: string | null }>();
+    return row && { name: row.name, score: row.score, kind: "match", context: row.opponent ? `vs ${row.opponent}` : "1v1 match", asset: row.asset, done: !!row.done };
+  }
+  const row = await db
+    .prepare(
+      `SELECT p.name, e.score, e.done, t.asset, t.name AS tournament
+       FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id JOIN players p ON p.id = e.user_id
+       WHERE e.id = ? AND e.state IS NOT NULL`,
+    )
+    .bind(parsed[2])
+    .first<{ name: string; score: number; done: number; asset: Asset; tournament: string }>();
+  return row && { name: row.name, score: row.score, kind: "tournament", context: row.tournament, asset: row.asset, done: !!row.done };
 }
 
 type LiveRow = {

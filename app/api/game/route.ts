@@ -2,9 +2,10 @@ import { after } from "next/server";
 import { currentUser } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import type { Asset } from "@/lib/api-types";
+import { sweepIfDue } from "@/lib/expiry";
 import { clientKey, json, readBody, sameOrigin } from "@/lib/http";
 import { CLIENT_BUILD, OUTDATED_CLIENT, parseAim, parseProof } from "@/lib/anti-cheat-rules";
-import { GameError, playerSnapshot, playShot, startMatch, touchPlayer, type ShotGuard } from "@/lib/matches";
+import { createChallenge, GameError, joinChallenge, playerSnapshot, playShot, startMatch, touchPlayer, type ShotGuard } from "@/lib/matches";
 import { settings } from "@/lib/payments/accounts";
 import { PaymentError } from "@/lib/payments/errors";
 import { launchStatus } from "@/lib/payments/policy";
@@ -24,9 +25,10 @@ export async function GET(req: Request) {
       return json({ authenticated: false, launch: launchStatus(settings()) });
     }
     const uid = user.userId;
-    // Presence and payouts of ended tournaments (so results reach players who never
-    // open the tournament page) do not change this response: run them afterwards.
-    after(() => Promise.all([touchPlayer(uid), settleDueTournaments()]).catch((e) => console.error(e)));
+    // Presence, the payouts of ended tournaments and the sweep of abandoned runs
+    // and stale seats do not change this response: run them afterwards. The sweep
+    // holds a short lease, so it costs one query on most requests.
+    after(() => Promise.all([touchPlayer(uid), settleDueTournaments(), sweepIfDue()]).catch((e) => console.error(e)));
     const [limited, snapshot] = await Promise.all([rateLimited("gameRead", uid), playerSnapshot(uid, asset)]);
     if (limited) return json({ error: TOO_MANY_REQUESTS }, 429);
     return json({ authenticated: true, ...snapshot });
@@ -79,10 +81,13 @@ export async function POST(req: Request) {
       return json(await playerSnapshot(uid, "gems"));
     }
 
-    if (b.action === "start") {
+    if (b.action === "start" || b.action === "challenge" || b.action === "join") {
       if (!(await database().prepare("SELECT 1 FROM players WHERE id = ?").bind(uid).first())) {
         return json({ error: "Create your player profile first." }, 403);
       }
+      // A challenge opens a private match; its link, or the notice it sends, takes the other seat.
+      if (b.action === "challenge") return json({ run: await createChallenge(uid, b.stake, b.asset, b.opponent) });
+      if (b.action === "join") return json({ run: await joinChallenge(uid, b.invite) });
       return json({ run: await startMatch(uid, b.stake, b.asset) });
     }
     return json({ error: "Unknown action." }, 400);

@@ -39,9 +39,9 @@ const NAVIGATION = [
   { href: "/faq", view: "faq", label: "How to play", short: "Help", Icon: HelpCircle },
 ];
 
-type ArenaProps = { view: View; profileName?: string; adminCaseName?: string; initialMatchId?: string; initialTournamentId?: string; tournamentId?: string; watchId?: string };
+type ArenaProps = { view: View; profileName?: string; adminCaseName?: string; initialMatchId?: string; initialTournamentId?: string; initialInvite?: string; tournamentId?: string; watchId?: string };
 
-export default function Arena({ view, profileName, adminCaseName, initialMatchId, initialTournamentId, tournamentId, watchId }: ArenaProps) {
+export default function Arena({ view, profileName, adminCaseName, initialMatchId, initialTournamentId, initialInvite, tournamentId, watchId }: ArenaProps) {
   const player = usePlayerData();
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
@@ -52,6 +52,12 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
   const [recapMatchId, setRecapState] = useState<string | null>(view === "play" ? (initialMatchId ?? null) : null);
 
   const [playTournamentId, setPlayTournamentId] = useState<string | null>(view === "play" ? (initialTournamentId ?? null) : null);
+  // A challenge link: the seat is taken once, then the address goes back to the arena.
+  const [invite, setInvite] = useState<string | null>(view === "play" ? (initialInvite ?? null) : null);
+  const clearInvite = useCallback(() => {
+    setInvite(null);
+    if (window.location.search.includes("join=")) window.history.replaceState(null, "", "/");
+  }, []);
   const clearTournament = useCallback(() => {
     setPlayTournamentId(null);
     if (window.location.search.includes("tournament=")) window.history.replaceState(null, "", "/");
@@ -180,6 +186,8 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
             setRecapMatchId={setRecapMatchId}
             tournamentId={playTournamentId}
             clearTournament={clearTournament}
+            invite={invite}
+            clearInvite={clearInvite}
           />
         )}
         {view === "tournaments" && (tournamentId ? <TournamentDetailView key={tournamentId} id={tournamentId} player={player} /> : <TournamentsView player={player} />)}

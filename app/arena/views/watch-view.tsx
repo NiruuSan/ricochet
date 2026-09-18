@@ -1,6 +1,7 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Eye, FastForward, Medal, Radio, RotateCcw, Swords } from "lucide-react";
+import { ArrowLeft, Check, Eye, FastForward, Medal, Radio, RotateCcw, Share2, ShieldCheck, Swords } from "lucide-react";
 import { H, W } from "@/lib/engine";
 import { Avatar } from "../avatar";
 import { amount } from "../format";
@@ -9,6 +10,21 @@ import styles from "./watch.module.css";
 
 export function WatchView({ id }: { id: string }) {
   const { data, game, error, revision, flying, aiming, liveScore, replaying, speed, replay, goLive, toggleSpeed, attachCanvas } = useSpectator(id);
+  const [copied, setCopied] = useState(false);
+
+  /** Hands the run to whatever the device shares with, or falls back to the clipboard. */
+  const share = async () => {
+    const url = window.location.href;
+    const title = data ? `${data.player.name} · ${data.score.toLocaleString("en")} points on Bounce` : "Bounce";
+    try {
+      if (navigator.share) return await navigator.share({ title, url });
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // A share the viewer dismissed, or a browser without either: nothing to report.
+    }
+  };
 
   if (!data || !game) {
     return (
@@ -162,9 +178,36 @@ export function WatchView({ id }: { id: string }) {
                 {live ? <Radio size={15} /> : <Eye size={15} />} {live ? "Back to live" : "Skip to the end"}
               </button>
             )}
+            <button className="btn" onClick={() => void share()}>
+              {copied ? <Check size={15} /> : <Share2 size={15} />} {copied ? "Link copied" : "Share this run"}
+            </button>
           </div>
           {!data.replayable && data.revision > 0 && <p className={styles.note}>This run started before replays were recorded, so only new shots animate.</p>}
           {error && <p className="error">{error}</p>}
+          {data.fairness && (
+            <details className={styles.fair}>
+              <summary>
+                <ShieldCheck size={14} /> Provably fair
+              </summary>
+              <p>
+                The rows of this board come from a key drawn before the first shot. Its fingerprint was published straight away, and the key itself
+                {data.fairness.key ? " is now public: check that it hashes to the fingerprint below." : " is revealed once the game is over, so nobody can read the next row early."}
+              </p>
+              <code>
+                <small>SHA-256</small>
+                {data.fairness.hash}
+              </code>
+              {data.fairness.key && (
+                <code>
+                  <small>KEY</small>
+                  {data.fairness.key}
+                </code>
+              )}
+              <Link href="/faq" className="lime">
+                How to check this
+              </Link>
+            </details>
+          )}
         </aside>
       </div>
     </section>

@@ -6,10 +6,11 @@ import { inspectShot, reportMessage, SUSPENDED_MESSAGE, type AimTrail, type Find
 import { shotKeyFor, validSignature } from "./shot-key";
 import { parseTrap, planTrap, presentRun } from "./ghost-trap";
 import { analyzeShot, ANTI_CHEAT_ON_SQL, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
-import type { Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
+import type { ChallengeNotification, Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
+import { dailyGems } from "./daily";
 import { listNotifications, notificationInsert } from "./notifications";
 import { newRowKey, rowsFor } from "./secret-rows";
 import { shotInsert } from "./spectate-shots";
@@ -27,7 +28,7 @@ export class GameError extends Error {
 type RunRow = { user_id: string; done: number; forfeit: number; score: number };
 type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number; row_key: string | null; disqualified?: string | null };
 
-const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, r.clears, m.asset, m.ruleset, r.trap";
+const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, r.clears, m.asset, m.ruleset, m.invite, r.trap";
 
 export const AUTOMATION_DETECTED = "Automated play was detected. This game is lost and your account is suspended pending review.";
 
@@ -68,6 +69,8 @@ export const avatarUrl = (key: string | null) => (key ? `/api/avatars/${key}` : 
 // (or is about to be) cancelled, so nobody may join it. From ruleset 4 a forfeit
 // only ends that run: its score stands and the seat stays open.
 const JOINABLE = "(matches.ruleset >= 4 OR NOT EXISTS (SELECT 1 FROM runs f WHERE f.match_id = matches.id AND f.forfeit = 1))";
+/** Public matchmaking never hands out a private match: only its link does. */
+const PUBLIC_SEAT = "matches.invite IS NULL";
 
 /** Ruleset 4+: the higher score wins, forfeit or not. Earlier: a single forfeit loses. */
 function decideWinner(ruleset: number, a: RunRow, b: RunRow) {
@@ -314,7 +317,7 @@ export async function leaderboard(viewer: string | null, asset: Asset): Promise<
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
   const db = database();
   await settleFinishedMatches(uid);
-  const [player, history, active, cash, inbox, tournaments] = await Promise.all([
+  const [player, history, active, cash, inbox, tournaments, daily] = await Promise.all([
     db
       .prepare(
         `SELECT public_id AS publicId, name, balance, avatar, created,
@@ -350,6 +353,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(uid)).first<{ balance: number }>(),
     listNotifications(uid),
     tournamentHistory(uid, asset),
+    dailyGems(uid),
   ]);
   const admin = adminId();
   return {
@@ -358,6 +362,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     launch: launchStatus(settings()),
     player: player && { publicId: player.publicId, name: player.name, balance: player.balance, avatar: avatarUrl(player.avatar), created: player.created },
     suspension: player?.suspension ? { reason: player.suspension } : null,
+    daily,
     matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
     active,
     isAdmin: !!admin && uid === admin,
@@ -450,7 +455,8 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
   };
 }
 
-export async function startMatch(uid: string, stakeInput: unknown, assetInput: unknown): Promise<Run> {
+/** Rejects anything that should stop a player entering a match, and returns the entry. */
+async function assertCanEnter(uid: string, stakeInput: unknown, assetInput: unknown) {
   const db = database();
   const asset = assetInput ?? "gems";
   if (asset !== "gems" && asset !== "devnet") throw new GameError("Unsupported match currency.");
@@ -460,7 +466,6 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
   }
   const [active, suspended] = await Promise.all([activeRun(uid), isSuspended(uid)]);
   if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
-  if (active) return active;
 
   const stake = Number(stakeInput);
   if (!isStake(asset, stake)) throw new GameError("Choose one of the five entry amounts.");
@@ -471,28 +476,28 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
   if (available < stake) {
     throw new GameError(asset === "gems" ? "Not enough gems. Practice is always free." : "Not enough deposited devnet SOL. Open your wallet to fund it.");
   }
+  return { asset: asset as Asset, stake, active };
+}
 
-  const rulesets = SUPPORTED_RULESETS.map(Number).join(", ");
-  let match = await db
-    .prepare(
-      `SELECT id, seed, stake, asset, p1, p2, settled, ruleset, row_key FROM matches
-       WHERE stake = ? AND asset = ? AND p2 IS NULL AND p1 <> ? AND settled = 0
-         AND ruleset IN (${rulesets}) AND ${JOINABLE}
-       ORDER BY created ASC LIMIT 1`,
-    )
-    .bind(stake, asset, uid)
-    .first<MatchRow>();
+/**
+ * Takes a seat: the second one of `joining`, or the first of a new match.
+ * `invite` makes that new match private, so only its link — and the player it
+ * names, when it names one — can take the other seat.
+ */
+async function enterMatch(uid: string, stake: number, asset: Asset, joining: MatchRow | null, invite: { code: string; invited: string | null } | null): Promise<Run> {
+  const db = database();
   const runId = crypto.randomUUID();
   const now = Date.now();
   const ops: Statement[] = [];
+  let match = joining;
   if (match) {
-    ops.push(db.prepare(`UPDATE matches SET p2 = ? WHERE id = ? AND p2 IS NULL AND settled = 0 AND ${JOINABLE}`).bind(uid, match.id));
+    ops.push(db.prepare(`UPDATE matches SET p2 = ? WHERE id = ? AND p2 IS NULL AND settled = 0 AND (invited IS NULL OR invited = ?) AND ${JOINABLE}`).bind(uid, match.id, uid));
   } else {
     match = { id: crypto.randomUUID(), seed: crypto.getRandomValues(new Uint32Array(1))[0], stake, asset, p1: uid, p2: null, settled: 0, ruleset: RULESET, row_key: newRowKey() };
     ops.push(
       db
-        .prepare("INSERT INTO matches(id, seed, stake, asset, p1, created, ruleset, row_key) VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(match.id, match.seed, stake, asset, uid, now, RULESET, match.row_key),
+        .prepare("INSERT INTO matches(id, seed, stake, asset, p1, created, ruleset, row_key, invite, invited) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(match.id, match.seed, stake, asset, uid, now, RULESET, match.row_key, invite?.code ?? null, invite?.invited ?? null),
     );
   }
   // The run and the entry only exist if this player really holds a seat, which
@@ -527,6 +532,73 @@ export async function startMatch(uid: string, stakeInput: unknown, assetInput: u
     .first<RunRecord>();
   if (!row) throw new GameError("That opponent was just matched. Please try again.", 409);
   return publicRun(row);
+}
+
+/** Matchmaking: takes the oldest open seat at this entry, or opens one. */
+export async function startMatch(uid: string, stakeInput: unknown, assetInput: unknown): Promise<Run> {
+  const { asset, stake, active } = await assertCanEnter(uid, stakeInput, assetInput);
+  if (active) return active;
+  const rulesets = SUPPORTED_RULESETS.map(Number).join(", ");
+  const match = await database()
+    .prepare(
+      `SELECT id, seed, stake, asset, p1, p2, settled, ruleset, row_key FROM matches
+       WHERE stake = ? AND asset = ? AND p2 IS NULL AND p1 <> ? AND settled = 0
+         AND ruleset IN (${rulesets}) AND ${JOINABLE} AND ${PUBLIC_SEAT}
+       ORDER BY created ASC LIMIT 1`,
+    )
+    .bind(stake, asset, uid)
+    .first<MatchRow>();
+  return enterMatch(uid, stake, asset, match, null);
+}
+
+/** Codes travel in links and chat messages: short, unambiguous, hard to guess. */
+const inviteCode = () => Array.from(crypto.getRandomValues(new Uint8Array(9)), (b) => "abcdefghjkmnpqrstuvwxyz23456789"[b % 31]).join("");
+
+/**
+ * Opens a match public matchmaking never hands out: only its link takes the
+ * other seat. With `opponentName`, only that player may take it, and they are told.
+ */
+export async function createChallenge(uid: string, stakeInput: unknown, assetInput: unknown, opponentName?: unknown): Promise<Run> {
+  const { asset, stake, active } = await assertCanEnter(uid, stakeInput, assetInput);
+  if (active) return active;
+  const db = database();
+  let invited: { id: string; name: string } | null = null;
+  const wanted = String(opponentName ?? "").trim();
+  if (wanted) {
+    invited = await db.prepare("SELECT id, name FROM players WHERE lower(name) = lower(?)").bind(wanted).first<{ id: string; name: string }>();
+    if (!invited) throw new GameError("No player by that name.", 404);
+    if (invited.id === uid) throw new GameError("You cannot challenge yourself.");
+  }
+  const code = inviteCode();
+  const run = await enterMatch(uid, stake, asset, null, { code, invited: invited?.id ?? null });
+  if (invited) {
+    const from = await db.prepare("SELECT name FROM players WHERE id = ?").bind(uid).first<{ name: string }>();
+    const data: ChallengeNotification = { matchId: run.match_id, invite: code, asset, stake, from: from?.name ?? "A player" };
+    await db.batch([notificationInsert(db, `challenge:${run.match_id}`, invited.id, "challenge", data, Date.now())]);
+  }
+  return run;
+}
+
+/** Takes the seat of a private match from its link. */
+export async function joinChallenge(uid: string, codeInput: unknown): Promise<Run> {
+  const code = String(codeInput ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9]{4,32}$/.test(code)) throw new GameError("That challenge link is not valid.", 404);
+  const db = database();
+  const match = await db
+    .prepare("SELECT id, seed, stake, asset, p1, p2, settled, ruleset, row_key, invited FROM matches WHERE invite = ? AND settled = 0")
+    .bind(code)
+    .first<MatchRow & { invited: string | null }>();
+  if (!match) throw new GameError("This challenge has expired or was already played.", 404);
+  if (match.p1 === uid) {
+    const own = await activeRun(uid);
+    if (own && own.match_id === match.id) return own;
+    throw new GameError("This is your own challenge. Send the link to a rival.", 409);
+  }
+  if (match.p2) throw new GameError("Someone already took this seat.", 409);
+  if (match.invited && match.invited !== uid) throw new GameError("This challenge was sent to another player.", 403);
+  const { asset, stake, active } = await assertCanEnter(uid, match.stake, match.asset);
+  if (active) return active;
+  return enterMatch(uid, stake, asset, match, null);
 }
 
 /**

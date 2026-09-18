@@ -2,12 +2,14 @@
 import { Tooltip } from "@/components/ui/tooltip";
 
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, ArrowUpRight, Gem, Target, Zap } from "lucide-react";
-import { STAKES, winnerPayout, type Asset } from "@/lib/api-types";
-import { amount, CURRENCY, units } from "../format";
+import { ArrowLeft, ArrowRight, ArrowUpRight, Gem, Link2, Target, Zap } from "lucide-react";
+import { useState } from "react";
+import { STAKES, winnerPayout, type Asset, type Run } from "@/lib/api-types";
+import { amount, CURRENCY, shareChallenge, units } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./screens.module.css";
 import { ArenaDashboard, useArenaOverview } from "./arena-dashboard";
+import { DailyGemsCard } from "./daily-gems";
 import dashboard from "./arena-dashboard.module.css";
 
 export type LobbyChoice = "practice" | Asset;
@@ -25,19 +27,31 @@ type Props = {
   stakeIndex: number;
   setStakeIndex: (index: number) => void;
   onFindMatch: (asset: Asset, stake: number) => void;
+  /** Opens a private match at this entry and returns it, with the code its link carries. */
+  onChallenge: (asset: Asset, stake: number, opponent?: string) => Promise<Run | null>;
   busy: boolean;
   /** Opens the recap of one of the player's matches. */
   onOpenMatch: (matchId: string) => void;
 };
 
 /** Step one: how to play. Step two, for a 1v1: the entry. Picking the same mode again closes it. */
-export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onFindMatch, busy, onOpenMatch }: Props) {
+export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onFindMatch, onChallenge, busy, onOpenMatch }: Props) {
   const { data } = player;
   const solConfigured = !!data.launch?.configured;
   const balance = (asset: Asset) => (asset === "gems" ? (data.player?.balance ?? 0) : (data.cashBalance ?? 0));
   const stake = choice ? STAKES[choice][stakeIndex] : 0;
   const affordable = choice ? balance(choice) >= stake : false;
   const { overview, now } = useArenaOverview();
+  const [inviting, setInviting] = useState(false);
+
+  /** Opens a private match and puts its link where the player can send it. */
+  const openChallenge = async () => {
+    if (!choice) return;
+    setInviting(true);
+    const run = await onChallenge(choice, stake);
+    setInviting(false);
+    if (run?.invite) await shareChallenge(run.invite);
+  };
 
   return (
     <section className={styles.lobby}>
@@ -111,6 +125,8 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
         </button>
       </div>
 
+      <DailyGemsCard player={player} />
+
       {choice && (
         <div className={styles.stakePanel} key={choice}>
           <div className={styles.stakeTop}>
@@ -154,9 +170,14 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
                 <ArrowLeft /> Back
               </button>
               {data.player ? (
-                <button className={`btn btn-primary ${styles.findButton}`} disabled={busy || !affordable} onClick={() => onFindMatch(choice, stake)}>
-                  Find a match <ArrowRight />
-                </button>
+                <>
+                  <button className="btn" disabled={busy || inviting || !affordable} onClick={() => void openChallenge()}>
+                    <Link2 /> {inviting ? "Opening…" : "Challenge a friend"}
+                  </button>
+                  <button className={`btn btn-primary ${styles.findButton}`} disabled={busy || !affordable} onClick={() => onFindMatch(choice, stake)}>
+                    Find a match <ArrowRight />
+                  </button>
+                </>
               ) : (
                 <Link className={`btn btn-primary ${styles.findButton}`} href={data.authenticated ? "/signup" : "/login"}>
                   Sign in to play <ArrowRight />

@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Flag, LogOut } from "lucide-react";
+import { Flag, Link2, LogOut } from "lucide-react";
 import type { Asset, MatchRecap, Run, TournamentDetail } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import { Board } from "../board";
-import { amount } from "../format";
+import { amount, shareChallenge } from "../format";
 import type { GameSession } from "../use-game-session";
 import type { PlayerState } from "../arena";
 import { Lobby, type LobbyChoice } from "./lobby";
@@ -24,6 +24,9 @@ type Props = {
   /** A tournament whose run should start or resume, from a `/?tournament=<id>` link. */
   tournamentId: string | null;
   clearTournament: () => void;
+  /** A challenge code from a link or a notice; its seat is taken once. */
+  invite: string | null;
+  clearInvite: () => void;
 };
 
 type Intro = { asset: Asset; stake: number; stage: IntroStage; opponent?: { name: string; avatar: string | null } | null; tournament?: string };
@@ -34,7 +37,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * The arena flow: lobby (practice or a 1v1 entry), the matchmaking intro, the
  * game itself, and the end-of-run screen.
  */
-export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMatchId, tournamentId, clearTournament }: Props) {
+export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMatchId, tournamentId, clearTournament, invite, clearInvite }: Props) {
   const { data, setAsset, setError, refresh } = player;
   const { game, run, started, flying, syncing, clears } = session;
   // Waiting for the server's next row counts as busy: no shot or forfeit until it lands.
@@ -42,6 +45,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
   const [choice, setChoice] = useState<Asset | null>(null);
   const [stakeIndex, setStakeIndex] = useState(1);
   const [intro, setIntro] = useState<Intro | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const currentMatch = data.matches.find((m) => m.id === run?.match_id);
   const [tournamentName, setTournamentName] = useState("");
@@ -80,7 +84,8 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
     };
   }, [clearTournament, resume, setError, tournamentId]);
 
-  const findMatch = async (asset: Asset, stake: number) => {
+  /** Plays the matchmaking intro around `enter`, whichever seat it takes. */
+  const enterMatch = async (asset: Asset, stake: number, enter: () => Promise<Run | null>) => {
     if (!data.player) {
       window.location.href = "/signup";
       return;
@@ -88,7 +93,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
     setError("");
     setIntro({ asset, stake, stage: "searching" });
     // The intro always plays long enough to land, even when matchmaking is instant.
-    const [entered] = await Promise.all([session.startMatch(stake, asset), wait(1900)]);
+    const [entered] = await Promise.all([enter(), wait(1900)]);
     if (!entered) {
       setIntro(null);
       return;
@@ -111,6 +116,17 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
     setIntro(null);
   };
 
+  const findMatch = (asset: Asset, stake: number) => enterMatch(asset, stake, () => session.startMatch(stake, asset));
+  /** Opens a private match and hands its link back, so the player can send it. */
+  const challenge = async (asset: Asset, stake: number, opponent?: string) => {
+    const run = await session.challenge(stake, asset, opponent);
+    if (run) {
+      setAsset(run.asset);
+      void refresh();
+    }
+    return run;
+  };
+
   const choose = (next: LobbyChoice | null) => {
     if (next === "practice") {
       setChoice(null);
@@ -120,6 +136,24 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
     if (next !== choice) setStakeIndex(1);
     setChoice(next);
   };
+
+  // A challenge link: take the seat, then play the same intro as any other match.
+  const { joinChallenge } = session;
+  useEffect(() => {
+    if (!invite) return;
+    let active = true;
+    void (async () => {
+      const joined = await joinChallenge(invite);
+      if (!active) return;
+      clearInvite();
+      if (!joined) return;
+      setAsset(joined.asset);
+      void refresh();
+    })();
+    return () => {
+      active = false;
+    };
+  }, [clearInvite, invite, joinChallenge, refresh, setAsset]);
 
   const closeResult = useCallback(() => {
     setRecapMatchId(null);
@@ -154,6 +188,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           stakeIndex={stakeIndex}
           setStakeIndex={setStakeIndex}
           onFindMatch={(asset, stake) => void findMatch(asset, stake)}
+          onChallenge={challenge}
           busy={busy || !!intro}
           onOpenMatch={setRecapMatchId}
         />
@@ -177,6 +212,10 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
                   <>
                     vs <Avatar name={currentMatch.opponent} src={currentMatch.opponent_avatar} size={26} /> <b>{currentMatch.opponent}</b>
                   </>
+                ) : run.invite ? (
+                  <button className={styles.hudLink} onClick={() => void shareChallenge(run.invite!).then((copied) => copied && setLinkCopied(true))}>
+                    <Link2 size={14} /> {linkCopied ? "Link copied" : "Copy the challenge link"}
+                  </button>
                 ) : (
                   "Seat open · you set the score"
                 )
@@ -207,6 +246,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           key={resultTarget.kind === "match" ? resultTarget.matchId : "practice"}
           target={resultTarget}
           onPlayAgain={playAgain}
+          onRematch={(asset, stake, opponent) => challenge(asset, stake, opponent)}
           onClose={closeResult}
           onSettled={onSettled}
         />

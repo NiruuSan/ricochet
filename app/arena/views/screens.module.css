@@ -1299,3 +1299,39 @@
     gap: 10px;
   }
 }
+
+/* On the board of a private match: the link that fills the other seat. */
+.hudLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: #c6f564;
+  font-size: 13px;
+  font-weight: 700;
+}
+.hudLink:hover {
+  text-decoration: underline;
+}
+
+/* Challenging the same rival again, straight from the result. */
+.rematch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 14px;
+  border: 1px solid #3b485e;
+  border-radius: 9px;
+  background: #1b2432;
+  color: #cdd8e8;
+  font-size: 12px;
+  font-weight: 700;
+}
+.rematch:not(:disabled):hover {
+  border-color: #c6f564;
+  color: #c6f564;
+}

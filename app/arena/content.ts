@@ -32,6 +32,10 @@ export const FAQ: [question: string, answer: string][] = [
     "Gems are Bounce’s free in-game currency. Every new profile receives 2,000 gems to enter gem matches. They have no monetary value and cannot be bought, sold, deposited or withdrawn.",
   ],
   [
+    "How do I know the boards are fair?",
+    "Every match and tournament draws a secret key before the first shot, and the rows of each round are an HMAC-SHA256 of that key and the round number, so nobody — not even the house — can pick the bricks you get. The key's SHA-256 fingerprint is published on the replay page from the start, and the key itself is revealed once the game is over. Hash the key and compare it with the fingerprint: if they match, the board you played is the one that was committed to before anyone touched it. The derivation is in lib/secret-rows.ts in the public repository.",
+  ],
+  [
     "Do you check for bots?",
     "Yes. Every shot is checked, and the game data sent to your browser carries traps that only a program reading it can fall into. They are invisible, change nothing you see and never touch your board, your score or your payout. Automated play is suspended, its unsettled matches go to the opponent and its balance is held for review. Playing normally, with your mouse or your keyboard, is never affected.",
   ],

@@ -1,6 +1,7 @@
 // Response shapes and game economics shared by the API routes and the browser
 // client. Nothing here may carry another player's platform user ID.
 import type { Game } from "./engine";
+import type { Fairness } from "./fairness";
 import type { PlayerLevel } from "./levels";
 
 export type { PlayerLevel, RankTier } from "./levels";
@@ -47,6 +48,8 @@ export type Run = {
   shotKey?: string;
   /** Removes the ghost bricks from `state` together with `shotKey` (lib/ghost-bricks.ts). */
   sync?: number;
+  /** Set on a private match: the code its challenge link carries. */
+  invite?: string | null;
 };
 
 export type MatchResult = "win" | "loss" | "draw" | "cancelled";
@@ -201,7 +204,11 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
   | { kind: "security_reset"; data: { holdUntil: number } }
   | { kind: "race_result"; data: RaceNotification }
   | { kind: "account_suspended"; data: { reason: string } }
+  | { kind: "challenge"; data: ChallengeNotification }
 );
+
+/** A private match opened for one player: its link is the code. */
+export type ChallengeNotification = { matchId: string; invite: string; asset: Asset; stake: number; from: string };
 
 export type Snapshot = {
   asset: Asset;
@@ -217,6 +224,16 @@ export type Snapshot = {
   tournaments: TournamentHistoryItem[];
   /** Set while the account is suspended or banned by the anti-cheat. */
   suspension: { reason: string } | null;
+  /** The free daily gems: what today pays, and whether it is still to claim. */
+  daily: DailyGems;
+};
+
+/** The free gems a player can claim once a day (lib/daily.ts). */
+export type DailyGems = {
+  ready: boolean;
+  streak: number;
+  amount: number;
+  nextAt: number;
 };
 
 export type Transfer = {
@@ -370,6 +387,8 @@ export type WatchData = {
   shots: WatchShot[];
   /** Every shot since the start is logged, so the run can be replayed from the beginning. */
   replayable: boolean;
+  /** The board's commitment, and the key it came from once the game is over (lib/fairness.ts). */
+  fairness: Fairness | null;
   /** Both runs of a match, when the viewer may watch them; empty for tournaments. */
   sides: WatchSide[];
 };

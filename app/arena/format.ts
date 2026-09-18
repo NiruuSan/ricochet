@@ -50,3 +50,22 @@ export function matchStats(matches: MatchSummary[]) {
     openEntries: matches.filter((m) => !m.settled).reduce((sum, m) => sum + m.stake, 0),
   };
 }
+
+/**
+ * Hands a challenge link to whatever the device shares with, and falls back to
+ * the clipboard. Returns true when the link went to the clipboard, so the
+ * caller can say so.
+ */
+export async function shareChallenge(invite: string) {
+  const url = `${window.location.origin}/?join=${invite}`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: "Take my challenge on Bounce", url });
+      return false;
+    }
+    await navigator.clipboard.writeText(url);
+    return true;
+  } catch {
+    return false;
+  }
+}

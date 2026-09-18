@@ -35,6 +35,10 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
       detail: payout > 0 ? `Prize +${units(payout, asset)} ${CURRENCY[asset]}` : "Outside the prize places this time",
     };
   }
+  if (n.kind === "challenge") {
+    const { from, asset, stake } = n.data;
+    return { tone: "tournament", title: `${from} challenged you`, detail: `${units(stake, asset)} ${CURRENCY[asset]} · same board, head to head` };
+  }
   const { result, opponent, net, asset, stake, score, opponentScore } = n.data;
   const vs = opponent ?? "your opponent";
   if (result === "cancelled") {
@@ -126,7 +130,8 @@ export function Notifications({ items, unread, onOpenMatch, onRead, viewingMatch
     setOpen(false);
     setToasts([]);
     if (!n.read) void request("/api/notifications", { action: "read", ids: [n.id] }).then(onRead, () => {});
-    if (n.kind === "match_result") onOpenMatch(n.data.matchId);
+    if (n.kind === "challenge") router.push(`/?join=${encodeURIComponent(n.data.invite)}`);
+    else if (n.kind === "match_result") onOpenMatch(n.data.matchId);
     else if (n.kind === "tournament_result") router.push(`/tournaments/${n.data.tournamentId}`);
     else if (n.kind === "race_result") router.push("/leaderboard?board=race");
     else router.push("/wallet");

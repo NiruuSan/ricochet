@@ -348,13 +348,13 @@ export function useGameSession({ onSaved, onError }: Options) {
     setAngle(DEFAULT_ANGLE);
   }, [setAngle, setGame, setRun, setStarted]);
 
-  /** Enters (or resumes) a saved match. Returns the run, or null after reporting an error. */
-  const startMatch = useCallback(
-    async (stake: number, asset: Asset) => {
+  /** Enters (or resumes) a saved match, however the seat was found. */
+  const enter = useCallback(
+    async (body: Record<string, unknown>) => {
       if (busyRef.current) return null;
       setBlocking(true);
       try {
-        const entered = cleanRun((await gameAction<{ run: Run }>({ action: "start", stake, asset })).run);
+        const entered = cleanRun((await gameAction<{ run: Run }>(body)).run);
         confirmedRef.current = entered;
         setRun(entered);
         setGame(entered.state);
@@ -370,6 +370,13 @@ export function useGameSession({ onSaved, onError }: Options) {
     },
     [onError, onSaved, setBlocking, setGame, setRun, setStarted],
   );
+
+  /** Matchmaking: takes an open seat at this entry, or opens one. */
+  const startMatch = useCallback((stake: number, asset: Asset) => enter({ action: "start", stake, asset }), [enter]);
+  /** Opens a private match: only its link, or the player it names, takes the other seat. */
+  const challenge = useCallback((stake: number, asset: Asset, opponent?: string) => enter({ action: "challenge", stake, asset, opponent }), [enter]);
+  /** Takes the seat of a private match from its link. */
+  const joinChallenge = useCallback((invite: string) => enter({ action: "join", invite }), [enter]);
 
   const forfeit = useCallback(async () => {
     if (!runRef.current || busyRef.current) return;
@@ -473,6 +480,8 @@ export function useGameSession({ onSaved, onError }: Options) {
     shoot,
     startPractice,
     startMatch,
+    challenge,
+    joinChallenge,
     forfeit,
     resume,
     reset,

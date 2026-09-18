@@ -1,0 +1,21 @@
+/* The free gems of the day, on the lobby. */
+.card { display: flex; align-items: center; gap: 18px; margin-top: 22px; padding: 18px 22px; border: 1px solid #2b3546; border-radius: 16px; background: linear-gradient(135deg, #161e2b, #111925); }
+.ready { border-color: #c6f56440; background: radial-gradient(ellipse at top left, #c6f5640f, transparent 60%), linear-gradient(135deg, #161e2b, #111925); }
+.icon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 13px; border: 1px solid #2f3b4f; background: #0f1724; color: #8e9cb1; }
+.ready .icon { border-color: #c6f56440; color: #c6f564; }
+.copy { flex: 1; min-width: 0; }
+.copy h2 { font-size: 17px; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.copy p { margin-top: 5px; color: #93a1b8; font-size: 13px; }
+.error { color: #ffb2bf !important; }
+.action { flex-shrink: 0; }
+.action :global(.btn) { white-space: nowrap; }
+.streak { display: flex; flex-direction: column; align-items: flex-end; color: #93a1b8; }
+.streak b { font-size: 24px; color: #c6f564; line-height: 1.1; }
+.streak small { font-size: 11px; }
+@media (max-width: 620px) {
+  .card { flex-wrap: wrap; gap: 14px; padding: 16px; }
+  .copy { flex-basis: calc(100% - 62px); }
+  .action { flex-basis: 100%; }
+  .action :global(.btn) { width: 100%; }
+  .streak { align-items: center; }
+}

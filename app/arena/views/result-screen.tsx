@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { Swords, ArrowRight } from "lucide-react";
 import type { Asset, MatchRecap, RecapSide } from "@/lib/api-types";
 import type { Game } from "@/lib/engine";
 import { request } from "../api";
@@ -19,6 +19,8 @@ export type ResultTarget =
 type Props = {
   target: ResultTarget;
   onPlayAgain: (again: { asset: Asset; stake: number } | null) => void;
+  /** Opens a private match for the same opponent, at the same entry. */
+  onRematch?: (asset: Asset, stake: number, opponent: string) => Promise<unknown>;
   onClose: () => void;
   /** Called once when a match result becomes final, so balances can refresh. */
   onSettled?: () => void;
@@ -147,8 +149,10 @@ function PracticeDetails({ you }: { you: RecapSide }) {
   );
 }
 
-export function ResultScreen({ target, onPlayAgain, onClose, onSettled }: Props) {
+export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettled }: Props) {
   const { recap, error } = useRecap(target, onSettled);
+  // One rematch per result screen, so a double tap does not open two matches.
+  const [rematched, setRematched] = useState(false);
 
   // Close on Escape, like any full-screen overlay.
   useEffect(() => {
@@ -255,6 +259,18 @@ export function ResultScreen({ target, onPlayAgain, onClose, onSettled }: Props)
               Play again <ArrowRight />
             </button>
             <small>{practice ? "NEW BOARD" : "SAME STAKE"}</small>
+            {onRematch && opponent && again && (
+              <button
+                className={styles.rematch}
+                disabled={rematched}
+                onClick={() => {
+                  setRematched(true);
+                  void onRematch(again.asset, again.stake, opponent.name);
+                }}
+              >
+                <Swords size={14} /> {rematched ? `${opponent.name} has been challenged` : `Rematch ${opponent.name}`}
+              </button>
+            )}
           </div>
         </div>
         <button className={styles.backLink} onClick={onClose}>

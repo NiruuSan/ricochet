@@ -120,6 +120,20 @@
       "when": 1789667985839,
       "tag": "0016_ghost_traps",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1789733074311,
+      "tag": "0017_daily_gems",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1789733964264,
+      "tag": "0018_private_challenges",
+      "breakpoints": true
     }
   ]
 }
