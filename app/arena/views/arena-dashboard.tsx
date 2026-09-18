@@ -1,4 +1,6 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Crown, Eye, History, Lock, Medal, Radio, Swords, Trophy, Users } from "lucide-react";
@@ -87,9 +89,9 @@ function RecentRow({ g, onOpenMatch }: { g: RecentGame; onOpenMatch: (id: string
         </button>
       )}
       {g.watchId && (
-        <Link href={`/watch/${g.watchId}`} className={styles.replay} aria-label="Replay this run" title="Replay">
+        <Tooltip content="Replay"><Link href={`/watch/${g.watchId}`} className={styles.replay} aria-label="Replay this run">
           <Eye size={16} />
-        </Link>
+        </Link></Tooltip>
       )}
     </div>
   );
@@ -113,7 +115,7 @@ function LiveRow({ g }: { g: LiveGame }) {
       </span>
     </>
   );
-  if (g.locked) return <div className={`${styles.live} ${styles.lockedRow}`} title={g.locked === "seat" ? "The board opens once someone takes the seat" : "Finish your own run in this tournament first"}>{body}</div>;
+  if (g.locked) return <Tooltip content={g.locked === "seat" ? "The board opens once someone takes the seat" : "Finish your own run in this tournament first"}><div className={`${styles.live} ${styles.lockedRow}`}>{body}</div></Tooltip>;
   return (
     <Link href={`/watch/${g.watchId}`} className={styles.live}>
       {body}

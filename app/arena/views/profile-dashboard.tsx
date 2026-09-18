@@ -1,7 +1,10 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
 import { useEffect, useId, useState, type PointerEvent } from "react";
 import Link from "next/link";
-import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, ChevronDown, Crosshair, Eye, Flame, Gem, History, Medal, Swords, Search, Settings2, Share2, TrendingUp, UserRound, Wallet, Zap } from "lucide-react";
+import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, Crosshair, Eye, Flame, Gem, History, Medal, Swords, Search, Settings2, Share2, TrendingUp, UserRound, Wallet, Zap } from "lucide-react";
+import { Select } from "@/components/ui/select";
 import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, ProfileStats, PublicPlayerProfile } from "@/lib/api-types";
 import type { PlayerState } from "../arena";
 import { request } from "../api";
@@ -97,7 +100,7 @@ function StatsSection({ stats, asset }: { stats: ProfileStats; asset: Asset }) {
           <div><b className={styles.positive}>{matches.wins}</b><span>Wins</span></div>
           <div><b className={styles.negative}>{matches.losses}</b><span>Losses</span></div>
           <div><b>{matches.draws}</b><span>Draws</span></div>
-          <div><b title={decided ? `${matches.wins} wins for ${matches.losses} losses` : undefined}>{ratio}</b><span>W/L ratio</span></div>
+          <div><Tooltip content={decided ? `${matches.wins} wins for ${matches.losses} losses` : undefined}><b>{ratio}</b></Tooltip><span>W/L ratio</span></div>
           <div><b className={matches.streak > 0 ? styles.positive : matches.streak < 0 ? styles.negative : ""}>{streak}</b><span>Current streak</span></div>
           <div><b>{matches.bestWinStreak}</b><span><Flame size={11} /> Best win streak</span></div>
         </div>
@@ -148,7 +151,7 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
     <div className={styles.toolbar}>
       <div className={styles.filters} role="group" aria-label="Match status"><button aria-pressed={filter === "open"} onClick={() => setFilter("open")}>Open</button><button aria-pressed={filter === "settled"} onClick={() => setFilter("settled")}>Settled</button></div>
       <label className={styles.search}><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search matches, players or tournaments" aria-label="Search match history" /></label>
-      <label className={styles.sort}><ArrowDownUp size={15} /><select aria-label="Sort match history" value={sort} onChange={(event) => setSort(event.target.value)}><option value="recent">Recent</option><option value="pnl">Profit / Loss</option><option value="stake">Entry value</option></select><ChevronDown size={13} /></label>
+      <div className={styles.sort}><ArrowDownUp size={15} /><Select label="Sort match history" value={sort} onValueChange={setSort} options={[{ value: "recent", label: "Recent" }, { value: "pnl", label: "Profit / Loss" }, { value: "stake", label: "Entry value" }]} /></div>
     </div>
     <div className={styles.tableScroll}>
       <table className={styles.table}>

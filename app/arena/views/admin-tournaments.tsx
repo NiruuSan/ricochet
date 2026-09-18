@@ -1,4 +1,7 @@
 "use client";
+import { Form } from "@/components/ui/form";
+import { DateTimeField } from "@/components/ui/date-time-field";
+import { useActionDialog } from "@/components/ui/action-dialog";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Trash2 } from "lucide-react";
@@ -72,7 +75,7 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
 
   const unit = asset === "devnet" ? "SOL" : "gems";
   return (
-    <form className={`${styles.panel} ${styles.form}`} onSubmit={submit}>
+    <Form className={`${styles.panel} ${styles.form}`} onSubmit={submit}>
       <h2 className={styles.full} style={{ fontSize: 20 }}>
         New tournament
       </h2>
@@ -137,14 +140,8 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
           ))}
         </div>
       </div>
-      <label className="field">
-        Starts
-        <input className="input" type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} required />
-      </label>
-      <label className="field">
-        Ends
-        <input className="input" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} required />
-      </label>
+      <div className="field"><label htmlFor="tournament-starts">Starts</label><DateTimeField id="tournament-starts" label="Starts" value={startsAt} onChange={setStartsAt} required /></div>
+      <div className="field"><label htmlFor="tournament-ends">Ends</label><DateTimeField id="tournament-ends" label="Ends" value={endsAt} onChange={setEndsAt} required /></div>
       <div className={styles.preview}>
         <div>
           <span className={styles.muted}>{entry === "paid" ? `Prize pool when all ${seats || 0} places are taken` : "Prize reserved now"}</span>
@@ -170,11 +167,12 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
           <Plus /> {busy ? "Creating…" : "Create tournament"}
         </button>
       </div>
-    </form>
+    </Form>
   );
 }
 
 export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) {
+  const dialog = useActionDialog();
   const [list, setList] = useState<AdminTournament[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -209,7 +207,7 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
         : action === "close"
           ? `End “${t.name}” now and pay out the current standings?`
           : `Delete “${t.name}” permanently? It disappears from the tournament list, player histories and replays. Payouts, refunds and balances are kept. This cannot be undone.`;
-    if (!window.confirm(question)) return;
+    if (!(await dialog.confirm(question, { title: action === "cancel" ? "Cancel tournament" : action === "close" ? "End tournament" : "Delete tournament", confirmLabel: action === "cancel" ? "Cancel & refund" : action === "close" ? "End & pay out" : "Delete permanently", danger: true }))) return;
     setBusy(t.id);
     setError("");
     try {

@@ -1,4 +1,7 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
+import { Form } from "@/components/ui/form";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDownToLine, ArrowUpFromLine, ArrowUpRight, Check, Copy, ExternalLink, Gem, History, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
@@ -350,9 +353,9 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
                     {t.kind === "deposit" ? "+" : "−"}
                     {fullSol(t.amount)} SOL
                   </strong>
-                  <span className={`transfer-status ${t.status}`} title={t.error ?? undefined}>
+                  <Tooltip content={t.error ?? undefined}><span className={`transfer-status ${t.status}`}>
                     {STATUS_LABELS[t.status] ?? t.status}
-                  </span>
+                  </span></Tooltip>
                   <a href={explorer("tx", t.signature)} target="_blank" rel="noreferrer" aria-label="View transaction on explorer">
                     <ExternalLink size={15} />
                   </a>
@@ -415,7 +418,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
               : "Enter an external Solana wallet on devnet. These funds are for testing only."}
           </DialogDescription>
           {stage === "edit" ? (
-            <form
+            <Form
               onSubmit={(e) => {
                 e.preventDefault();
                 withdrawalId.current = null;
@@ -443,6 +446,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
                   required
                   inputMode="decimal"
                   pattern="[0-9]+(\.[0-9]{1,9})?"
+                  data-format-hint="Enter an amount with up to 9 decimal places, such as 0.1."
                   placeholder="0.1"
                 />
               </label>
@@ -450,7 +454,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
               <button className="btn btn-primary full" type="submit">
                 Review transfer
               </button>
-            </form>
+            </Form>
           ) : (
             <>
               <p style={{ overflowWrap: "anywhere" }}>

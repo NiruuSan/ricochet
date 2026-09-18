@@ -1,4 +1,6 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
 import { FastForward, Play } from "lucide-react";
 import { H, MAX_ANGLE, MIN_ANGLE, W } from "@/lib/engine";
 import type { GameSession } from "./use-game-session";
@@ -95,7 +97,7 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
       <div className="board-bottom">
         <span>
           {busy ? "Saving…" : flying ? "Let it bounce." : awaitingRow ? "Next row incoming…" : started ? "Aim anywhere above the line." : "472 × 612 · 7 columns · 9 rows"}
-          {syncing && !game.over && <span className="sync-dot" title="Saving your shots in the background" />}
+          {syncing && !game.over && <Tooltip content="Saving your shots in the background"><span className="sync-dot" /></Tooltip>}
         </span>
         <button aria-label="Toggle animation speed" className="icon-btn" onClick={() => session.toggleSpeed()}>
           <FastForward size={15} />

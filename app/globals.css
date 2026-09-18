@@ -837,6 +837,8 @@ h3 {
   color: #c6f564;
   margin-bottom: 20px;
 }
+.input[aria-invalid="true"] { border-color: #ff91a0; box-shadow: 0 0 0 1px #ff91a020; }
+input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outline-offset: 3px; }
 .dialog-dark {
   background: #172130;
   border: 1px solid #45516a;

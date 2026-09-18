@@ -1,4 +1,6 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, Gem, Target, Zap } from "lucide-react";
 import { STAKES, winnerPayout, type Asset } from "@/lib/api-types";
@@ -131,7 +133,7 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
                 {units(s, choice)}
                 <small>
                   {CURRENCY[choice].toUpperCase()}
-                  {!!overview?.openSeats[choice][s] && <span className={dashboard.waiting} title="A rival is waiting at this entry: your match starts right away" />}
+                  {!!overview?.openSeats[choice][s] && <Tooltip content="A rival is waiting at this entry: your match starts right away"><span className={dashboard.waiting} /></Tooltip>}
                 </small>
               </button>
             ))}

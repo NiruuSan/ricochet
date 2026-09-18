@@ -1,3 +1,4 @@
+import { Tooltip } from "@/components/ui/tooltip";
 import type { PlayerLevel, RankTier } from "@/lib/api-types";
 import { LAMPORTS_PER_XP } from "@/lib/levels";
 import styles from "./rank-badge.module.css";
@@ -25,10 +26,10 @@ export function RankEmblem({ tier, division, size = 22 }: { tier: RankTier; divi
 /** Emblem and rank name, for lists. */
 export function RankBadge({ level }: { level: PlayerLevel }) {
   return (
-    <span className={`${styles.badge} ${styles[level.tier]}`} title={`${level.name} · ${level.xp.toLocaleString("en")} XP`}>
+    <Tooltip content={`${level.name} · ${level.xp.toLocaleString("en")} XP`}><span className={`${styles.badge} ${styles[level.tier]}`}>
       <RankEmblem tier={level.tier} division={level.division} size={14} />
       {level.name}
-    </span>
+    </span></Tooltip>
   );
 }
 

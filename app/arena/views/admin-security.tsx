@@ -1,4 +1,5 @@
 "use client";
+import { Form } from "@/components/ui/form";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { AdminSecuritySnapshot } from "@/lib/api-types";
@@ -39,7 +40,7 @@ export function AdminSecurity() {
       <p className="muted">Help a player who lost their authenticator and recovery codes. Verify their identity outside Bounce before resetting access.</p>
       {error && <p className="error" role="alert">{error}</p>}
       {notice && <p className="success" role="status">{notice}</p>}
-      <form className={styles.panel} onSubmit={async (e) => {
+      <Form className={styles.panel} onSubmit={async (e) => {
         e.preventDefault(); setBusy(true); setError(""); setNotice(""); setCode(""); setReason(""); setVerified(false); setReauth(null);
         try { await lookup(name.trim()); setSearched(true); }
         catch (e) { setError((e as Error).message); setData(null); }
@@ -50,7 +51,7 @@ export function AdminSecurity() {
         </label>
         <button className="btn" disabled={busy}>{busy ? "Loading..." : "Find player"}</button>
         {searched && data && !data.player && <p className="muted" role="status" style={{ marginTop: 12 }}>No player found with that exact public name.</p>}
-      </form>
+      </Form>
 
       {data?.player && <section className={styles.panel}>
         <h2 style={{ overflowWrap: "anywhere" }}>{data.player.name}</h2>
@@ -61,7 +62,7 @@ export function AdminSecurity() {
           <dt>Verification locked until</dt><dd>{date(data.player.lockedUntil)}</dd>
           <dt>Withdrawals paused until</dt><dd>{date(data.player.withdrawalHoldUntil)}</dd>
         </dl>
-        <form onSubmit={async (e) => {
+        <Form onSubmit={async (e) => {
           e.preventDefault();
           if (!data.player || !verified) return;
           const target = data.player.name;
@@ -88,7 +89,7 @@ export function AdminSecurity() {
           </label>
           {reauth && <button type="button" className="btn" onClick={() => void signInWith(reauth, "/admin")}>Confirm it is you</button>}
           <button className="btn" disabled={busy || !verified || reason.trim().length < 10 || !code.trim()} style={{ borderColor: "#ff8091", color: "#ffb2bf" }}>{busy ? "Working..." : `Reset ${data.player.name}'s two-factor`}</button>
-        </form>
+        </Form>
       </section>}
 
       <section className={styles.panel}>

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { ActionDialogProvider } from "@/components/ui/action-dialog";
 
 const title = "Bounce — Brick Battle";
 const description = "Same board. Your angle. A head-to-head brick-breaker arcade. Play free or compete for devnet SOL and gems.";
@@ -22,7 +23,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><ActionDialogProvider>{children}</ActionDialogProvider></body>
     </html>
   );
 }

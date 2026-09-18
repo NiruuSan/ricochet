@@ -1,4 +1,6 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowUpRight, Clock, Eye, Flag, Gem, Info, RefreshCw, Trophy, Wallet } from "lucide-react";
@@ -210,9 +212,9 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
                       <td className={race.whenColumn}>{new Date(s.at).toLocaleDateString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}</td>
                       <td className={styles.arrowColumn}>
                         {s.watchId && (
-                          <Link href={`/watch/${s.watchId}`} aria-label={`Replay ${s.name}'s best run`} title="Replay this run">
+                          <Tooltip content="Replay this run"><Link href={`/watch/${s.watchId}`} aria-label={`Replay ${s.name}'s best run`}>
                             <Eye size={16} />
-                          </Link>
+                          </Link></Tooltip>
                         )}
                       </td>
                     </tr>

@@ -1,4 +1,5 @@
 "use client";
+import { Form } from "@/components/ui/form";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Camera, LogOut, Trash2, UserRound } from "lucide-react";
@@ -135,7 +136,7 @@ export function ProfileView({ player }: { player: PlayerState }) {
               }}
             />
           </div>
-          <form
+          <Form
             onSubmit={async (e) => {
               e.preventDefault();
               if (await save("name", { action: "rename", name: draftName }, "Player name updated.")) setName(null);
@@ -150,6 +151,7 @@ export function ProfileView({ player }: { player: PlayerState }) {
                 minLength={3}
                 maxLength={20}
                 pattern="[a-zA-Z0-9_]{3,20}"
+                data-format-hint="Use 3–20 letters, numbers, or underscores."
                 autoComplete="nickname"
                 required
               />
@@ -164,8 +166,8 @@ export function ProfileView({ player }: { player: PlayerState }) {
                 Sign out
               </button>
             </div>
-          </form>
-          <form id="sign-out-form" action={signOutToLogin} hidden />
+          </Form>
+          <Form id="sign-out-form" action={signOutToLogin} hidden />
         </DialogContent>
       </Dialog>
       )}

@@ -1,4 +1,8 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
+import { Form } from "@/components/ui/form";
+import { useActionDialog } from "@/components/ui/action-dialog";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Ban, Eye, Power, RotateCcw, ShieldAlert, UserX } from "lucide-react";
@@ -40,9 +44,9 @@ function SignalRow({ signal, name }: { signal: CheatSignalView; name?: string })
       </td>
       <td>
         {signal.runKey && (
-          <Link className="btn" href={`/watch/${signal.runKey}`} title="Replay this run">
+          <Tooltip content="Replay this run"><Link aria-label="Replay this run" className="btn" href={`/watch/${signal.runKey}`}>
             <Eye size={15} />
-          </Link>
+          </Link></Tooltip>
         )}
       </td>
     </tr>
@@ -50,10 +54,12 @@ function SignalRow({ signal, name }: { signal: CheatSignalView; name?: string })
 }
 
 function CaseCard({ item, busy, onAction }: { item: CheatCase; busy: boolean; onAction: (body: Record<string, unknown>, question?: string) => void }) {
+  const dialog = useActionDialog();
   const status = STATUS[item.status];
-  const decide = (action: "lift" | "ban" | "suspend") => {
-    const text = window.prompt(
+  const decide = async (action: "lift" | "ban" | "suspend") => {
+    const text = await dialog.prompt(
       action === "lift" ? `Lift ${item.name}'s suspension? Write why (kept in the audit log).` : action === "ban" ? `Ban ${item.name}? Write why (kept in the audit log).` : `Suspend ${item.name} for review? Write why (kept in the audit log).`,
+      { title: action === "lift" ? "Lift suspension" : action === "ban" ? "Review player ban" : "Suspend player", confirmLabel: action === "ban" ? "Review ban" : "Continue", danger: action !== "lift" },
     );
     if (text === null) return;
     onAction(
@@ -159,6 +165,7 @@ function CaseCard({ item, busy, onAction }: { item: CheatCase; busy: boolean; on
 }
 
 export function AdminAntiCheat() {
+  const dialog = useActionDialog();
   const [data, setData] = useState<AntiCheatOverview | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -188,7 +195,7 @@ export function AdminAntiCheat() {
   }, [load]);
 
   const act = async (body: Record<string, unknown>, question?: string) => {
-    if (question && !window.confirm(question)) return;
+    if (question && !(await dialog.confirm(question, { title: body.action === "ban" ? "Ban & seize balances" : "Change automatic sanctions", confirmLabel: body.action === "ban" ? "Ban & seize" : "Confirm change", danger: true }))) return;
     setBusy(true);
     setError("");
     try {
@@ -240,7 +247,7 @@ export function AdminAntiCheat() {
           Technical proof (automation browser, scripted input, skipped animations) suspends a player at once and hands their unsettled matches to their opponents. Statistical signals
           (superhuman precision or rhythm on SOL shots) suspend for your review. Suspended players cannot play, withdraw or tip until you lift or ban.
         </p>
-        <form
+        <Form
           className="field-row"
           style={{ gridTemplateColumns: "minmax(0, 1fr) minmax(0, 2fr) auto" }}
           onSubmit={(e) => {
@@ -259,7 +266,7 @@ export function AdminAntiCheat() {
           <button className="btn" disabled={busy}>
             <UserX size={15} /> Suspend
           </button>
-        </form>
+        </Form>
       </section>
       {error && (
         <div className="error" role="alert" style={{ marginTop: 16 }}>

@@ -1,4 +1,5 @@
 "use client";
+import { Form } from "@/components/ui/form";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -91,12 +92,12 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
         <>
           <div className="provider-buttons">
             {providers.map((provider) => (
-              <form key={provider} action={signInWith.bind(null, provider, "/signup")}>
+              <Form key={provider} action={signInWith.bind(null, provider, "/signup")}>
                 <button className="btn full provider-button">
                   {LOGOS[provider]}
                   Continue with {LABELS[provider]}
                 </button>
-              </form>
+              </Form>
             ))}
           </div>
           <p className="fine center" style={{ marginTop: 20 }}>
@@ -104,7 +105,7 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
           </p>
         </>
       ) : (
-        <form onSubmit={createProfile}>
+        <Form onSubmit={createProfile}>
           <label className="field">
             Player name
             <input
@@ -124,7 +125,7 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
             {saving ? "Creating profile…" : `Create profile + ${STARTING_GEMS.toLocaleString("en")} gems`}
             <ArrowRight />
           </button>
-        </form>
+        </Form>
       )}
       <p className="fine center" style={{ marginTop: 25 }}>
         Want to give it a spin first?{" "}

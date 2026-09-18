@@ -1,4 +1,7 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
+import { Form } from "@/components/ui/form";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
@@ -120,12 +123,12 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
           <div><h2 id="standings-title">The full standings <span>{rows ? count(rows.length) : "—"}</span></h2><p>Ranked by net profit from settled 1v1 matches.</p></div>
           <button className={styles.refresh} aria-label="Refresh standings" disabled={refreshing} onClick={refresh}><RefreshCw size={16} className={refreshing ? styles.spinning : undefined} /></button>
         </div>
-        <form className={styles.search} onSubmit={(event) => { event.preventDefault(); if (validProfileName) router.push(profileHref(search.trim())); }}>
+        <Form className={styles.search} onSubmit={(event) => { event.preventDefault(); if (validProfileName) router.push(profileHref(search.trim())); }}>
           <Search size={17} aria-hidden />
           <input aria-label="Find a player" placeholder="Find a player…" value={search} maxLength={20} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
           {search && <button type="button" aria-label="Clear search" onClick={() => { setSearch(""); setPage(0); }}><X size={15} /></button>}
-          <button className={styles.profileSearch} disabled={!validProfileName} title="Open a profile by its exact public name">View profile <ArrowUpRight size={14} /></button>
-        </form>
+          <Tooltip content="Open a profile by its exact public name"><button className={styles.profileSearch} disabled={!validProfileName}>View profile <ArrowUpRight size={14} /></button></Tooltip>
+        </Form>
 
         {rows && rows.length > 0 && filtered.length > 0 ? <>
           <div className={styles.tableWrap}><table className={styles.table}>

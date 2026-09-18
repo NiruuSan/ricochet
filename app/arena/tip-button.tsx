@@ -1,4 +1,5 @@
 "use client";
+import { Form } from "@/components/ui/form";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { Gift } from "lucide-react";
@@ -81,7 +82,7 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
                 {!operation && <button className="btn" disabled={busy} onClick={() => setReview(false)}>Edit amount</button>}
                 <button className="btn btn-primary" disabled={busy} onClick={() => void send()}>{busy ? "Sending…" : operation ? "Retry tip" : "Confirm tip"}</button>
               </div>
-            </> : <form onSubmit={(event) => {
+            </> : <Form onSubmit={(event) => {
               event.preventDefault(); setError("");
               try {
                 const lamports = parseSol(amount);
@@ -91,7 +92,7 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
             }}>
               <label className="field">Amount · devnet SOL<input className="input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} required autoComplete="off" /></label>
               <button className="btn btn-primary full" style={{ marginTop: 18 }}>Review tip</button>
-            </form>}
+            </Form>}
           </>}
       </DialogContent>
     </Dialog>

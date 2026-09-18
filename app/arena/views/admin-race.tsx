@@ -1,4 +1,8 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
+import { Form } from "@/components/ui/form";
+import { useActionDialog } from "@/components/ui/action-dialog";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Ban, Check, Eye, Flag, RotateCcw, Save } from "lucide-react";
@@ -38,7 +42,7 @@ function PrizeSettings({ prizes, onSaved }: { prizes: RacePrize[]; onSaved: () =
   };
 
   return (
-    <form className={`${styles.panel} ${styles.form}`} onSubmit={save}>
+    <Form className={`${styles.panel} ${styles.form}`} onSubmit={save}>
       <div className={styles.full}>
         <h2 style={{ fontSize: 20 }}>Weekly race prizes</h2>
         <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
@@ -73,11 +77,12 @@ function PrizeSettings({ prizes, onSaved }: { prizes: RacePrize[]; onSaved: () =
           <Save /> {busy ? "Saving…" : "Save prizes"}
         </button>
       </div>
-    </form>
+    </Form>
   );
 }
 
 function RaceWeek({ week, prizes, busy, onAction }: { week: AdminRaceWeek; prizes: RacePrize[]; busy: boolean; onAction: (body: Record<string, unknown>, question?: string) => void }) {
+  const dialog = useActionDialog();
   const status = week.paid ? `Paid ${new Date(week.paid.at).toLocaleString()}` : week.ended ? "Ended · awaiting your review" : "Live";
   const top = week.standings.slice(0, 3);
   const total = top.reduce((sum, _, i) => sum + (prizes[i]?.sol ?? 0), 0);
@@ -145,16 +150,16 @@ function RaceWeek({ week, prizes, busy, onAction }: { week: AdminRaceWeek; prize
                 <td>
                   <div className="row-actions" style={{ justifyContent: "flex-end" }}>
                     {s.watchId && (
-                      <Link className="btn" href={`/watch/${s.watchId}`} title="Replay this run">
+                      <Tooltip content="Replay this run"><Link aria-label="Replay this run" className="btn" href={`/watch/${s.watchId}`}>
                         <Eye size={15} />
-                      </Link>
+                      </Link></Tooltip>
                     )}
                     <button
                       className="btn"
                       style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
                       disabled={busy}
-                      onClick={() => {
-                        const reason = window.prompt(`Exclude ${s.name} from the week of ${dayLabel(week.weekStart)}? Give a reason (kept in the audit log).`);
+                      onClick={async () => {
+                        const reason = await dialog.prompt(`Exclude ${s.name} from the week of ${dayLabel(week.weekStart)}? Give a reason (kept in the audit log).`, { title: "Exclude player from race", confirmLabel: "Exclude player", danger: true });
                         if (reason !== null) onAction({ action: "exclude", week: week.weekStart, name: s.name, reason });
                       }}
                     >
@@ -194,6 +199,7 @@ function RaceWeek({ week, prizes, busy, onAction }: { week: AdminRaceWeek; prize
 }
 
 export function AdminRace() {
+  const dialog = useActionDialog();
   const [data, setData] = useState<AdminRaces | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -221,7 +227,7 @@ export function AdminRace() {
   }, [load]);
 
   const act = async (body: Record<string, unknown>, question?: string) => {
-    if (question && !window.confirm(question)) return;
+    if (question && !(await dialog.confirm(question, { title: "Confirm race payout", confirmLabel: "Confirm payout" }))) return;
     setBusy(true);
     setError("");
     try {

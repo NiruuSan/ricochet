@@ -1,4 +1,6 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Eye, Lock, Medal, Radio, RefreshCw, RotateCcw, Swords, Target } from "lucide-react";
@@ -36,9 +38,9 @@ function LiveCard({ game, now, featured = false }: { game: LiveGame; now: number
           </b>
           <small>{context}</small>
         </span>
-        <span className={styles.kind} title={game.kind === "tournament" ? "Tournament run" : "1v1 match"}>
+        <Tooltip content={game.kind === "tournament" ? "Tournament run" : "1v1 match"}><span className={styles.kind}>
           {game.kind === "tournament" ? <Medal size={15} /> : <Swords size={15} />}
-        </span>
+        </span></Tooltip>
       </div>
       <div className={styles.gameStats}>
         <div className={styles.score}>
@@ -70,9 +72,9 @@ function LiveCard({ game, now, featured = false }: { game: LiveGame; now: number
   return (
     <article className={`${styles.card} ${featured ? styles.featured : ""} ${game.isYou ? styles.mine : ""} ${game.locked ? styles.locked : ""}`}>
       {game.locked ? (
-        <div className={styles.cardInner} title={LOCKED[game.locked]}>
+        <Tooltip content={LOCKED[game.locked]}><div className={styles.cardInner}>
           {body}
-        </div>
+        </div></Tooltip>
       ) : (
         <Link href={`/watch/${game.watchId}`} className={styles.cardInner}>
           {body}

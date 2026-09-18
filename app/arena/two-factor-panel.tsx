@@ -1,4 +1,5 @@
 "use client";
+import { Form } from "@/components/ui/form";
 import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, KeyRound, LockKeyhole, ShieldCheck, ShieldOff } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -173,7 +174,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
               <button type="button" className="btn full" onClick={() => void copy(setup.secret.replaceAll(" ", ""), "secret")} style={{ fontFamily: "monospace", letterSpacing: 1, overflowWrap: "anywhere" }}>
                 {copied === "secret" ? <Check /> : <Copy />} {setup.secret}
               </button>
-              <form
+              <Form
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const result = await call<{ recoveryCodes: string[] }>({ action: "confirm", code });
@@ -194,7 +195,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
                 <button className="btn btn-primary full" disabled={busy || code.replace(/\s/g, "").length !== 6}>
                   {busy ? "Checking…" : "Turn on two-factor"}
                 </button>
-              </form>
+              </Form>
             </>
           )}
 
@@ -228,7 +229,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
                   ? "You will not be able to withdraw until you set it up again. Enter a code to confirm."
                   : "Your current recovery codes stop working. Enter a code to confirm."}
               </DialogDescription>
-              <form
+              <Form
                 onSubmit={async (e) => {
                   e.preventDefault();
                   if (mode === "disable") {
@@ -266,7 +267,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
                     {busy ? "Checking…" : mode === "disable" ? "Turn off" : "Create new codes"}
                   </button>
                 </div>
-              </form>
+              </Form>
             </>
           )}
         </DialogContent>

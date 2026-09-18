@@ -1,7 +1,10 @@
 "use client";
+import { Tooltip } from "@/components/ui/tooltip";
+
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Eye } from "lucide-react";
+import { useActionDialog } from "@/components/ui/action-dialog";
 import type { AdminGame } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -20,6 +23,7 @@ function status(g: AdminGame) {
 
 /** Matches that have not settled, and the call to close one and refund every entry. */
 export function AdminGames() {
+  const dialog = useActionDialog();
   const [list, setList] = useState<AdminGame[] | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -43,9 +47,9 @@ export function AdminGames() {
 
   const cancel = async (g: AdminGame) => {
     const who = g.players.map((p) => p.name).join(" and ");
-    const reason = window.prompt(
+    const reason = await dialog.prompt(
       `Cancel this match and refund ${amount(g.refund, g.asset)} to ${who}?\n\nBoth runs end where they are, the entries go back in full with no house fee, and the match counts for nothing.\n\nWrite the reason. It is sent to ${g.players.length === 1 ? "the player" : "both players"} and recorded in the audit log.`,
-      "",
+      { title: "Cancel & refund match", confirmLabel: "Cancel & refund", danger: true },
     );
     if (reason === null) return;
     setBusy(g.id);
@@ -106,10 +110,10 @@ export function AdminGames() {
               </div>
               <div className="row-actions">
                 {g.players.map((p) => (
-                  <Link key={p.watchId} className="btn" href={`/watch/${p.watchId}`} title={`Watch ${p.name}'s run · round ${p.round}`}>
+                  <Tooltip key={p.watchId} content={`Watch ${p.name}'s run · round ${p.round}`}><Link aria-label={`Watch ${p.name}'s run · round ${p.round}`} className="btn" href={`/watch/${p.watchId}`}>
                     <Avatar name={p.name} src={p.avatar} size={18} />
                     <Eye size={14} />
-                  </Link>
+                  </Link></Tooltip>
                 ))}
                 <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy === g.id} onClick={() => void cancel(g)}>
                   {busy === g.id ? "Cancelling…" : "Cancel & refund"}
