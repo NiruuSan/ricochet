@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+// Importing the harness registers the resolver these modules import each other with.
+import { readFile } from "node:fs/promises";
+import "./helpers/test-env.mjs";
 
 // Security building blocks: step-up sign-in for withdrawals, request parsing
 // limits, same-origin checks, client keys for rate limits, and HTTP headers.
@@ -44,16 +47,35 @@ assert.equal(clientKey(new Request("https://ricochet.test/")), "ip:unknown");
 // HTTP security headers on every route, stricter in production.
 process.env.NODE_ENV = "production";
 const config = (await import(`../next.config.ts?production`)).default;
-const [rule] = await config.headers();
+const [rule, api] = await config.headers();
 const header = (name) => rule.headers.find((h) => h.key.toLowerCase() === name.toLowerCase())?.value;
 assert.equal(rule.source, "/:path*");
-const csp = header("Content-Security-Policy");
+assert.equal(header("Content-Security-Policy"), undefined, "The page policy carries a nonce, so it is set per request");
+
+// The Content-Security-Policy proxy.ts builds for one request.
+const { contentSecurityPolicy, API_CSP } = await import("../lib/security-headers.ts");
+const csp = contentSecurityPolicy("abc123", true);
 for (const directive of ["default-src 'self'", "object-src 'none'", "frame-ancestors 'none'", "base-uri 'self'", "connect-src 'self'"]) assert.ok(csp.includes(directive), `CSP has ${directive}`);
+assert.ok(csp.includes("script-src 'self' 'nonce-abc123' 'strict-dynamic'"), "Scripts must carry this request's nonce");
+assert.ok(!/script-src[^;]*unsafe-inline/.test(csp), "No inline script may run in production");
 assert.ok(!csp.includes("unsafe-eval"), "No eval in production");
+assert.ok(/script-src[^;]*unsafe-inline/.test(contentSecurityPolicy("abc123", false)), "Development keeps the tooling working");
+assert.equal(api.source, "/api/:path*");
+assert.equal(api.headers[0].value, API_CSP);
+assert.ok(API_CSP.startsWith("default-src 'none'"), "API responses are data, nothing else");
+
+// The proxy hands each request its own nonce, and runs on pages only. It imports
+// the Next.js server runtime, so what can be checked here is how it is wired.
+const proxySource = await readFile(new URL("../proxy.ts", import.meta.url), "utf8");
+assert.match(proxySource, /headers\.set\("x-nonce", nonce\)/, "The renderer is told the nonce");
+assert.match(proxySource, /response\.headers\.set\("Content-Security-Policy", csp\)/, "The browser is told the policy");
+assert.match(proxySource, /crypto\.randomUUID\(\)/, "The nonce is unguessable and fresh per request");
+assert.match(proxySource, /\(\?!api\|_next\/static/, "Static assets and the API are left out");
+
 assert.match(header("Strict-Transport-Security"), /max-age=63072000; includeSubDomains/);
 assert.equal(header("X-Frame-Options"), "DENY");
 assert.equal(header("X-Content-Type-Options"), "nosniff");
 assert.ok(header("Permissions-Policy").includes("camera=()"));
 assert.equal(config.poweredByHeader, false);
 
-console.log("PASS: step-up sign-in for withdrawals, JSON-only size-capped bodies, same-origin posts, rate-limit client keys, production security headers.");
+console.log("PASS: step-up sign-in for withdrawals, JSON-only size-capped bodies, same-origin posts, rate-limit client keys, production security headers, per-request script nonce and API data-only policy.");

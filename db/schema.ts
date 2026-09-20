@@ -15,6 +15,9 @@ export const players = sqliteTable(
     lastSeen: integer("last_seen").notNull().default(0),
     // Key of the player's current picture in `avatars`, if any.
     avatar: text("avatar"),
+    // When the player deleted their account. The row stays, with its identity
+    // scrubbed, because the ledger and both sides of every match refer to it.
+    deleted: integer("deleted"),
   },
   (t) => [
     check("balance_nonnegative", sql`${t.balance} >= 0`),
@@ -353,6 +356,14 @@ export const securityHolds = sqliteTable("security_holds", {
   reason: text("reason").notNull(),
   until: integer("until").notNull(),
   createdBy: text("created_by").notNull(),
+  created: integer("created").notNull(),
+});
+
+// One row per player who signed out everywhere: sessions issued before this
+// moment are refused, whatever cookie carries them.
+export const sessionResets = sqliteTable("session_resets", {
+  userId: text("user_id").primaryKey(),
+  invalidBefore: integer("invalid_before").notNull(),
   created: integer("created").notNull(),
 });
 

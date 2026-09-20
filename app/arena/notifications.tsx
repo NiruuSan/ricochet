@@ -16,6 +16,14 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
   if (n.kind === "security_reset") {
     return { tone: "security", title: "Your two-factor authentication was reset", detail: `An administrator reset your authenticator. Withdrawals are paused until ${new Date(n.data.holdUntil).toLocaleString()}. Set up two-factor again in your wallet. If you did not request this, contact support.` };
   }
+  if (n.kind === "security_alert") {
+    const { event, amount, to } = n.data;
+    if (event === "withdrawal_started") return { tone: "security", title: "A withdrawal was started", detail: `${units(amount ?? 0, "devnet")} SOL to ${to ? `${to.slice(0, 6)}…${to.slice(-4)}` : "an external wallet"}. If this was not you, contact support now.` };
+    if (event === "tip_sent") return { tone: "security", title: `You tipped ${to ?? "a player"}`, detail: `−${units(amount ?? 0, "devnet")} SOL left your balance. If this was not you, contact support now.` };
+    if (event === "two_factor_disabled") return { tone: "security", title: "Two-factor authentication was turned off", detail: "Withdrawals and larger tips are blocked until you turn it back on. If this was not you, sign out everywhere and contact support." };
+    if (event === "signed_out_everywhere") return { tone: "security", title: "You signed out everywhere", detail: "Every other session was ended. Sign in again on your other devices." };
+    return { tone: "security", title: "Your recovery codes were replaced", detail: "The previous codes no longer work. If this was not you, sign out everywhere and contact support." };
+  }
   if (n.kind === "account_suspended") {
     return { tone: "security", title: "Your account is suspended", detail: `${n.data.reason}. Play, withdrawals and tips are paused while this is reviewed. Contact support if you think this is a mistake.` };
   }

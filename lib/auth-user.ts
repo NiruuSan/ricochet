@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { adminId } from "@/db/raw";
+import { sessionCurrent } from "./sessions";
 
 export { STEP_UP_WINDOW_MS, stepUpRequired } from "./step-up";
 
@@ -16,7 +17,10 @@ export async function currentUser(): Promise<SignedInUser | null> {
   const userId = session?.user?.id;
   if (!userId) return null;
   const authTime = (session as { authTime?: unknown }).authTime;
-  return { userId, displayName: session.user?.name ?? session.user?.email ?? userId, authTime: typeof authTime === "number" ? authTime : null };
+  const provedAt = typeof authTime === "number" ? authTime : null;
+  // A session from before this player signed out everywhere belongs to nobody.
+  if (!(await sessionCurrent(userId, provedAt))) return null;
+  return { userId, displayName: session.user?.name ?? session.user?.email ?? userId, authTime: provedAt };
 }
 
 /** The signed-in user if they are the configured administrator, or null. */

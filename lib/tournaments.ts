@@ -193,7 +193,7 @@ export async function registerForTournament(uid: string, idInput: unknown, now =
   const t = await loadTournament(String(idInput ?? ""));
   if (tournamentStatus(t, now) !== "registration") throw new GameError("Registration for this tournament is closed.", 409);
   const db = database();
-  if (!(await db.prepare("SELECT 1 FROM players WHERE id = ?").bind(uid).first())) throw new GameError("Create your player profile first.", 403);
+  if (!(await db.prepare("SELECT 1 FROM players WHERE id = ? AND deleted IS NULL").bind(uid).first())) throw new GameError("Create your player profile first.", 403);
   if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
   if (await db.prepare("SELECT 1 FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").bind(t.id, uid).first()) {
     throw new GameError("You are already registered.", 409);

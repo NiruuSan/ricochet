@@ -9,6 +9,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import type { PlayerState } from "../arena";
 import { ProfileDashboard } from "./profile-dashboard";
+import { AccountData } from "./account-data";
 import styles from "./profile-dashboard.module.css";
 
 const AVATAR_PX = 256;
@@ -96,6 +97,7 @@ export function ProfileView({ player }: { player: PlayerState }) {
   return (
     <>
       <ProfileDashboard name="me" player={player} privateView onEdit={openEditor} />
+      {profile && <AccountData player={player} />}
       {profile && (
       <Dialog open={editing} onOpenChange={(open) => !saving && setEditing(open)}>
         <DialogContent className="dialog-dark">

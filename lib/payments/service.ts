@@ -3,6 +3,7 @@ import { PaymentError } from "./errors";
 import { assertWithdrawalsAllowed } from "../security-holds";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { database } from "../../db/raw";
+import { notificationInsert } from "../notifications";
 import { MIN_DEPOSIT, type TreasurySnapshot } from "../api-types";
 import { cashAccountId, ensureCashAccount, HOUSE, POOL, settings } from "./accounts";
 import { requireDevnet, validateOperationId, parseSol, launchStatus } from "./policy";
@@ -211,6 +212,12 @@ async function insertTransfer(t: NewTransfer, reserve: boolean) {
         .prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'withdrawal_reserve', ?, ?, ?)")
         .bind(`${t.id}:reserve`, t.account, -t.amount - t.fee, t.id, now),
     );
+  }
+  // A player's own withdrawal is announced to them: one they did not start is
+  // the first thing they should see. The treasury's own transfers are the
+  // administrator's and notify nobody.
+  if (t.kind === "withdrawal") {
+    ops.push(notificationInsert(db, `withdrawal:${t.id}`, t.uid, "security_alert", { event: "withdrawal_started", amount: t.amount, to: t.destination }, now));
   }
   // A source-wallet uniqueness constraint serializes outgoing transactions. The
   // balance trigger and this batch make reservation and outbox creation atomic.

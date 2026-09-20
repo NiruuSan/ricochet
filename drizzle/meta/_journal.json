@@ -141,6 +141,20 @@
       "when": 1789744253073,
       "tag": "0019_push_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1789930902709,
+      "tag": "0020_session_resets",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1789931175614,
+      "tag": "0021_account_deletion",
+      "breakpoints": true
     }
   ]
 }

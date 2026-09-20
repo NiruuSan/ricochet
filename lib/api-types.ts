@@ -202,10 +202,23 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
   | { kind: "tip_received"; data: TipNotification }
   | { kind: "tournament_result"; data: TournamentNotification }
   | { kind: "security_reset"; data: { holdUntil: number } }
+  | { kind: "security_alert"; data: SecurityAlertNotification }
   | { kind: "race_result"; data: RaceNotification }
   | { kind: "account_suspended"; data: { reason: string } }
   | { kind: "challenge"; data: ChallengeNotification }
 );
+
+/**
+ * Something changed on the account's own protection, or money left it. These
+ * are the events a player must see even when they did not cause them.
+ */
+export type SecurityAlertNotification = {
+  event: "two_factor_disabled" | "recovery_codes_replaced" | "withdrawal_started" | "tip_sent" | "signed_out_everywhere";
+  /** Lamports, for the events that moved money. */
+  amount?: number;
+  /** The player or address the money went to. */
+  to?: string;
+};
 
 /** A private match opened for one player: its link is the code. */
 export type ChallengeNotification = { matchId: string; invite: string; asset: Asset; stake: number; from: string };

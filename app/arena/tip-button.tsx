@@ -2,13 +2,14 @@
 import { Form } from "@/components/ui/form";
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { Gift } from "lucide-react";
+import { Gift, ShieldCheck } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { PublicPlayerProfile, TipReceipt } from "@/lib/api-types";
 import { parseSol } from "@/lib/payments/policy";
 import type { PlayerState } from "./arena";
 import { request, RequestError } from "./api";
 import { fullSol } from "./funded-wallet";
+import { CodeInput } from "./two-factor-panel";
 
 type Operation = { id: string; recipient: string; amount: string };
 
@@ -21,11 +22,14 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
   const [receipt, setReceipt] = useState<TipReceipt | null>(null);
   const [operation, setOperation] = useState<Operation | null>(null);
   const [restoreFailed, setRestoreFailed] = useState(false);
+  // Tips past the daily free allowance ask for the second factor, like a withdrawal.
+  const [code, setCode] = useState("");
+  const [codeNeeded, setCodeNeeded] = useState<{ enrolled: boolean } | null>(null);
   const inFlight = useRef(false);
   const storageKey = `ricochet:tip:${player.data.player?.publicId}:${profile.publicId}`;
 
   const show = () => {
-    setError(""); setReceipt(null); setReview(!!operation); setRestoreFailed(false);
+    setError(""); setReceipt(null); setReview(!!operation); setRestoreFailed(false); setCode(""); setCodeNeeded(null);
     try {
       const saved = sessionStorage.getItem(storageKey);
       if (saved) {
@@ -45,14 +49,19 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
       // Preserve this exact request through connection errors, closing the dialog and reloads.
       sessionStorage.setItem(storageKey, JSON.stringify(pending));
       setOperation(pending);
-      const next = await request<TipReceipt>("/api/tips", pending);
+      const next = await request<TipReceipt>("/api/tips", { ...pending, code: code.trim() || undefined });
       setReceipt(next);
+      setCode(""); setCodeNeeded(null);
       setOperation(null);
       try { sessionStorage.removeItem(storageKey); } catch { /* Replaying a saved receipt is harmless. */ }
       await player.refresh();
     } catch (e) {
+      // Nothing moved: the tip is waiting on a code, and the same operation ID sends it.
+      if (e instanceof RequestError && e.code === "TIP_CODE_REQUIRED") setCodeNeeded({ enrolled: e.details?.enrolled === true });
+      // A code is single-use, so a refused one is never resent.
+      if (e instanceof RequestError && e.code?.startsWith("TWO_FACTOR")) setCode("");
       if (e instanceof RequestError && e.code === "TIP_NOT_SENT") {
-        setOperation(null); setReview(false);
+        setOperation(null); setReview(false); setCode(""); setCodeNeeded(null);
         try { sessionStorage.removeItem(storageKey); } catch { /* The server confirmed this tip did not move funds. */ }
       }
       setError((e as Error).message);
@@ -78,9 +87,14 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
               <div className="math-line"><span>Tip amount</span><strong>{amount} devnet SOL</strong></div>
               <p className="fine">The amount will leave your balance immediately. Confirm the recipient and amount before sending.</p>
               {operation && <p className="fine">Retry checks the same tip and cannot send it twice.</p>}
+              {codeNeeded && (codeNeeded.enrolled
+                ? <CodeInput value={code} onChange={setCode} autoFocus />
+                : <p className="callout-inline" role="status"><ShieldCheck size={14} /> Turn on two-factor authentication in your wallet to send tips this large.</p>)}
               <div className="row-actions">
                 {!operation && <button className="btn" disabled={busy} onClick={() => setReview(false)}>Edit amount</button>}
-                <button className="btn btn-primary" disabled={busy} onClick={() => void send()}>{busy ? "Sending…" : operation ? "Retry tip" : "Confirm tip"}</button>
+                {codeNeeded && !codeNeeded.enrolled
+                  ? <Link className="btn btn-primary" href="/wallet">Open security settings</Link>
+                  : <button className="btn btn-primary" disabled={busy || (!!codeNeeded && !code.trim())} onClick={() => void send()}>{busy ? "Sending…" : operation ? "Retry tip" : "Confirm tip"}</button>}
               </div>
             </> : <Form onSubmit={(event) => {
               event.preventDefault(); setError("");

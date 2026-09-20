@@ -2,14 +2,51 @@ import { assertCanMoveMoney } from "../anti-cheat";
 import { database } from "@/db/raw";
 import type { TipReceipt } from "../api-types";
 import { notificationInsert } from "../notifications";
+import { twoFactorEnabled, verifySecondFactor } from "../two-factor";
 import { cashAccountId, ensureCashAccount, settings } from "./accounts";
 import { PaymentError } from "./errors";
 import { parseSol, requireDevnet, validateOperationId } from "./policy";
 
 export class TipNotSentError extends PaymentError {}
 
+/**
+ * A tip is the one way funds leave an account without a withdrawal, so it is
+ * gated like one. Small tips stay a one-tap gesture; past a day's worth of them
+ * the second factor is asked for, and a hard daily ceiling bounds what a stolen
+ * session can move even with a code in hand. Both are counted over the UTC day,
+ * like the daily gems.
+ */
+export const TIP_LIMITS = {
+  /** Tips in a day that need nothing but the session. */
+  free: 100_000_000,
+  /** Tips in a day, whatever is presented. */
+  daily: 10_000_000_000,
+};
+
+/** Asked for when a tip crosses the free daily allowance; `enrolled` says whether a code can be given at all. */
+export class TipCodeRequiredError extends PaymentError {
+  readonly enrolled: boolean;
+  constructor(message: string, enrolled: boolean) {
+    super(message);
+    this.enrolled = enrolled;
+  }
+}
+
+const DAY_MS = 86_400_000;
+/** The UTC day a moment belongs to, as the daily gems count them. */
+const dayStart = (now: number) => Math.floor(now / DAY_MS) * DAY_MS;
+
+/** What this account has already tipped away today, in lamports. */
+async function tippedToday(accountId: string, now: number) {
+  const row = await database()
+    .prepare("SELECT COALESCE(SUM(-amount), 0) AS sent FROM cash_ledger WHERE account_id = ? AND kind = 'tip_sent' AND created >= ? AND created < ?")
+    .bind(accountId, dayStart(now), dayStart(now) + DAY_MS)
+    .first<{ sent: number }>();
+  return Number(row?.sent ?? 0);
+}
+
 /** Move funded SOL balances atomically. The pool's total liabilities do not change. */
-export async function sendTip(uid: string, idInput: unknown, recipientInput: unknown, amountInput: unknown): Promise<TipReceipt> {
+export async function sendTip(uid: string, idInput: unknown, recipientInput: unknown, amountInput: unknown, codeInput?: unknown, now = Date.now()): Promise<TipReceipt> {
   requireDevnet(settings());
   const id = validateOperationId(idInput);
   const amount = parseSol(amountInput);
@@ -37,7 +74,27 @@ export async function sendTip(uid: string, idInput: unknown, recipientInput: unk
   const prior = await replay();
   if (prior) return prior;
   const [source, destination] = await Promise.all([ensureCashAccount(uid), ensureCashAccount(recipient.id)]);
-  const now = Date.now();
+
+  // The balance, the day's ceiling and the second factor are all settled before
+  // any code is spent: a tip refused here costs the player nothing.
+  const funded = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(source).first<{ balance: number }>();
+  if (!funded || funded.balance < amount) throw new TipNotSentError("Not enough available devnet SOL. Fund your wallet or choose a smaller tip.");
+  const already = await tippedToday(source, now);
+  if (already + amount > TIP_LIMITS.daily) {
+    throw new TipNotSentError(`Tips are limited to ${TIP_LIMITS.daily / 1e9} devnet SOL a day. You have sent ${(already / 1e9).toFixed(4)} today.`);
+  }
+  if (already + amount > TIP_LIMITS.free) {
+    if (!codeInput) {
+      const enrolled = await twoFactorEnabled(uid);
+      throw new TipCodeRequiredError(
+        enrolled
+          ? "Tips above the daily free allowance need your authentication code."
+          : "Turn on two-factor authentication to send tips this large. Small tips stay one tap.",
+        enrolled,
+      );
+    }
+    await verifySecondFactor(uid, codeInput, now);
+  }
   try {
     // Plain INSERT makes concurrent reuse roll back the whole batch; replay then
     // verifies both accounts and the amount. The ledger trigger rejects overdrafts.
@@ -47,6 +104,8 @@ export async function sendTip(uid: string, idInput: unknown, recipientInput: unk
       db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'tip_received', ?, ?, ?)")
         .bind(receivedId, destination, amount, id, now),
       notificationInsert(db, `tip:${id}:notify`, recipient.id, "tip_received", { amount, from: sender.name }, now),
+      // The sender hears about their own money leaving, so a tip they did not send stands out.
+      notificationInsert(db, `tip:${id}:sent`, uid, "security_alert", { event: "tip_sent", amount, to: recipient.name }, now),
     ]);
   } catch (error) {
     const completed = await replay();

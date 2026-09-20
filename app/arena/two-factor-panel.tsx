@@ -1,14 +1,14 @@
 "use client";
 import { Form } from "@/components/ui/form";
 import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, KeyRound, LockKeyhole, ShieldCheck, ShieldOff } from "lucide-react";
+import { Check, Copy, KeyRound, LockKeyhole, LogOut, ShieldCheck, ShieldOff } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { SecurityStatus } from "@/lib/api-types";
-import { signInWith, type SignInProvider } from "../auth-actions";
+import { signInWith, signOutToLogin, type SignInProvider } from "../auth-actions";
 import { request, RequestError } from "./api";
 
 type Setup = { secret: string; uri: string; qr: string };
-type Mode = null | "setup" | "codes" | "disable" | "regenerate";
+type Mode = null | "setup" | "codes" | "disable" | "regenerate" | "signout";
 
 /** The player's two-factor status, shared by the security panel and the withdrawal dialog. */
 export function useTwoFactor() {
@@ -155,11 +155,45 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
               <ShieldCheck /> {busy ? "Preparing…" : "Set up two-factor"}
             </button>
           )}
+          {/* Sessions are cookies, so the way to take one back is to end them all. */}
+          <button className="btn" disabled={busy} onClick={() => (setError(""), setMode("signout"))}>
+            <LogOut /> Sign out everywhere
+          </button>
         </div>
       </div>
 
       <Dialog open={mode !== null} onOpenChange={(open) => !open && !busy && mode !== "codes" && close()}>
         <DialogContent className="dialog-dark">
+          {mode === "signout" && (
+            <>
+              <DialogTitle>Sign out everywhere?</DialogTitle>
+              <DialogDescription>
+                Every device signed in to this account is signed out, including this one. Do this if you used a shared computer, lost a device, or suspect someone
+                else has been on your account. Your games, balances and settings are untouched.
+              </DialogDescription>
+              {error && (
+                <p className="error" role="alert">
+                  {error}
+                </p>
+              )}
+              <div className="row-actions" style={{ marginTop: 10 }}>
+                <button className="btn" disabled={busy} onClick={close}>
+                  Stay signed in
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={() =>
+                    void call({ action: "sign_out_everywhere" }).then((done) => {
+                      if (done) void signOutToLogin();
+                    })
+                  }
+                >
+                  {busy ? "Signing out…" : "Sign out everywhere"}
+                </button>
+              </div>
+            </>
+          )}
           {mode === "setup" && setup && (
             <>
               <DialogTitle>Set up two-factor authentication</DialogTitle>

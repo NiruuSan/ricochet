@@ -8,7 +8,7 @@ import { TwoFactorError, verifySecondFactor } from "@/lib/two-factor";
 
 export const dynamic = "force-dynamic";
 
-const hasProfile = async (uid: string) => !!(await database().prepare("SELECT 1 FROM players WHERE id = ?").bind(uid).first());
+const hasProfile = async (uid: string) => !!(await database().prepare("SELECT 1 FROM players WHERE id = ? AND deleted IS NULL").bind(uid).first());
 
 export async function GET() {
   try {

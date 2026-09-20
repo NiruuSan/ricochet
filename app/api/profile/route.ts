@@ -1,4 +1,5 @@
-import { currentUser } from "@/lib/auth-user";
+import { currentUser, stepUpRequired } from "@/lib/auth-user";
+import { deleteAccount, exportAccount } from "@/lib/account";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { avatarUrl, GameError } from "@/lib/matches";
 import { removeAvatar, renamePlayer, setAvatar } from "@/lib/profile";
@@ -24,6 +25,15 @@ export async function POST(req: Request) {
       case "remove_avatar":
         await removeAvatar(user.userId);
         return json({ avatar: null });
+      case "export":
+        return json(await exportAccount(user.userId));
+      case "delete": {
+        // Closing an account cannot be undone, so the provider has to vouch for
+        // whoever is asking, exactly like a change to two-factor authentication.
+        const stepUp = stepUpRequired(user);
+        if (stepUp) return json({ ...stepUp, error: "For your security, confirm it is you with your sign-in provider before deleting your account." }, 403);
+        return json(await deleteAccount(user.userId));
+      }
       default:
         return json({ error: "Unknown profile action." }, 400);
     }

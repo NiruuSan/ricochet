@@ -85,7 +85,7 @@ export async function POST(req: Request) {
     }
 
     if (b.action === "start" || b.action === "challenge" || b.action === "join") {
-      if (!(await database().prepare("SELECT 1 FROM players WHERE id = ?").bind(uid).first())) {
+      if (!(await database().prepare("SELECT 1 FROM players WHERE id = ? AND deleted IS NULL").bind(uid).first())) {
         return json({ error: "Create your player profile first." }, 403);
       }
       // A challenge opens a private match; its link, or the notice it sends, takes the other seat.

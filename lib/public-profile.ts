@@ -13,7 +13,7 @@ export async function findPlayer(ref: PlayerRef): Promise<PlayerRow> {
   if (typeof ref === "string" && !/^[a-zA-Z0-9_]{3,20}$/.test(ref)) throw new GameError("Player not found.", 404);
   const player = await (typeof ref === "string"
     ? db.prepare("SELECT id, public_id, name, avatar, created FROM players WHERE lower(name) = lower(?)").bind(ref)
-    : db.prepare("SELECT id, public_id, name, avatar, created FROM players WHERE id = ?").bind(ref.id)
+    : db.prepare("SELECT id, public_id, name, avatar, created FROM players WHERE id = ? AND deleted IS NULL").bind(ref.id)
   ).first<PlayerRow>();
   if (!player) throw new GameError("Player not found.", 404);
   return player;

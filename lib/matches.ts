@@ -302,13 +302,14 @@ export async function leaderboard(viewer: string | null, asset: Asset): Promise<
          FROM players p
          JOIN ledger l ON l.user_id = p.id
          JOIN matches m ON m.id = l.match_id AND m.settled = 1 AND m.asset = 'gems'
+         WHERE p.deleted IS NULL
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`
       : `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id")} AS wagered
          FROM players p
          JOIN cash_accounts a ON a.user_id = p.id AND a.network = 'devnet'
          JOIN cash_ledger l ON l.account_id = a.id
          JOIN matches m ON m.id = l.reference AND m.settled = 1 AND m.asset = 'devnet'
-         WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund')
+         WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund') AND p.deleted IS NULL
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
   const { results } = await database().prepare(sql).bind(viewer).all<Omit<Leader, "level"> & { wagered: number }>();
   return results.map(({ wagered, ...l }) => ({ ...l, avatar: avatarUrl(l.avatar), level: levelFor(experienceFromWagered(wagered)) }));
@@ -322,7 +323,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
       .prepare(
         `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
            (SELECT reason FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS suspension
-         FROM players WHERE id = ?`,
+         FROM players WHERE id = ? AND deleted IS NULL`,
       )
       .bind(uid)
       .first<Profile & { suspension: string | null; wagered: number }>(),

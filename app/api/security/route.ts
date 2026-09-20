@@ -1,5 +1,6 @@
 import { currentUser, stepUpRequired } from "@/lib/auth-user";
 import { withdrawalHold } from "@/lib/security-holds";
+import { signOutEverywhere } from "@/lib/sessions";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 import { beginTwoFactorSetup, confirmTwoFactorSetup, disableTwoFactor, regenerateRecoveryCodes, TwoFactorError, twoFactorStatus } from "@/lib/two-factor";
@@ -31,6 +32,9 @@ export async function POST(req: Request) {
     const parsed = await readBody(req, 1024);
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
     const b = parsed.body;
+    // Ending every session is what a player does when something is wrong, so it
+    // is the one action here that never waits on the provider.
+    if (b.action === "sign_out_everywhere") return json(await signOutEverywhere(user.userId));
     const stepUp = stepUpRequired(user);
     if (stepUp) return json({ ...stepUp, error: "For your security, confirm it is you with your sign-in provider before changing two-factor authentication." }, 403);
     switch (b.action) {

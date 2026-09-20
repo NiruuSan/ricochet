@@ -15,7 +15,8 @@ const root = new URL("../../", import.meta.url);
 registerHooks({
   resolve(specifier, context, next) {
     if (specifier.startsWith("@/")) return next(new URL(specifier.slice(2) + ".ts", root).href, context);
-    if (context.parentURL?.endsWith(".ts") && specifier.startsWith(".") && !/\.(ts|mjs|js)$/.test(specifier)) return next(specifier + ".ts", context);
+    // A module imported with a cache-busting query (`next.config.ts?production`) is still TypeScript.
+    if (context.parentURL?.split("?")[0].endsWith(".ts") && specifier.startsWith(".") && !/\.(ts|mjs|js)$/.test(specifier)) return next(specifier + ".ts", context);
     return next(specifier, context);
   },
 });

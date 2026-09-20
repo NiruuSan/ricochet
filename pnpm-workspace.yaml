@@ -21,6 +21,8 @@ overrides:
   ws@>=8.0.0 <8.21.0: 8.21.3
   # jayson only calls uuid.v4(); uuid 11 keeps the CommonJS build and fixes the v3/v5/v6 bounds check.
   jayson>uuid: 11.1.1
+  # stream-json: quadratic work on nested JSON blocks the event loop (jayson, Solana RPC replies).
+  stream-json@<=3.4.0: 3.6.0
   # Build-time only (styled-jsx's Babel), patched anyway.
   browserslist@<4.28.7: 4.28.9
   baseline-browser-mapping@<2.11.0: 2.11.21

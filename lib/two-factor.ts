@@ -2,6 +2,7 @@ import { createCipheriv, createDecipheriv, createHmac, hkdfSync, randomBytes, ra
 import qrcode from "qrcode-generator";
 import { database } from "@/db/raw";
 import type { TwoFactorStatus } from "./api-types";
+import { notificationInsert } from "./notifications";
 import { settings } from "./payments/accounts";
 import { PaymentError } from "./payments/errors";
 
@@ -153,6 +154,17 @@ type Row = { user_id: string; secret: string; enabled: number; last_step: number
 
 const load = (uid: string) => database().prepare("SELECT * FROM two_factor WHERE user_id = ?").bind(uid).first<Row>();
 
+/** Whether this account has a confirmed authenticator, for callers that only need to know that. */
+export const twoFactorEnabled = async (uid: string) => !!(await load(uid))?.enabled;
+
+/**
+ * Tells the account holder that its protection changed. Turning the second
+ * factor off, or replacing the recovery codes, is exactly what someone who
+ * stole a session would do first, so it is never silent.
+ */
+const securityAlert = (uid: string, event: string, now: number) =>
+  notificationInsert(database(), `security:${event}:${now}`, uid, "security_alert", { event }, now);
+
 export async function twoFactorStatus(uid: string, now = Date.now()): Promise<TwoFactorStatus> {
   const db = database();
   const [row, codes] = await Promise.all([
@@ -263,7 +275,11 @@ export async function verifySecondFactor(uid: string, codeInput: unknown, now = 
 export async function disableTwoFactor(uid: string, code: unknown, now = Date.now()) {
   await verifySecondFactor(uid, code, now);
   const db = database();
-  await db.batch([db.prepare("DELETE FROM two_factor WHERE user_id = ?").bind(uid), db.prepare("DELETE FROM two_factor_recovery WHERE user_id = ?").bind(uid)]);
+  await db.batch([
+    db.prepare("DELETE FROM two_factor WHERE user_id = ?").bind(uid),
+    db.prepare("DELETE FROM two_factor_recovery WHERE user_id = ?").bind(uid),
+    securityAlert(uid, "two_factor_disabled", now),
+  ]);
 }
 
 /** Replaces every recovery code, after a valid code. */
@@ -274,6 +290,7 @@ export async function regenerateRecoveryCodes(uid: string, code: unknown, now = 
   await db.batch([
     db.prepare("DELETE FROM two_factor_recovery WHERE user_id = ?").bind(uid),
     ...codes.map((c) => db.prepare("INSERT INTO two_factor_recovery(code_hash, user_id) VALUES(?, ?)").bind(hashRecovery(c), uid)),
+    securityAlert(uid, "recovery_codes_replaced", now),
   ]);
   return { recoveryCodes: codes };
 }

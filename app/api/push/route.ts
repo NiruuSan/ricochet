@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     }
     if (b.action !== "subscribe") return json({ error: "Unknown action." }, 400);
     if (!pushConfig()) return json({ error: "Push notifications are not configured yet." }, 503);
-    if (!(await database().prepare("SELECT 1 FROM players WHERE id = ?").bind(user.userId).first())) return json({ error: "Create your profile first." }, 403);
+    if (!(await database().prepare("SELECT 1 FROM players WHERE id = ? AND deleted IS NULL").bind(user.userId).first())) return json({ error: "Create your profile first." }, 403);
     const subscription = parseSubscription(b.subscription);
     if (!subscription) return json({ error: "Invalid subscription." }, 400);
     await saveSubscription(user.userId, subscription);

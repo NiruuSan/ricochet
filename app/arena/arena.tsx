@@ -20,6 +20,7 @@ const LiveView = dynamic(() => import("./views/live-view").then((m) => m.LiveVie
 const MatchesView = dynamic(() => import("./views/matches-view").then((m) => m.MatchesView));
 const PlayView = dynamic(() => import("./views/play-view").then((m) => m.PlayView));
 const ProfileView = dynamic(() => import("./views/profile-view").then((m) => m.ProfileView));
+const PrivacyView = dynamic(() => import("./views/privacy-view").then((m) => m.PrivacyView));
 const PublicProfileView = dynamic(() => import("./views/public-profile-view").then((m) => m.PublicProfileView));
 const RulesView = dynamic(() => import("./views/rules-view").then((m) => m.RulesView));
 const TournamentDetailView = dynamic(() => import("./views/tournament-detail-view").then((m) => m.TournamentDetailView));
@@ -208,12 +209,14 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         {view === "profile" && (profileName ? <PublicProfileView key={profileName} name={profileName} player={player} /> : <ProfileView player={player} />)}
         {(view === "login" || view === "signup") && <AuthView player={player} signup={view === "signup"} />}
         {(view === "faq" || view === "rules") && <RulesView rules={view === "rules"} />}
+        {view === "privacy" && <PrivacyView />}
         {view === "admin" && (adminCaseName ? <AdminCaseView key={adminCaseName} name={adminCaseName} player={player} /> : <AdminView player={player} />)}
         <footer className="foot">
           <span>© {new Date().getFullYear()} Bounce · A good angle changes everything.</span>
           <div className="links">
             <Link href="/rules">Game rules</Link>
             <Link href="/faq">Q&A</Link>
+            <Link href="/privacy">Privacy</Link>
             <Link href="/wallet">Test funds only</Link>
           </div>
         </footer>

@@ -23,7 +23,12 @@ const nameTaken = (e: unknown) => e instanceof Error && /UNIQUE constraint faile
 export async function createPlayer(uid: string, nameInput: unknown) {
   const name = validName(nameInput);
   try {
-    const result = await database().prepare("INSERT INTO players(id, name, created) VALUES(?, ?, ?) ON CONFLICT(id) DO NOTHING").bind(uid, name, Date.now()).run();
+    // A player who deleted their account and comes back takes their row over
+    // again, with a new name; an existing profile is left exactly as it is.
+    const result = await database()
+      .prepare("INSERT INTO players(id, name, created) VALUES(?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, deleted = NULL WHERE players.deleted IS NOT NULL")
+      .bind(uid, name, Date.now())
+      .run();
     return result.meta.changes > 0;
   } catch (e) {
     if (nameTaken(e)) throw new GameError("That player name is taken. Try another one.", 409);
@@ -34,7 +39,7 @@ export async function createPlayer(uid: string, nameInput: unknown) {
 export async function renamePlayer(uid: string, nameInput: unknown) {
   const name = validName(nameInput);
   try {
-    const result = await database().prepare("UPDATE players SET name = ? WHERE id = ?").bind(name, uid).run();
+    const result = await database().prepare("UPDATE players SET name = ? WHERE id = ? AND deleted IS NULL").bind(name, uid).run();
     if (!result.meta.changes) throw new GameError("Create your player profile first.", 403);
   } catch (e) {
     if (nameTaken(e)) throw new GameError("That player name is taken. Try another one.", 409);
