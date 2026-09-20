@@ -47,14 +47,25 @@ export async function adminPlayers(limit = 200): Promise<AdminPlayer[]> {
   return results;
 }
 
-/** Every table that belongs to a player, in the order a purge empties them. */
-const PURGE = [
+/**
+ * Everything a player's record is made of. Deleting these is what resets their
+ * statistics: every number on a profile, a leaderboard or a rank is counted
+ * from these rows, and the ledger is left alone, so no balance moves.
+ */
+const GAME_ROWS = [
   // The shot log of every run of theirs, and of every match they were in.
   "DELETE FROM run_shots WHERE run_key IN (SELECT 'm-' || r.id FROM runs r WHERE r.user_id = ? OR r.match_id IN (SELECT m.id FROM matches m WHERE m.p1 = ? OR m.p2 = ?))",
   "DELETE FROM runs WHERE user_id = ? OR match_id IN (SELECT m.id FROM matches m WHERE m.p1 = ? OR m.p2 = ?)",
   "DELETE FROM matches WHERE p1 = ? OR p2 = ?",
   "DELETE FROM run_shots WHERE run_key IN (SELECT 't-' || e.id FROM tournament_entries e WHERE e.user_id = ?)",
   "DELETE FROM tournament_entries WHERE user_id = ?",
+  "DELETE FROM weekly_race_exclusions WHERE user_id = ?",
+  "DELETE FROM daily_claims WHERE user_id = ?",
+];
+
+/** Every table that belongs to a player, in the order a purge empties them. */
+const PURGE = [
+  ...GAME_ROWS,
   "DELETE FROM ledger WHERE user_id = ?",
   "DELETE FROM cash_ledger WHERE account_id = 'devnet:' || ?",
   "DELETE FROM cash_transfers WHERE user_id = ?",
@@ -68,12 +79,10 @@ const PURGE = [
   "DELETE FROM two_factor WHERE user_id = ?",
   "DELETE FROM security_holds WHERE user_id = ?",
   "DELETE FROM session_resets WHERE user_id = ?",
-  "DELETE FROM daily_claims WHERE user_id = ?",
   "DELETE FROM player_activity WHERE user_id = ?",
   "DELETE FROM player_suspensions WHERE user_id = ?",
   "DELETE FROM cheat_signals WHERE user_id = ?",
   "DELETE FROM shot_analysis WHERE user_id = ?",
-  "DELETE FROM weekly_race_exclusions WHERE user_id = ?",
   "DELETE FROM referral_codes WHERE user_id = ?",
   "DELETE FROM referrals WHERE user_id = ? OR referrer_id = ?",
   "DELETE FROM players WHERE id = ?",
@@ -117,4 +126,32 @@ export async function purgePlayer(adminUid: string, nameInput: unknown, codeInpu
   ops.push(adminAudit(adminUid, "player_deleted", player.id, `${reason} · ${swept} lamports to the treasury`, now));
   await db.batch(ops);
   return { name: player.name, swept };
+}
+
+/**
+ * Puts a player's record back to nothing: no games, no scores, no profit and
+ * loss, no rank, no streak. Their balances, their wallet and every line of the
+ * ledger stay exactly as they are — nothing here moves money.
+ *
+ * The matches go with the runs, which means they also leave the history of
+ * whoever played against them. That is the price of a record counted from the
+ * games themselves, and the reason this is an administrator's tool.
+ */
+export async function resetPlayerStats(adminUid: string, nameInput: unknown, reasonInput: unknown, now = Date.now()) {
+  const reason = adminNote(reasonInput, true);
+  const name = String(nameInput ?? "").trim();
+  const db = database();
+  const player = await db.prepare("SELECT id, name FROM players WHERE lower(name) = lower(?)").bind(name).first<{ id: string; name: string }>();
+  if (!player) throw new GameError("No player by that name.", 404);
+  // A game still running would leave its entry committed to a match nobody owns.
+  const blocked = await openPlay(player.id);
+  if (blocked) throw new GameError(blocked, 409);
+  const counted = await db
+    .prepare("SELECT (SELECT COUNT(*) FROM matches WHERE p1 = ? OR p2 = ?) AS matches, (SELECT COUNT(*) FROM tournament_entries WHERE user_id = ?) AS entries")
+    .bind(player.id, player.id, player.id)
+    .first<{ matches: number; entries: number }>();
+  const ops = GAME_ROWS.map((sql) => db.prepare(sql).bind(...Array<string>(sql.split("?").length - 1).fill(player.id)));
+  ops.push(adminAudit(adminUid, "player_stats_reset", player.id, `${reason} · ${counted?.matches ?? 0} matches, ${counted?.entries ?? 0} tournament entries`, now));
+  await db.batch(ops);
+  return { name: player.name, matches: Number(counted?.matches ?? 0), entries: Number(counted?.entries ?? 0) };
 }

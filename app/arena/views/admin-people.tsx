@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, ShieldAlert, Trash2 } from "lucide-react";
+import { RotateCcw, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import type { AdminPlayer } from "@/lib/admin-players";
 import { request } from "../api";
@@ -60,6 +60,30 @@ export function AdminPeople() {
     }
   };
 
+  const reset = async (player: AdminPlayer) => {
+    const reason = await dialog.prompt(
+      `Reset ${player.name}'s statistics?
+
+Every game they played is removed: their runs, their scores, their profit and loss, their rank and their streaks all go back to nothing. The matches go too, so they leave their opponents' history as well.
+
+Balances, wallets and the ledger are untouched. Write the reason; it is recorded in the audit log.`,
+      { title: "Reset statistics", confirmLabel: "Reset statistics", danger: true },
+    );
+    if (reason === null) return;
+    setBusy(player.name);
+    setError("");
+    setNotice("");
+    try {
+      const done = await request<{ name: string; matches: number; entries: number }>("/api/admin/players", { action: "reset", name: player.name, reason });
+      await load();
+      setNotice(`${done.name}'s statistics reset · ${done.matches} ${done.matches === 1 ? "match" : "matches"} and ${done.entries} tournament ${done.entries === 1 ? "entry" : "entries"} removed.`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  };
+
   const shown = (list ?? []).filter((p) => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
@@ -109,9 +133,14 @@ export function AdminPeople() {
                   {player.gems.toLocaleString("en")} gems · {fullSol(player.sol)} SOL
                 </span>
               </div>
-              <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy === player.name} onClick={() => void remove(player)}>
-                <Trash2 size={15} /> {busy === player.name ? "Deleting…" : "Delete"}
-              </button>
+              <div className="row-actions">
+                <button className="btn" disabled={busy === player.name} onClick={() => void reset(player)}>
+                  <RotateCcw size={15} /> Reset stats
+                </button>
+                <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy === player.name} onClick={() => void remove(player)}>
+                  <Trash2 size={15} /> {busy === player.name ? "Working…" : "Delete"}
+                </button>
+              </div>
             </div>
           ))}
         </div>

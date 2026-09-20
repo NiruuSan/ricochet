@@ -1,5 +1,5 @@
 import { administrator } from "@/lib/auth-user";
-import { adminPlayers, purgePlayer } from "@/lib/admin-players";
+import { adminPlayers, purgePlayer, resetPlayerStats } from "@/lib/admin-players";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     const b = parsed.body;
     // Development-phase tool: removes an account and everything attached to it.
     if (b.action === "delete") return json(await purgePlayer(user.userId, b.name, b.code, b.reason));
+    if (b.action === "reset") return json(await resetPlayerStats(user.userId, b.name, b.reason));
     return json({ error: "Unknown action." }, 400);
   } catch (e) {
     if (e instanceof TwoFactorError) return json({ error: e.message, code: e.code }, e.code === "TWO_FACTOR_REQUIRED" ? 403 : 400);

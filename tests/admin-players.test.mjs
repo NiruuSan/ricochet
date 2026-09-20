@@ -98,8 +98,42 @@ try {
   assert.match(audit.reason, /development phase · 3000000000 lamports to the treasury/);
   assert.equal((await adminPlayers()).length, 2);
 
+  // 5. Resetting a record: the games go, the money stays.
+  const { resetPlayerStats } = await import("../lib/admin-players.ts");
+  const { playerLevel } = await import("../lib/experience.ts");
+  const KEEP = "github:keeper";
+  await createPlayer(KEEP, "Keeper");
+  await ensureCashAccount(KEEP);
+  sqlite.prepare("INSERT INTO cash_ledger VALUES('keep-funds', ?, 'deposit', ?, 'test', 0)").run(cashAccountId(KEEP), 40 * SOL);
+  sqlite.prepare("INSERT INTO matches(id, seed, stake, asset, p1, p2, settled, winner, fee, created, ruleset) VALUES('m2', 1, ?, 'devnet', ?, ?, 1, ?, 0, 0, 6)").run(10 * SOL, KEEP, RIVAL, KEEP);
+  for (const [id, uid] of [["k1", KEEP], ["k2", RIVAL]]) {
+    sqlite.prepare("INSERT INTO runs(id, match_id, user_id, state, score, done, created) VALUES(?, 'm2', ?, '{}', 800, 1, 0)").run(id, uid);
+    sqlite.prepare("INSERT INTO run_shots(run_key, revision, angle, created) VALUES(?, 0, 73, 0)").run("m-" + id);
+  }
+  sqlite.prepare("INSERT INTO cash_ledger VALUES('k-entry', ?, 'match_entry', ?, 'm2', 0)").run(cashAccountId(KEEP), -10 * SOL);
+  sqlite.prepare("INSERT INTO daily_claims(user_id, day, streak, amount, created) VALUES(?, 20300, 4, 350, 0)").run(KEEP);
+  const ranked = await playerLevel(KEEP);
+  assert.ok(ranked.tier !== (await playerLevel(RIVAL)).tier || ranked.division !== (await playerLevel(RIVAL)).division, "Wagering a match moved their rank");
+
+  await assert.rejects(() => resetPlayerStats(ADMIN, "Keeper", ""), /note explaining/);
+  await assert.rejects(() => resetPlayerStats(ADMIN, "Nobody", "who?"), /No player by that name/);
+  const funds = balance(KEEP);
+  const gems = sqlite.prepare("SELECT balance FROM players WHERE id = ?").get(KEEP).balance;
+  const wiped = await resetPlayerStats(ADMIN, "keeper", "Clearing test results");
+  assert.deepEqual([wiped.name, wiped.matches, wiped.entries], ["Keeper", 1, 0]);
+  assert.equal(count("SELECT COUNT(*) AS n FROM runs WHERE match_id = 'm2'"), 0, "Both sides of the match go");
+  assert.equal(count("SELECT COUNT(*) AS n FROM matches WHERE id = 'm2'"), 0);
+  assert.equal(count("SELECT COUNT(*) AS n FROM run_shots WHERE run_key IN ('m-k1', 'm-k2')"), 0);
+  assert.equal(count("SELECT COUNT(*) AS n FROM daily_claims WHERE user_id = ?", KEEP), 0, "The streak goes too");
+  assert.equal(count("SELECT COUNT(*) AS n FROM cash_ledger WHERE id = 'k-entry'"), 1, "Every line of the ledger stays");
+  assert.equal(balance(KEEP), funds, "And so does the balance it explains");
+  assert.equal(sqlite.prepare("SELECT balance FROM players WHERE id = ?").get(KEEP).balance, gems);
+  assert.deepEqual(await playerLevel(KEEP), await playerLevel("github:nobody"), "The rank is back where a new player starts");
+  assert.equal(count("SELECT COUNT(*) AS n FROM players WHERE id = ?", KEEP), 1, "The account itself is untouched");
+  assert.equal(count("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'player_stats_reset' AND target_user_id = ?", KEEP), 1, "The reset is on the record");
+
   console.log(
-    "PASS: admin player register (names only, balances, runs), deletion refused without a reason, a valid code, or with a game in play, never the administrator's own, funds swept to the treasury with the pool conserved, every table emptied, the rival untouched, and the decision kept in the audit log.",
+    "PASS: admin player register (names only, balances, runs), deletion refused without a reason, a valid code, or with a game in play, never the administrator's own, funds swept to the treasury with the pool conserved, every table emptied, the rival untouched, and the decision kept in the audit log; statistics reset (games, matches on both sides and streaks removed, ledger and balances untouched, rank back to the start, account kept, audited).",
   );
 } finally {
   close();
