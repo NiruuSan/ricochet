@@ -1009,6 +1009,10 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
   align-items: end;
   margin-top: 16px;
 }
+/* A field in a row keeps no margin of its own: the button beside it lines up with the input, not below it. */
+.field-row > .field {
+  margin: 0;
+}
 @media (max-width: 620px) {
   .field-row {
     grid-template-columns: 1fr !important;

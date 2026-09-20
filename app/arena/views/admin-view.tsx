@@ -10,6 +10,7 @@ import type { PlayerState } from "../arena";
 import { AdminAntiCheat } from "./admin-anti-cheat";
 import { AdminGames } from "./admin-games";
 import { AdminPartners } from "./admin-partners";
+import { AdminPeople } from "./admin-people";
 import { AdminRace } from "./admin-race";
 import { AdminTournaments } from "./admin-tournaments";
 import { AdminSecurity } from "./admin-security";
@@ -25,7 +26,7 @@ export function AdminView({ player }: { player: PlayerState }) {
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState("");
   const requestedReview = useSyncExternalStore(noSubscription, () => new URLSearchParams(window.location.search).get("tab") === "anti-cheat", () => false);
-  const [chosenTab, setTab] = useState<"overview" | "games" | "tournaments" | "race" | "partners" | "anti-cheat" | "security" | null>(null);
+  const [chosenTab, setTab] = useState<"overview" | "games" | "tournaments" | "race" | "players" | "partners" | "anti-cheat" | "security" | null>(null);
   const tab = chosenTab ?? (requestedReview ? "anti-cheat" : "overview");
 
   useEffect(() => {
@@ -82,6 +83,9 @@ export function AdminView({ player }: { player: PlayerState }) {
         <button aria-pressed={tab === "anti-cheat"} onClick={() => setTab("anti-cheat")}>
           Anti-cheat
         </button>
+        <button aria-pressed={tab === "players"} onClick={() => setTab("players")}>
+          Players
+        </button>
         <button aria-pressed={tab === "partners"} onClick={() => setTab("partners")}>
           Partners
         </button>
@@ -89,7 +93,7 @@ export function AdminView({ player }: { player: PlayerState }) {
           Security
         </button>
       </div>
-      {tab === "security" ? <AdminSecurity /> : tab === "partners" ? <AdminPartners /> : tab === "anti-cheat" ? <AdminAntiCheat /> : tab === "race" ? <AdminRace /> : tab === "games" ? <AdminGames /> : tab === "tournaments" ? (
+      {tab === "security" ? <AdminSecurity /> : tab === "players" ? <AdminPeople /> : tab === "partners" ? <AdminPartners /> : tab === "anti-cheat" ? <AdminAntiCheat /> : tab === "race" ? <AdminRace /> : tab === "games" ? <AdminGames /> : tab === "tournaments" ? (
         <AdminTournaments solConfigured={!!data.launch?.configured} />
       ) : (
         <>

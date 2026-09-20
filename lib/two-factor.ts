@@ -243,7 +243,8 @@ export async function confirmTwoFactorSetup(uid: string, codeInput: unknown, now
  */
 export async function verifySecondFactor(uid: string, codeInput: unknown, now = Date.now()) {
   const row = await load(uid);
-  if (!row?.enabled) throw new TwoFactorError("Turn on two-factor authentication to withdraw.", "TWO_FACTOR_REQUIRED");
+  // Withdrawals, large tips and an administrator closing an account all land here.
+  if (!row?.enabled) throw new TwoFactorError("Turn on two-factor authentication first: this needs a code from your app.", "TWO_FACTOR_REQUIRED");
   assertUnlocked(row, now);
   const db = database();
   const code = typeof codeInput === "string" ? codeInput.trim() : "";

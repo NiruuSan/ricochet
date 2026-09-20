@@ -66,24 +66,33 @@ export async function exportAccount(uid: string, now = Date.now()) {
   };
 }
 
-/** What still has to finish before an account can be closed. */
-async function blockers(uid: string) {
+/**
+ * What is still in play for this account, and would be left dangling if it went
+ * away now. The administrator's own tool asks the same question (lib/admin-players.ts).
+ */
+export async function openPlay(uid: string) {
   const db = database();
-  const account = cashAccountId(uid);
-  const [run, match, tournament, funds, transfer] = await Promise.all([
+  const [run, match, tournament, transfer] = await Promise.all([
     db.prepare("SELECT 1 AS x FROM runs WHERE user_id = ? AND done = 0").bind(uid).first(),
     db.prepare("SELECT 1 AS x FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.user_id = ? AND m.settled = 0").bind(uid).first(),
     db
       .prepare("SELECT 1 AS x FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id WHERE e.user_id = ? AND t.status = 'scheduled'")
       .bind(uid)
       .first(),
-    db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(account).first<{ balance: number }>(),
     db.prepare("SELECT 1 AS x FROM cash_transfers WHERE user_id = ? AND status IN ('pending', 'review')").bind(uid).first(),
   ]);
   if (run) return "Finish or forfeit your game first, then delete your account.";
   if (match) return "One of your matches is still being played. It settles once both players finish.";
   if (tournament) return "You are entered in a tournament that has not ended yet.";
   if (transfer) return "A transfer is still being confirmed on-chain. Try again in about a minute.";
+  return null;
+}
+
+/** What still has to finish, or be taken out, before a player closes their own account. */
+async function blockers(uid: string) {
+  const open = await openPlay(uid);
+  if (open) return open;
+  const funds = await database().prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(uid)).first<{ balance: number }>();
   if (funds && funds.balance > 0) return "Withdraw your devnet SOL first: deleting an account does not send it anywhere.";
   return null;
 }
