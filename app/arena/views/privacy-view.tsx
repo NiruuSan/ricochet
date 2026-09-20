@@ -5,7 +5,7 @@ import { ArrowRight } from "lucide-react";
 const SECTIONS: [string, string][] = [
   [
     "What Bounce knows about you",
-    "Your sign-in provider (GitHub, Google or Discord) tells us one thing: a stable account ID such as github:12345. That ID is your account. We never receive your password, and we do not store your email address. Everything else is what you made here: the name and picture you chose, the boards you played and their scores, your gem and devnet SOL ledgers, your transfers and tips, your notifications, and — if you turned it on — an encrypted authenticator secret.",
+    "Your sign-in provider (GitHub, Google or Discord) tells us one thing: a stable account ID such as github:12345. That ID is your account. We never receive your password, and we do not store your email address. Everything else is what you made here: the name and picture you chose, the boards you played and their scores, your gem and devnet SOL ledgers, your transfers and tips, your notifications, who brought you in if you signed up with a referral code, and — if you turned it on — an encrypted authenticator secret.",
   ],
   [
     "Why each part is kept",

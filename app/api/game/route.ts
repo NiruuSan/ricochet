@@ -71,7 +71,8 @@ export async function POST(req: Request) {
     if (await limited) return json({ error: TOO_MANY_REQUESTS }, 429);
 
     if (b.action === "signup") {
-      await createPlayer(uid, b.name);
+      // An invite link's code rides along with the name it signs up with.
+      await createPlayer(uid, b.name, b.ref);
       if (launchStatus(settings()).configured) {
         try {
           const { ensureCashAccount, ensureWallet } = await import("@/lib/payments/service");

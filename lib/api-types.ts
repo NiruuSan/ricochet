@@ -206,6 +206,8 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
   | { kind: "race_result"; data: RaceNotification }
   | { kind: "account_suspended"; data: { reason: string } }
   | { kind: "challenge"; data: ChallengeNotification }
+  | { kind: "referral_joined"; data: { name: string; level: number } }
+  | { kind: "referral_partner"; data: { level: number } }
 );
 
 /**
@@ -218,6 +220,22 @@ export type SecurityAlertNotification = {
   amount?: number;
   /** The player or address the money went to. */
   to?: string;
+};
+
+/** One line of the administrator's referral roster. */
+export type AdminReferral = { name: string; level: number; code: string | null; joined: number; earned: number };
+
+/** A player's own referral standing: their code, their window, and what it brought in. */
+export type ReferralSummary = {
+  code: string;
+  /** 1: an ordinary code. 2: a partnership, which pays a share of the house fee. */
+  level: number;
+  /** While this is in the future, this player's house fee is reduced. */
+  discountUntil: number | null;
+  referredBy: string | null;
+  joined: number;
+  /** Lamports earned as a partner, all time. */
+  earned: number;
 };
 
 /** A private match opened for one player: its link is the code. */

@@ -1,6 +1,7 @@
 "use client";
 import { Form } from "@/components/ui/form";
 import { useEffect, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { STARTING_GEMS } from "@/lib/api-types";
@@ -54,17 +55,57 @@ function useSignInProviders() {
   return providers;
 }
 
+/**
+ * A referral code from an invite link. It is kept in the browser so it survives
+ * the trip to the sign-in provider and back, and it only counts when the
+ * profile is created (lib/referrals.ts).
+ */
+const REFERRAL_KEY = "ricochet:ref";
+const remembered = (fallback = "") => {
+  try {
+    return localStorage.getItem(REFERRAL_KEY) ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+function useReferralCode() {
+  // The link's code is what the sign-in buttons carry back; the stored one is
+  // what survives a trip that dropped the query string.
+  const code = useSearchParams().get("ref") ?? "";
+  useEffect(() => {
+    try {
+      if (code) localStorage.setItem(REFERRAL_KEY, code);
+    } catch {
+      // Without storage the code still works, as long as the link's query survives.
+    }
+  }, [code]);
+  return {
+    code,
+    /** The code to sign up with: the one in hand, or the one from the link that started this. */
+    take: () => code || remembered(),
+    clear: () => {
+      try {
+        localStorage.removeItem(REFERRAL_KEY);
+      } catch {
+        // Forgetting a code that has been used is a convenience, not a requirement.
+      }
+    },
+  };
+}
+
 export function AuthView({ player, signup }: { player: PlayerState; signup: boolean }) {
   const { data, loaded, setError } = player;
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const providers = useSignInProviders();
+  const referral = useReferralCode();
 
   const createProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await gameAction({ action: "signup", name });
+      await gameAction({ action: "signup", name, ref: referral.take() || undefined });
+      referral.clear();
       window.location.href = "/";
     } catch (err) {
       setError((err as Error).message);
@@ -92,7 +133,7 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
         <>
           <div className="provider-buttons">
             {providers.map((provider) => (
-              <Form key={provider} action={signInWith.bind(null, provider, "/signup")}>
+              <Form key={provider} action={signInWith.bind(null, provider, referral.code ? `/signup?ref=${encodeURIComponent(referral.code)}` : "/signup")}>
                 <button className="btn full provider-button">
                   {LOGOS[provider]}
                   Continue with {LABELS[provider]}

@@ -41,7 +41,25 @@
 .gemLink:hover { color: #eaddff; }
 .gemWatermark { position: absolute; width: 135px; height: 135px; right: -18px; bottom: -27px; color: #a78bfa1c; transform: rotate(-15deg); pointer-events: none; }
 .fundingGrid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; }
-.deposit, .security { min-width: 0; padding: 24px; border: 1px solid #263246; border-radius: 14px; background: #111822; }
+.deposit, .security, .referral { min-width: 0; padding: 24px; border: 1px solid #263246; border-radius: 14px; background: #111822; }
+/* Bringing players in: the code, and what it has paid back. */
+.referral { margin-top: 20px; }
+/* The card carries its own border, so its heading does not need the section rule. */
+.referral .sectionHeading { padding-top: 0; border-top: 0; align-items: flex-start; }
+.referral .sectionHeading h2 { display: flex; align-items: center; gap: 9px; }
+.referral .sectionHeading h2 svg { color: #c6f564; }
+.referral .sectionHeading p { margin-top: 7px; color: #8e9cb1; font-size: 12px; line-height: 1.75; }
+.partnerBadge { padding: 6px 10px; border: 1px solid #c6f5643a; border-radius: 999px; background: #c6f56414; color: #c6f564; font-size: 10px; font-weight: 800; letter-spacing: 1.4px; white-space: nowrap; }
+.referralRow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; margin-top: 18px; }
+.referralCode { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border: 1px dashed #3b485e; border-radius: 10px; background: #0d1420; color: #f6f8fd; font-family: ui-monospace, monospace; font-size: 15px; font-weight: 700; letter-spacing: 2px; }
+.referralCode:hover { border-color: #c6f564; color: #c6f564; }
+.referralCode svg { color: #93a1b8; }
+.referralStats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+.referralStats > div { padding: 14px 16px; border: 1px solid #263246; border-radius: 12px; background: #0e1520; }
+.referralStats span { display: flex; align-items: center; gap: 7px; color: #8e9cb1; font-size: 11px; }
+.referralStats span svg { color: #c6f564; }
+.referralStats strong { display: block; margin-top: 7px; font-size: 19px; }
+@media (max-width: 620px) { .referralStats { grid-template-columns: 1fr; } }
 .deposit { scroll-margin-top: 28px; }
 .cardHeading { display: flex; align-items: center; gap: 11px; }
 .cardHeading > svg { flex-shrink: 0; color: #c6f564; }

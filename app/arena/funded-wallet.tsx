@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { MIN_DEPOSIT, type Transfer, type TreasurySnapshot } from "@/lib/api-types";
 import { request, RequestError } from "./api";
 import { CodeInput, TwoFactorPanel, useTwoFactor } from "./two-factor-panel";
+import { ReferralCard } from "./referral-card";
 import { shortDate } from "./format";
 import styles from "./wallet.module.css";
 
@@ -333,6 +334,11 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
             {!treasury && !twoFactor.status && <p className={styles.depositNote}>Loading security settings…</p>}
           </section>
           </div>
+          {!treasury && (
+            <section className={styles.referral}>
+              <ReferralCard />
+            </section>
+          )}
           <section className={treasury ? undefined : styles.history}>
           {!treasury && <>
             <div className={styles.historyHeading}><div><h2><History size={18} />Transfer history</h2><p>Your deposits and withdrawals, all in one place.</p></div><span>{data.transfers.length} {data.transfers.length === 1 ? "transfer" : "transfers"}</span></div>

@@ -1,4 +1,5 @@
 import { database } from "@/db/raw";
+import { applyReferral } from "./referrals";
 import { GameError } from "./matches";
 
 const NAME = /^[a-zA-Z0-9_]{3,20}$/;
@@ -20,7 +21,7 @@ function validName(input: unknown) {
 const nameTaken = (e: unknown) => e instanceof Error && /UNIQUE constraint failed.*(player_name_unique|players\.name)/i.test(e.message);
 
 /** Creates the player's profile once. Returns false if they already had one. */
-export async function createPlayer(uid: string, nameInput: unknown) {
+export async function createPlayer(uid: string, nameInput: unknown, referral?: unknown) {
   const name = validName(nameInput);
   try {
     // A player who deleted their account and comes back takes their row over
@@ -29,6 +30,8 @@ export async function createPlayer(uid: string, nameInput: unknown) {
       .prepare("INSERT INTO players(id, name, created) VALUES(?, ?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name, deleted = NULL WHERE players.deleted IS NOT NULL")
       .bind(uid, name, Date.now())
       .run();
+    // A code only counts for a profile that was just created, and never fails it.
+    if (result.meta.changes > 0 && referral) await applyReferral(uid, referral).catch(() => null);
     return result.meta.changes > 0;
   } catch (e) {
     if (nameTaken(e)) throw new GameError("That player name is taken. Try another one.", 409);

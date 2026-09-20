@@ -44,6 +44,18 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
       detail: payout > 0 ? `Prize +${units(payout, asset)} ${CURRENCY[asset]}` : "Outside the prize places this time",
     };
   }
+  if (n.kind === "referral_joined") {
+    return {
+      tone: "tip",
+      title: `${n.data.name} joined with your code`,
+      detail: n.data.level >= 2 ? "They play at a reduced house fee for a week, and their matches pay you a share." : "They play at a reduced house fee for their first 24 hours.",
+    };
+  }
+  if (n.kind === "referral_partner") {
+    return n.data.level >= 2
+      ? { tone: "win", title: "You are a Bounce partner", detail: "Players who sign up with your code get a week of reduced fees, and you earn a share of the house fee on every match they play." }
+      : { tone: "security", title: "Your partnership ended", detail: "Your code still gives new players their first day at a reduced fee." };
+  }
   if (n.kind === "challenge") {
     const { from, asset, stake } = n.data;
     return { tone: "tournament", title: `${from} challenged you`, detail: `${units(stake, asset)} ${CURRENCY[asset]} · same board, head to head` };

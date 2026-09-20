@@ -18,11 +18,17 @@ export const players = sqliteTable(
     // When the player deleted their account. The row stays, with its identity
     // scrubbed, because the ledger and both sides of every match refer to it.
     deleted: integer("deleted"),
+    // The code this player shares. Made on demand, never reused.
+    referralCode: text("referral_code"),
+    // 1: anyone's code, a day of reduced fees for whoever signs up with it.
+    // 2: a partnership, granted by an administrator (lib/referrals.ts).
+    referralLevel: integer("referral_level").notNull().default(1),
   },
   (t) => [
     check("balance_nonnegative", sql`${t.balance} >= 0`),
     uniqueIndex("player_name_unique").on(sql`lower(${t.name})`),
     uniqueIndex("player_public_id_unique").on(t.publicId),
+    uniqueIndex("player_referral_code").on(t.referralCode),
     index("player_presence").on(t.lastSeen),
     index("player_created").on(t.created),
   ],
@@ -358,6 +364,35 @@ export const securityHolds = sqliteTable("security_holds", {
   createdBy: text("created_by").notNull(),
   created: integer("created").notNull(),
 });
+
+// Every referral code that has ever existed, and who owns it. A player's code
+// can be changed; the old one stays theirs, so a link already shared keeps
+// working and nobody can ever pick up a code someone else was handing out.
+export const referralCodes = sqliteTable(
+  "referral_codes",
+  {
+    code: text("code").primaryKey(),
+    userId: text("user_id").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [index("referral_code_owner").on(t.userId)],
+);
+
+// Who brought a player in. One row per referred player, written once when the
+// profile is created and never changed: a player has one referrer, for good.
+export const referrals = sqliteTable(
+  "referrals",
+  {
+    userId: text("user_id").primaryKey(),
+    referrerId: text("referrer_id").notNull(),
+    // The level the code carried when it was used, which set the window below.
+    level: integer("level").notNull(),
+    // Until when this player's house fee is reduced.
+    discountUntil: integer("discount_until").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [index("referral_referrer").on(t.referrerId)],
+);
 
 // One row per player who signed out everywhere: sessions issued before this
 // moment are refused, whatever cookie carries them.

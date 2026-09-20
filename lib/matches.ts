@@ -8,6 +8,7 @@ import { parseTrap, planTrap, presentRun } from "./ghost-trap";
 import { analyzeShot, ANTI_CHEAT_ON_SQL, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
 import type { ChallengeNotification, Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
+import { referralCredits } from "./referrals";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
 import { dailyGems } from "./daily";
@@ -116,6 +117,10 @@ export async function settle(matchId: string) {
         .prepare("INSERT OR IGNORE INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'escrow_release', ?, ?, ?)")
         .bind(`${matchId}:cash:release`, cashAccountId("escrow:" + matchId), -m.stake * 2, matchId, now),
     );
+    // What the house gives back to a player it brought in at a reduced fee, and
+    // what it owes the partner who brought them. Both come out of the fee just
+    // taken, which is why they follow it (lib/referrals.ts).
+    ops.push(...(await referralCredits(db, { id: matchId, asset: m.asset, fee }, [a.user_id, b.user_id], now)));
   } else {
     for (const uid of recipients) {
       ops.push(
