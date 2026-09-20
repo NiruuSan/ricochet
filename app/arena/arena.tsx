@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, Medal, Radio, Trophy, Wallet, X } from "lucide-react";
+import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Radio, Trophy, UserRound, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Menu } from "@/components/ui/menu";
+import { signOutToLogin } from "../auth-actions";
 import { Avatar, GemIcon } from "./avatar";
 import { units } from "./format";
 import { Notifications } from "./notifications";
@@ -159,9 +161,17 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
                   {units(data.player.balance, "gems")}
                 </span>
               </Link>
-              <Link href="/profile" aria-label="Your profile" className="avatar-link">
-                <Avatar name={data.player.name} src={data.player.avatar} />
-              </Link>
+              {/* The account menu: where the profile, the wallet and the way out live. */}
+              <Menu
+                label="Your account"
+                triggerClassName="avatar-link"
+                trigger={<Avatar name={data.player.name} src={data.player.avatar} />}
+                items={[
+                  { label: "Your profile", href: "/profile", icon: <UserRound /> },
+                  { label: "Wallet", href: "/wallet", icon: <Wallet /> },
+                  { label: "Sign out", onSelect: () => void signOutToLogin(), icon: <LogOut />, danger: true, separated: true },
+                ]}
+              />
             </>
           ) : (
             <Link className="btn" href="/login">

@@ -2,9 +2,8 @@
 import { Form } from "@/components/ui/form";
 import { useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Camera, LogOut, Trash2, UserRound } from "lucide-react";
+import { ArrowRight, Camera, Trash2, UserRound } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { signOutToLogin } from "../../auth-actions";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import type { PlayerState } from "../arena";
@@ -96,8 +95,7 @@ export function ProfileView({ player }: { player: PlayerState }) {
 
   return (
     <>
-      <ProfileDashboard name="me" player={player} privateView onEdit={openEditor} />
-      {profile && <AccountData player={player} />}
+      <ProfileDashboard name="me" player={player} privateView onEdit={openEditor} account={<AccountData player={player} />} />
       {profile && (
       <Dialog open={editing} onOpenChange={(open) => !saving && setEditing(open)}>
         <DialogContent className="dialog-dark">
@@ -159,17 +157,12 @@ export function ProfileView({ player }: { player: PlayerState }) {
               />
             </label>
             <p className="fine">3–20 letters, numbers or underscores. Names are unique, regardless of capitals. Your public profile link follows your name.</p>
-            <div className="row-actions" style={{ marginTop: 16, justifyContent: "space-between" }}>
+            <div className="row-actions" style={{ marginTop: 16 }}>
               <button className="btn btn-primary" disabled={!!saving || draftName.trim() === profile.name}>
                 {saving === "name" ? "Saving…" : "Save name"}
               </button>
-              <button className="btn" type="submit" form="sign-out-form">
-                <LogOut />
-                Sign out
-              </button>
             </div>
           </Form>
-          <Form id="sign-out-form" action={signOutToLogin} hidden />
         </DialogContent>
       </Dialog>
       )}

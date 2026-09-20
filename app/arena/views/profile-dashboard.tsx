@@ -1,7 +1,7 @@
 "use client";
 import { Tooltip } from "@/components/ui/tooltip";
 
-import { useEffect, useId, useState, type PointerEvent } from "react";
+import { useEffect, useId, useState, type PointerEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowDownUp, ArrowLeft, ArrowUpRight, Check, Crosshair, Eye, Flame, Gem, History, Medal, Swords, Search, Settings2, Share2, TrendingUp, UserRound, Wallet, Zap } from "lucide-react";
 import { Select } from "@/components/ui/select";
@@ -178,7 +178,20 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
 
 type ProfileData = { name: string; asset: Asset; profile: PublicPlayerProfile; performance: ProfilePerformance };
 
-export function ProfileDashboard({ name, player, privateView = false, onEdit }: { name: string; player: PlayerState; privateView?: boolean; onEdit?: () => void }) {
+export function ProfileDashboard({
+  name,
+  player,
+  privateView = false,
+  onEdit,
+  account,
+}: {
+  name: string;
+  player: PlayerState;
+  privateView?: boolean;
+  onEdit?: () => void;
+  /** The player's own account controls, shown at the end of their own page. */
+  account?: ReactNode;
+}) {
   const [data, setData] = useState<ProfileData | null>(null);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
@@ -243,6 +256,7 @@ export function ProfileDashboard({ name, player, privateView = false, onEdit }: 
       </div>
       <StatsSection stats={performance.stats} asset={asset} />
       <MatchRows key={`${name}:${asset}`} performance={performance} asset={asset} />
+      {own && account}
     </>}
   </section>;
 }

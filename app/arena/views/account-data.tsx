@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { signInWith, type SignInProvider } from "../../auth-actions";
 import { request, RequestError } from "../api";
 import type { PlayerState } from "../arena";
+import styles from "./profile-dashboard.module.css";
 
 /**
  * The two things a player can do with their own account beyond playing: take a
@@ -59,44 +60,64 @@ export function AccountData({ player }: { player: PlayerState }) {
   };
 
   return (
-    <section className="subpage" style={{ maxWidth: 850, paddingTop: 0 }}>
-      <div className="callout" style={{ alignItems: "flex-start" }}>
-        <Download />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h3>Your data</h3>
-          <p>
-            Take a copy of everything Bounce stores about you — your profile, every game, every line of your gem and devnet SOL ledgers, your transfers and your
-            notifications — or close your account for good. What we keep, and for how long, is in the <Link className="lime" href="/privacy">privacy notice</Link>.
-          </p>
-          {notice && (
-            <p className="success" role="status" style={{ marginTop: 10 }}>
-              {notice}
-            </p>
-          )}
-          {error && !confirming && (
-            <p className="error" role="alert" style={{ marginTop: 10 }}>
-              {error}
-            </p>
-          )}
-          {reauth && !confirming && (
-            <button className="btn" style={{ marginTop: 10 }} onClick={() => void signInWith(reauth, window.location.pathname)}>
-              <ShieldCheck /> Confirm it is you
-            </button>
-          )}
-          <div className="row-actions" style={{ marginTop: 12 }}>
-            <button className="btn" disabled={!!busy} onClick={() => void download()}>
-              <Download /> {busy === "export" ? "Preparing…" : "Download my data"}
-            </button>
-            <button
-              className="btn"
-              style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
-              disabled={!!busy}
-              onClick={() => (setError(""), setNotice(""), setTyped(""), setConfirming(true))}
-            >
-              <Trash2 /> Delete my account
-            </button>
-          </div>
+    <section className={styles.accountSection} aria-label="Account and data">
+      <div className={styles.sectionHeading}>
+        <div>
+          <h2>
+            <ShieldCheck size={18} />
+            Account &amp; data
+          </h2>
+          <p>Everything here is yours: take a copy of it, or close the account for good.</p>
         </div>
+        <span className={styles.statsScope}>Private to you</span>
+      </div>
+      {notice && (
+        <p className={`success ${styles.accountNote}`} role="status">
+          {notice}
+        </p>
+      )}
+      {error && !confirming && (
+        <p className={`error ${styles.accountNote}`} role="alert">
+          {error}
+        </p>
+      )}
+      {reauth && !confirming && (
+        <button className={`btn ${styles.accountNote}`} onClick={() => void signInWith(reauth, window.location.pathname)}>
+          <ShieldCheck /> Confirm it is you
+        </button>
+      )}
+      <div className={styles.accountGrid}>
+        <article className={`${styles.card} ${styles.accountCard}`}>
+          <h3>
+            <Download size={16} />
+            Download your data
+          </h3>
+          <p>
+            Your profile, every game you played, every line of your gem and devnet SOL ledgers, your transfers, your tips and your notifications — one JSON file,
+            exactly as it is stored.
+          </p>
+          <button className="btn" disabled={!!busy} onClick={() => void download()}>
+            <Download /> {busy === "export" ? "Preparing…" : "Download my data"}
+          </button>
+        </article>
+        <article className={`${styles.card} ${styles.accountCard} ${styles.accountDanger}`}>
+          <h3>
+            <Trash2 size={16} />
+            Close your account
+          </h3>
+          <p>
+            Your name, picture, notifications, devices and authenticator are deleted. Settled games keep their rows, with nobody behind them, so the other
+            players&apos; history stays true. <Link href="/privacy">What we keep, and why</Link>.
+          </p>
+          <button
+            className="btn"
+            style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
+            disabled={!!busy}
+            onClick={() => (setError(""), setNotice(""), setTyped(""), setConfirming(true))}
+          >
+            <Trash2 /> Delete my account
+          </button>
+        </article>
       </div>
 
       <Dialog open={confirming} onOpenChange={(open) => !open && !busy && setConfirming(false)}>

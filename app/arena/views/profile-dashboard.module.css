@@ -65,7 +65,19 @@
 .baseline { stroke: #46536a; stroke-width: .7; stroke-dasharray: 3 5; opacity: .5; }
 .crosshair { stroke: #a3b179; stroke-width: 1; stroke-dasharray: 3 4; opacity: .5; }
 .chartDates { display: flex; justify-content: space-between; gap: 8px; color: #8795aa; font-size: 10px; }
-.statsSection, .historySection { margin-top: 32px; padding-top: 25px; border-top: 1px solid #263040; }
+.statsSection, .historySection, .accountSection { margin-top: 32px; padding-top: 25px; border-top: 1px solid #263040; }
+/* The player's own account: a copy of everything, or the door out. */
+.accountGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.accountCard { display: flex; flex-direction: column; gap: 11px; }
+.accountCard h3 { display: flex; align-items: center; gap: 9px; font-size: 13px; font-weight: 650; color: #b6c3d7; }
+.accountCard h3 svg { color: #c6f564; }
+.accountCard p { color: #8e9cb1; font-size: 12px; line-height: 1.7; }
+.accountCard p a { color: #c6f564; }
+.accountCard > :last-child { margin-top: auto; align-self: flex-start; }
+.accountCard :global(.btn) { min-height: 38px; }
+.accountDanger { border-color: #ff91a024; background: linear-gradient(140deg, #1b1319, #121820); }
+.accountDanger h3 svg { color: #ff91a0; }
+.accountNote { margin-bottom: 16px; }
 .sectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .sectionHeading h2 { display: flex; align-items: center; gap: 9px; font-size: 20px; letter-spacing: -.5px; }
 .sectionHeading h2 svg { color: #c6f564; }
@@ -153,7 +165,7 @@
   .rankProgress { max-width: none; }
   .rankProgress > div { margin-top: 0; }
   .rankProgress > div > svg, .rankProgress > div > img { display: block; }
-  .summary { grid-template-columns: minmax(0, 1fr); }
+  .summary, .accountGrid { grid-template-columns: minmax(0, 1fr); }
   .nameBlock h1 { font-size: 40px; letter-spacing: -1.8px; }
   .overviewCard { padding-bottom: 20px; }
   .playerStats > div { padding: 15px 0; }
