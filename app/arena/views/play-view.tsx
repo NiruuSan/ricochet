@@ -193,7 +193,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           onOpenMatch={setRecapMatchId}
         />
       ) : (
-        <section className={styles.game}>
+        <section className={`${styles.game} game-screen`}>
           <div className={styles.hud}>
             <span className={styles.hudChip}>
               {run?.tournamentId
@@ -234,7 +234,6 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
             )}
           </div>
           <Board session={session} />
-          <p className="round-banner">{game.bonus ? "Board cleared! +4 bonus balls +1 round ball." : ""}</p>
         </section>
       )}
       {intro && <MatchIntro asset={intro.asset} stake={intro.stake} stage={intro.stage} opponent={intro.opponent} tournament={intro.tournament} />}

@@ -468,6 +468,151 @@ h3 {
 .board-overlay .btn {
   margin: 5px;
 }
+
+/*
+ * Board cleared: the round that empties the board pays five balls instead of
+ * one, and that moment gets its own beat on the board. Everything here is
+ * opacity and transform over 1.5s, above the canvas but never in the way of the
+ * next shot.
+ */
+.board-clear {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  overflow: hidden;
+  line-height: 1.3;
+  z-index: 2;
+}
+.board-clear > * {
+  grid-area: 1 / 1;
+}
+.board-clear-wash {
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 50% 46%, #c6f56440 0%, #c6f56414 38%, #c6f56400 68%);
+  animation: clearWash 1.5s ease-out forwards;
+}
+.board-clear-ring {
+  width: 110px;
+  height: 110px;
+  border: 2px solid #c6f564;
+  border-radius: 50%;
+  animation: clearRing 1.25s cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
+}
+.board-clear-ring-alt {
+  border-color: #bb8cff;
+  animation-delay: 0.14s;
+}
+.board-clear-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 11px;
+  max-width: 100%;
+  padding: 0 16px;
+  text-align: center;
+  animation: clearCopy 1.5s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+.board-clear-copy b {
+  font-size: clamp(20px, 6vw, 27px);
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  text-shadow: 0 0 30px #c6f56480;
+}
+.board-clear-chip {
+  padding: 7px 13px;
+  border: 1px solid #c6f5643a;
+  border-radius: 999px;
+  background: #0c1422d9;
+  color: #c6f564;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+/* The four extra balls, joining one after another. */
+.board-clear-balls {
+  display: flex;
+  gap: 10px;
+}
+.board-clear-balls i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #c6f564;
+  box-shadow: 0 0 14px #c6f56499;
+  animation: clearBall 1.15s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
+}
+.board-clear-balls i:nth-child(2) {
+  animation-delay: 0.09s;
+}
+.board-clear-balls i:nth-child(3) {
+  animation-delay: 0.18s;
+}
+.board-clear-balls i:nth-child(4) {
+  animation-delay: 0.27s;
+}
+@keyframes clearWash {
+  0% {
+    opacity: 0;
+  }
+  16% {
+    opacity: 1;
+  }
+  68% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes clearRing {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  22% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(3.6);
+  }
+}
+@keyframes clearCopy {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  20% {
+    opacity: 1;
+    transform: none;
+  }
+  74% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.98);
+  }
+}
+@keyframes clearBall {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.4);
+  }
+  45% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.85);
+  }
+}
 .board-bottom {
   display: flex;
   justify-content: space-between;
@@ -872,21 +1017,11 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
     width: 100%;
   }
 }
-.round-banner {
-  color: #c6f564;
-  font-size: 13px;
-  min-height: 20px;
-  margin: 11px 0;
-  text-align: center;
-}
 .key-help {
   font-size: 12px;
   color: #9eacc4;
   text-align: center;
   margin-top: 12px;
-}
-.round-banner:empty {
-  display: none;
 }
 .live-note {
   font-size: 13px;
@@ -1160,11 +1295,88 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
     max-height: calc(100dvh - 250px);
   }
 }
+/*
+ * A run on a phone or a tablet takes the whole screen. The arena shell puts
+ * `playing` on the body while a board is up, and everything around the board
+ * steps aside: no top bar, no tab bar, no footer, so the board gets the height
+ * they were using. The canvas keeps its 472 x 612 shape, so the frame is capped
+ * at the width that shape gives whatever height is left (0.771 = 472 / 612):
+ * without that cap the head and the foot of the frame would run wider than the
+ * board itself on a tablet.
+ */
+@media (max-width: 1024px) {
+  body.playing {
+    overflow: hidden;
+  }
+  body.playing .topbar,
+  body.playing .navigation,
+  body.playing .foot {
+    display: none;
+  }
+  body.playing .shell {
+    max-width: none;
+    height: 100dvh;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  body.playing .game-screen {
+    /* The head, the foot and the HUD around the canvas. */
+    --board-chrome: 224px;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: calc(10px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  }
+  body.playing .board-shell {
+    width: min(100%, calc((100dvh - var(--board-chrome) - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.771));
+    margin: 0 auto;
+  }
+  body.playing .game-canvas {
+    width: 100%;
+    height: auto;
+    max-height: none;
+  }
+}
+@media (max-width: 720px) {
+  body.playing .game-screen {
+    --board-chrome: 178px;
+  }
+  body.playing .board-shell {
+    border-radius: 16px;
+  }
+}
+/* Landscape on a phone: the board is short, so the frame loses what it can. */
+@media (max-width: 1024px) and (orientation: landscape) and (max-height: 560px) {
+  body.playing .game-screen {
+    --board-chrome: 164px;
+    padding-top: calc(6px + env(safe-area-inset-top));
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
+  }
+  body.playing .board-head {
+    height: 44px;
+    padding: 8px 16px;
+  }
+  body.playing .board-bottom {
+    padding: 6px 14px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     scroll-behavior: auto !important;
     transition: none !important;
     animation: none !important;
+  }
+  /* Without its motion the celebration is only its message. */
+  .board-clear-wash,
+  .board-clear-ring,
+  .board-clear-balls {
+    display: none;
   }
 }
 

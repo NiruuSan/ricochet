@@ -9,10 +9,31 @@ const BRICK_PALETTE = [
   ["#c6f564", "#809e3e"],
 ];
 
+/** The most pixels a board is drawn with, per board unit. Past this the gain is invisible and the cost is not. */
+const MAX_SCALE = 3;
+
+/**
+ * Matches the pixels the board is drawn with to the size it is shown at, so a
+ * board scaled up to fill a phone or a tablet stays sharp. Everything else here
+ * draws in board units (W x H) and the transform does the rest.
+ */
+function fitToDisplay(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) {
+  const shown = canvas.clientWidth || W;
+  const density = Math.min(MAX_SCALE, Math.max(1, (shown / W) * (window.devicePixelRatio || 1)));
+  const width = Math.round(W * density);
+  // The two sides stay in proportion, so the height CSS derives from them does not move.
+  if (canvas.width !== width) {
+    canvas.width = width;
+    canvas.height = Math.round(H * density);
+  }
+  ctx.setTransform(canvas.width / W, 0, 0, canvas.height / H, 0, 0);
+}
+
 /** Paints the board: the live flight while a shot animates, otherwise the aim guide (none for spectators: `angle` null). */
 export function drawBoard(canvas: HTMLCanvasElement, flight: Flight | null, game: Game, angle: number | null) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
+  fitToDisplay(canvas, ctx);
   const g = flight?.game ?? game;
   drawBackground(ctx);
   for (const b of g.bricks) {

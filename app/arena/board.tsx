@@ -1,9 +1,39 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
 import { Tooltip } from "@/components/ui/tooltip";
 
 import { FastForward, Play } from "lucide-react";
-import { H, MAX_ANGLE, MIN_ANGLE, W } from "@/lib/engine";
+import { H, MAX_ANGLE, MIN_ANGLE, W, type Game } from "@/lib/engine";
 import type { GameSession } from "./use-game-session";
+
+/** How long the board-cleared celebration plays, keyframes included. */
+const CLEAR_MS = 1600;
+
+/**
+ * The round a clear just happened on, or null while nothing is being
+ * celebrated. The engine raises `bonus` on the round a shot emptied the board,
+ * and every shot moves the round on, so one round is celebrated once.
+ */
+function useClearCelebration(game: Game, mini: boolean) {
+  const [cleared, setCleared] = useState<number | null>(null);
+  const seen = useRef<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  useEffect(() => {
+    // The first board this hook sees is the one it opened on: a run resumed just
+    // after a clear is not a clear that just happened.
+    if (seen.current === null) {
+      seen.current = game.round;
+      return;
+    }
+    if (mini || !game.bonus || seen.current === game.round) return;
+    seen.current = game.round;
+    setCleared(game.round);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCleared(null), CLEAR_MS);
+  }, [game, mini]);
+  return cleared;
+}
 
 type Props = {
   session: GameSession;
@@ -17,6 +47,7 @@ type Props = {
 export function Board({ session, mini = false, startLabel, startDisabled, onStart }: Props) {
   const { game, started, flying, busy, syncing, awaitingRow, liveScore, speed, attachCanvas } = session;
   const locked = flying || busy || awaitingRow;
+  const cleared = useClearCelebration(game, mini);
   return (
     <div className="board-shell">
       <div className="board-head">
@@ -78,6 +109,23 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
         >
           Aim and launch balls to break numbered bricks.
         </canvas>
+        {cleared !== null && (
+          <div className="board-clear" role="status" key={cleared}>
+            <span className="board-clear-wash" />
+            <span className="board-clear-ring" />
+            <span className="board-clear-ring board-clear-ring-alt" />
+            <div className="board-clear-copy">
+              <b>Board cleared</b>
+              <span className="board-clear-chip">+4 bonus balls · +1 round ball</span>
+              <span className="board-clear-balls" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+                <i />
+              </span>
+            </div>
+          </div>
+        )}
         {!started && !mini && (
           <div className="board-overlay">
             <div className="tag lime">YOUR NEXT GOOD ANGLE</div>

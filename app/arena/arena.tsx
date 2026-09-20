@@ -77,6 +77,14 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
   );
   const viewingMatchId = recapMatchId ?? (session.started && session.game.over ? (session.run?.match_id ?? null) : null);
 
+  // A board on a phone or a tablet plays full screen: the stylesheet hides the
+  // chrome around it while this class is on the body.
+  const playing = view === "play" && session.started;
+  useEffect(() => {
+    document.body.classList.toggle("playing", playing);
+    return () => document.body.classList.remove("playing");
+  }, [playing]);
+
   // Load the player; on the arena, pick up a saved run where it was left.
   const { resume } = session;
   useEffect(() => {

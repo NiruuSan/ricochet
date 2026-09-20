@@ -87,6 +87,7 @@ export function useGameSession({ onSaved, onError }: Options) {
   const angleRef = useRef(angle);
   const speedRef = useRef(speed);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sizeWatchRef = useRef<ResizeObserver | null>(null);
   const flightRef = useRef<Flight | null>(null);
   const frameRef = useRef(0);
   const busyRef = useRef(false);
@@ -146,6 +147,14 @@ export function useGameSession({ onSaved, onError }: Options) {
   const attachCanvas = useCallback(
     (node: HTMLCanvasElement | null) => {
       canvasRef.current = node;
+      // A board that changes size is drawn again, with the pixels its new size deserves.
+      sizeWatchRef.current?.disconnect();
+      sizeWatchRef.current = null;
+      if (node) {
+        const watch = new ResizeObserver(() => draw());
+        watch.observe(node);
+        sizeWatchRef.current = watch;
+      }
       draw();
     },
     [draw],
