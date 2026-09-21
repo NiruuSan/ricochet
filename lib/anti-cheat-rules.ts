@@ -10,7 +10,7 @@
 //   many shots). The player is suspended for review; past results are left for the admin.
 // - watch: worth a look (modified page, sudden jump in results). Recorded and
 //   listed for the admin, with no sanction.
-import type { Game } from "./engine";
+import { CLIENT_TICKS_PER_SECOND, type Game } from "./engine";
 
 /** What the official client reports with every shot, signed with the run's shot key. */
 export type ShotProof = {
@@ -92,8 +92,8 @@ export type Finding = { kind: string; level: "proof" | "stat" | "watch"; detail:
 export const OUTDATED_CLIENT = "Bounce was updated. Reload the page to keep playing.";
 export const SUSPENDED_MESSAGE = "Your account is suspended while suspicious activity is reviewed. Contact support if you think this is a mistake.";
 
-/** Client animation: 120 simulation ticks per second, up to 3× speed. */
-const CLIENT_TICK_MS = 1000 / 120;
+/** Client animation: the drawn tick rate (lib/engine.ts), up to 3× speed. */
+const CLIENT_TICK_MS = 1000 / CLIENT_TICKS_PER_SECOND;
 const MAX_CLIENT_SPEED = 3;
 
 export const TIMING = {
@@ -140,6 +140,18 @@ export const QUALITY = {
   /** …and above this floor, so a population of weak players never makes good play suspicious. */
   floorMean: 0.82,
   minPopulation: 20,
+  /** Shots within this many degrees of each other count as the same shot. */
+  angleBand: 5,
+  /**
+   * Above this share of shots inside one band, the player is repeating a shot
+   * rather than answering each board, and their average percentile says nothing
+   * about solving. Simulated models (work/redteam/calibrate.mjs, 14 games):
+   * random 0.11, average player 0.24, careful player 0.39, the red-team bot
+   * 0.54, a points solver 0.69 — and a player who always aims flat, 1.00.
+   */
+  maxAngleShare: 0.8,
+  /** Below this many known angles there is nothing to say about variety. */
+  minAngleShots: 30,
 };
 
 /** Results trend: a sudden jump in real-money results, for review. */
@@ -172,12 +184,39 @@ export function qualityThreshold(populationMeans: number[]) {
   return Math.max(QUALITY.floorMean, p);
 }
 
-export function evaluateQuality(qualities: number[], threshold: number): Finding[] {
+/**
+ * How much of a player's aiming is one shot: the largest share of angles that
+ * sit within `angleBand` degrees of each other. Null when too few are known.
+ */
+export function angleConcentration(angles: number[]) {
+  if (angles.length < QUALITY.minAngleShots) return null;
+  let most = 0;
+  for (const centre of angles) {
+    let near = 0;
+    for (const angle of angles) if (Math.abs(angle - centre) <= QUALITY.angleBand) near++;
+    if (near > most) most = near;
+  }
+  return most / angles.length;
+}
+
+/**
+ * A high average percentile is only evidence of solving if the player is
+ * actually choosing per board. Someone who plays the same flat angle every time
+ * beats most of the sampled angles without computing anything — the shot is
+ * simply a good habit, and the percentile rewards it. So when the angles are
+ * all one shot, this is recorded for the administrator and nothing more.
+ */
+export function evaluateQuality(qualities: number[], threshold: number, angles: number[] = []): Finding[] {
   if (qualities.length < QUALITY.minShots) return [];
   const mean = qualities.reduce((a, b) => a + b, 0) / qualities.length;
   if (mean < threshold) return [];
   const elite = qualities.filter((q) => q >= 0.9).length / qualities.length;
-  return [{ kind: "superhuman_quality", level: "stat", detail: { shots: qualities.length, meanQuality: Math.round(mean * 1000) / 1000, threshold: Math.round(threshold * 1000) / 1000, eliteShare: Math.round(elite * 1000) / 1000 } }];
+  const concentration = angleConcentration(angles);
+  const detail = { shots: qualities.length, meanQuality: Math.round(mean * 1000) / 1000, threshold: Math.round(threshold * 1000) / 1000, eliteShare: Math.round(elite * 1000) / 1000 };
+  if (concentration !== null && concentration > QUALITY.maxAngleShare) {
+    return [{ kind: "one_angle_quality", level: "watch", detail: { ...detail, angleShare: Math.round(concentration * 1000) / 1000, angleBand: QUALITY.angleBand } }];
+  }
+  return [{ kind: "superhuman_quality", level: "stat", detail: concentration === null ? detail : { ...detail, angleShare: Math.round(concentration * 1000) / 1000 } }];
 }
 
 /** Matches newest first: `won` and the player's score. */
@@ -304,6 +343,7 @@ export const FINDING_LABELS: Record<string, string> = {
   synthetic_aim: "Aim moved by script-made events",
   tampered_client: "Game page functions replaced (extension or script)",
   superhuman_quality: "Solver-level shot quality",
+  one_angle_quality: "High shot quality from one repeated angle",
   sudden_improvement: "Sudden jump in real-money results",
   automation_browser: "Automation browser (webdriver)",
   synthetic_input: "Shot fired by a script, not a real input",

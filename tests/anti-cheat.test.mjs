@@ -16,6 +16,7 @@ globalThis.fetch = async () => {
 };
 
 const rules = await import("../lib/anti-cheat-rules.ts");
+const engine = await import("../lib/engine.ts");
 const antiCheat = await import("../lib/anti-cheat.ts");
 const admin = await import("../lib/anti-cheat-admin.ts");
 const matches = await import("../lib/matches.ts");
@@ -64,6 +65,27 @@ try {
   assert.deepEqual(rules.evaluateQuality(Array(59).fill(0.95), 0.85), [], "Too few shots");
   assert.deepEqual(rules.evaluateQuality(Array(80).fill(0.78), 0.85), [], "A careful player");
   assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.85)[0].kind, "superhuman_quality");
+
+  // Angle variety. Beating most of the sampled angles is only evidence of
+  // solving if the player is choosing per board; someone who always aims flat
+  // beats them by habit. Simulated solvers stay near 0.5–0.7 concentration
+  // (work/redteam/calibrate.mjs), a one-angle player sits at 1.
+  const spread = Array.from({ length: 80 }, (_, i) => 8 + (i * 164) / 80);
+  assert.equal(
+    sqlite.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('shot_analysis') WHERE name = 'angle'").get().n,
+    1,
+    "The angle is kept with each analysed shot, and backfilled from the shots themselves",
+  );
+  const oneShot = Array.from({ length: 80 }, () => 8 + Math.random());
+  assert.equal(rules.angleConcentration(Array(29).fill(8)), null, "Too few angles to say anything");
+  assert.equal(rules.angleConcentration(oneShot), 1, "Every shot is the same shot");
+  assert.ok(rules.angleConcentration(spread) < 0.2, "Angles that answer the board are spread out");
+  const solver = rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread);
+  assert.deepEqual([solver[0].kind, solver[0].level], ["superhuman_quality", "stat"], "A high percentile across the range still suspends");
+  assert.ok(solver[0].detail.angleShare < 0.2, "And the spread is on the record either way");
+  const habit = rules.evaluateQuality(Array(80).fill(0.9), 0.85, oneShot);
+  assert.deepEqual([habit[0].kind, habit[0].level, habit[0].detail.angleShare], ["one_angle_quality", "watch", 1], "One repeated angle is noted, never sanctioned");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.78), 0.85, oneShot).length, 0, "And a habit below the bar is nothing at all");
   const board = (bricks, extra = {}) => ({ seed: 1, round: 5, score: 10, balls: 5, x: 200, bricks, over: false, bonus: false, ...extra });
   const before = board([]);
   assert.ok(rules.boardValue(before, board([{ col: 0, row: 2, hp: 5 }], { score: 20 })) < rules.boardValue(before, board([{ col: 0, row: 6, hp: 5 }], { score: 18 })), "Bricks near the ground cost more than a few points");
@@ -78,12 +100,18 @@ try {
 
   // Aim trail shape.
   assert.deepEqual(rules.aimFeatures([[0, 90], [100, 80], [200, 70], [300, 75], [400, 74.9], [500, 70]]), { samples: 6, durationMs: 500, reversals: 2, gapCv: 0 });
-  // 1,080 ticks animate for at least 3 s at 3× speed; a next shot 1 s later is impossible.
-  assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: 1_080 }).map((f) => [f.kind, f.level]), [["timing", "stat"]]);
-  assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: 1_080, timingStrikes: 2 }).map((f) => [f.kind, f.level]), [["impossible_timing", "proof"]], "The third impossible gap in a run is proof");
-  assert.deepEqual(inspect({ previousShotAt: 7_000, previousTicks: 1_080 }), [], "Gaps above half the fastest animation are fine");
-  assert.deepEqual(inspect({ previousShotAt: 9_900, previousTicks: 300 }), [], "Short animations are never timed (network jitter)");
-  assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: 1_080, ruleset: 5 }), [], "Older rulesets send shots after landing and are not timed");
+  // The floor on how soon a shot can follow the last one is that animation at
+  // top speed, so it is written against the drawn tick rate rather than a fixed
+  // number of milliseconds: make the balls faster and this moves with them,
+  // instead of handing honest players strikes.
+  assert.equal(rules.minAnimationMs(engine.CLIENT_TICKS_PER_SECOND * 3), 1000, "Three seconds of ticks cannot arrive in under one");
+  const nineSeconds = engine.CLIENT_TICKS_PER_SECOND * 9;
+  const twoSeconds = engine.CLIENT_TICKS_PER_SECOND * 2;
+  assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: nineSeconds }).map((f) => [f.kind, f.level]), [["timing", "stat"]]);
+  assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: nineSeconds, timingStrikes: 2 }).map((f) => [f.kind, f.level]), [["impossible_timing", "proof"]], "The third impossible gap in a run is proof");
+  assert.deepEqual(inspect({ previousShotAt: 7_000, previousTicks: nineSeconds }), [], "Gaps above half the fastest animation are fine");
+  assert.deepEqual(inspect({ previousShotAt: 9_900, previousTicks: twoSeconds }), [], "Short animations are never timed (network jitter)");
+  assert.deepEqual(inspect({ previousShotAt: 9_000, previousTicks: nineSeconds, ruleset: 5 }), [], "Older rulesets send shots after landing and are not timed");
 
   // Aim trails: validated, never blocking a shot.
   assert.deepEqual(rules.parseAim([[0, 90], [120, 84.44], [300, 84.44], [650, 71.06]]), [[0, 90], [120, 84.4], [300, 84.4], [650, 71.1]]);
@@ -298,7 +326,7 @@ try {
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%' AND action <> 'anti_cheat_toggle'").get().n, 3);
 
   console.log(
-    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
+    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, angle variety that separates solving from one repeated shot, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
   );
 } finally {
   close();

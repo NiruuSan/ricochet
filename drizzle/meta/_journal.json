@@ -190,6 +190,13 @@
       "when": 1789992084587,
       "tag": "0026_bug_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1790003117671,
+      "tag": "0027_shot_angle",
+      "breakpoints": true
     }
   ]
 }

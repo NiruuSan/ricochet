@@ -601,6 +601,8 @@ export const shotAnalysis = sqliteTable(
     bestShare: real("best_share").notNull(),
     // Percentile of the shot among every sampled angle, judged on the board it leaves (lib/anti-cheat-rules.ts).
     quality: real("quality"),
+    // The angle played, in degrees. A player repeating one shot is not solving each board.
+    angle: real("angle"),
     // On a ghost trap round: 1 when the shot fell into the trap, 0 when it did not; null otherwise.
     trapped: integer("trapped"),
     created: integer("created").notNull(),

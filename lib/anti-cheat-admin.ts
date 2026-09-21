@@ -1,5 +1,5 @@
 import { database, type Statement } from "@/db/raw";
-import { aimFeatures, evaluateShots, FINDING_LABELS, qualityThreshold, STATS, type AimTrail } from "./anti-cheat-rules";
+import { aimFeatures, angleConcentration, evaluateShots, FINDING_LABELS, QUALITY, qualityThreshold, STATS, type AimTrail } from "./anti-cheat-rules";
 import { antiCheatEnabled, playerShotStats, populationQuality, suspensionOps } from "./anti-cheat";
 import type { Finding } from "./anti-cheat-rules";
 import { adminAudit, adminNote } from "./admin";
@@ -31,6 +31,9 @@ export type CheatCase = {
     /** Average shot quality percentile, and the level that gets a player flagged right now. */
     meanQuality: number | null;
     qualityThreshold: number;
+    /** Share of shots aimed within a few degrees of each other, and the share above which one shot is being repeated. */
+    angleShare: number | null;
+    maxAngleShare: number;
     /** Medians over recent aim trails: samples, direction changes, and sample timing regularity. */
     aim: { trails: number; samples: number | null; reversals: number | null; gapCv: number | null };
     /** Ghost trap rounds the player met, and how many they aimed into. */
@@ -129,6 +132,8 @@ async function caseFor(row: CaseRow, now: number, threshold: number): Promise<Ch
       stillAimRate: withTrail.length ? withTrail.filter((s) => s.aimMoves === 0).length / withTrail.length : null,
       meanQuality: qualities.length ? qualities.reduce((a, b) => a + b, 0) / qualities.length : null,
       qualityThreshold: threshold,
+      angleShare: angleConcentration(shots.map((s) => s.angle).filter((a): a is number => a !== null)),
+      maxAngleShare: QUALITY.maxAngleShare,
       aim: {
         trails: features.length,
         samples: median(features.map((f) => f.samples)),

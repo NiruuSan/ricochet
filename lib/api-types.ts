@@ -102,7 +102,12 @@ export type PublicPlayerProfile = {
   /** Rank from devnet SOL wagered; public. */
   level: PlayerLevel;
   stats: Record<Asset, { pnl: number; games: number; wins: number }>;
+  /** Where the viewer stands with this player; null when nobody is signed in. */
+  friendship: Friendship | null;
 };
+
+/** What the viewer may do about this player, decided before they press anything. */
+export type Friendship = "none" | "friends" | "sent" | "incoming" | "blocked";
 export type TipReceipt = { id: string; amount: number; recipient: string; created: number };
 export type PnlRange = "day" | "week" | "month" | "year" | "all";
 export type ProfileMatch = {

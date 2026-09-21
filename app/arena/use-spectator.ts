@@ -1,11 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WatchData, WatchShot } from "@/lib/api-types";
-import { launch, step, type Flight, type Game } from "@/lib/engine";
+import { CLIENT_TICKS_PER_SECOND, launch, step, type Flight, type Game } from "@/lib/engine";
 import { request } from "./api";
 import { drawBoard } from "./board-canvas";
 
-const TICK_MS = 1000 / 120;
+const TICK_MS = 1000 / CLIENT_TICKS_PER_SECOND;
 const LIVE_POLL_MS = 2500;
 const IDLE_POLL_MS = 10_000;
 /** Pause between shots of a replay, at 1× speed. */

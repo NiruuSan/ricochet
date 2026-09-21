@@ -30,7 +30,25 @@ try {
   assert.deepEqual(await publicProfile({ id: ALICE }, ALICE), await publicProfile("alice", ALICE), "Your own profile can be loaded by account, without knowing your name");
   assert.deepEqual((await profilePerformance({ id: BOB }, "gems")).history, (await profilePerformance("bob", "gems")).history);
   assert.deepEqual(bob.stats.gems, { pnl: 0, games: 0, wins: 0 });
-  assert.deepEqual(Object.keys(bob).sort(), ["avatar", "created", "isYou", "level", "name", "publicId", "stats"]);
+  assert.deepEqual(Object.keys(bob).sort(), ["avatar", "created", "friendship", "isYou", "level", "name", "publicId", "stats"]);
+
+  // Where the viewer stands is settled before anything is offered, so a profile
+  // never shows an action that would only come back refused.
+  assert.equal(bob.friendship, "none");
+  assert.equal((await publicProfile("Bob")).friendship, null, "A visitor is told nothing about anyone's friends");
+  assert.equal((await publicProfile("Alice", ALICE)).friendship, null, "And neither is your own profile");
+  const pair = ALICE < BOB ? [ALICE, BOB] : [BOB, ALICE];
+  const link = (status, by) => sqlite.prepare("INSERT OR REPLACE INTO friend_links(low_id, high_id, requested_by, status, created) VALUES(?, ?, ?, ?, 0)").run(...pair, by, status);
+  link("pending", ALICE);
+  assert.equal((await publicProfile("Bob", ALICE)).friendship, "sent");
+  assert.equal((await publicProfile("Alice", BOB)).friendship, "incoming", "The same row reads the other way round");
+  link("accepted", ALICE);
+  assert.equal((await publicProfile("Bob", ALICE)).friendship, "friends");
+  sqlite.prepare("INSERT INTO blocks(blocker_id, blocked_id, created) VALUES(?, ?, 0)").run(BOB, ALICE);
+  assert.equal((await publicProfile("Bob", ALICE)).friendship, "blocked", "A block is reported to both sides, without saying who made it");
+  assert.equal((await publicProfile("Alice", BOB)).friendship, "blocked");
+  sqlite.prepare("DELETE FROM blocks").run();
+  sqlite.prepare("DELETE FROM friend_links").run();
   await assert.rejects(() => publicProfile("Missing"), /not found/);
   await assert.rejects(() => publicProfile("' OR 1=1 --"), /not found/);
 

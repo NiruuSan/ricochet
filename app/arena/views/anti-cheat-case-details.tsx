@@ -130,6 +130,15 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
           <span className={styles.muted}>Average percentile among all angles · flagged from {percent(item.stats.qualityThreshold)}</span>
         </div>
         <div className={styles.stat}>
+          <small className={styles.muted}>AIM VARIETY</small>
+          <b style={{ color: item.stats.angleShare !== null && item.stats.angleShare > item.stats.maxAngleShare ? "#ffb86b" : undefined }}>
+            {item.stats.angleShare === null ? "—" : `${Math.round(item.stats.angleShare * 100)}% one angle`}
+          </b>
+          <span className={styles.muted}>
+            Largest share of shots aimed within a few degrees of each other. Above {percent(item.stats.maxAngleShare)} they are repeating one shot, not solving each board.
+          </span>
+        </div>
+        <div className={styles.stat}>
           <small className={styles.muted}>GHOST TRAPS</small>
           <b style={{ color: item.stats.traps.trapped ? "#ff8091" : undefined }}>
             {item.stats.traps.trapped} / {item.stats.traps.rounds}

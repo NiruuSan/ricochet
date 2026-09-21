@@ -35,6 +35,14 @@ export const SPEED = 4.5;
 export const MIN_ANGLE = 8;
 export const MAX_ANGLE = 172;
 export const MAX_TICKS = 200_000;
+/**
+ * Simulation ticks drawn per second at 1× speed. This is how fast the balls
+ * look, and nothing else: a shot is the same number of ticks whatever the rate,
+ * so the board, the score and every replay are untouched by it. The anti-cheat
+ * floor on how fast a shot can possibly arrive reads the same number
+ * (lib/anti-cheat-rules.ts), so the two can never drift apart.
+ */
+export const CLIENT_TICKS_PER_SECOND = 160;
 /** Ruleset 3+: maximum ball-steps (active balls × ticks) for one shot, about half a second of CPU. A 400-ball shot on a dense round-300 board needs under 300,000. */
 export const MAX_BALL_STEPS = 4_000_000;
 

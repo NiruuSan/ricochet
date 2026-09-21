@@ -1,5 +1,5 @@
 import { database } from "@/db/raw";
-import type { Asset, PublicPlayerProfile } from "./api-types";
+import type { Asset, Friendship, PublicPlayerProfile } from "./api-types";
 import { playerLevel } from "./experience";
 import { avatarUrl, GameError } from "./matches";
 
@@ -19,11 +19,32 @@ export async function findPlayer(ref: PlayerRef): Promise<PlayerRow> {
   return player;
 }
 
+/**
+ * Where the viewer stands with this player. The profile says so before they
+ * press anything: a button that only tells you what it cannot do, once you have
+ * pressed it, is not a button.
+ */
+async function friendship(viewer: string | undefined, them: string): Promise<Friendship | null> {
+  if (!viewer || viewer === them) return null;
+  const db = database();
+  const [blocked, link] = await Promise.all([
+    db.prepare("SELECT 1 AS x FROM blocks WHERE (blocker_id = ? AND blocked_id = ?) OR (blocker_id = ? AND blocked_id = ?)").bind(viewer, them, them, viewer).first(),
+    db
+      .prepare("SELECT status, requested_by FROM friend_links WHERE low_id = ? AND high_id = ?")
+      .bind(viewer < them ? viewer : them, viewer < them ? them : viewer)
+      .first<{ status: string; requested_by: string }>(),
+  ]);
+  if (blocked) return "blocked";
+  if (!link) return "none";
+  if (link.status === "accepted") return "friends";
+  return link.requested_by === viewer ? "sent" : "incoming";
+}
+
 /** Only display information and settled match statistics are public. */
 export async function publicProfile(ref: PlayerRef | PlayerRow, viewer?: string): Promise<PublicPlayerProfile> {
   const db = database();
   const player = typeof ref === "object" && "public_id" in ref ? ref : await findPlayer(ref);
-  const [games, gems, devnet, level] = await Promise.all([
+  const [games, gems, devnet, level, standing] = await Promise.all([
     db.prepare(`SELECT asset, COUNT(*) AS games, SUM(CASE WHEN winner = ? THEN 1 ELSE 0 END) AS wins
       FROM matches WHERE settled = 1 AND (p1 = ? OR p2 = ?) GROUP BY asset`)
       .bind(player.id, player.id, player.id).all<{ asset: Asset; games: number; wins: number }>(),
@@ -36,6 +57,7 @@ export async function publicProfile(ref: PlayerRef | PlayerRow, viewer?: string)
       WHERE a.user_id = ? AND l.kind IN ('match_entry', 'match_payout', 'match_refund')`)
       .bind(player.id).first<{ pnl: number }>(),
     playerLevel(player.id),
+    friendship(viewer, player.id),
   ]);
   const stats: PublicPlayerProfile["stats"] = {
     gems: { pnl: Number(gems?.pnl ?? 0), games: 0, wins: 0 },
@@ -44,5 +66,5 @@ export async function publicProfile(ref: PlayerRef | PlayerRow, viewer?: string)
   for (const row of games.results) {
     if (row.asset === "gems" || row.asset === "devnet") Object.assign(stats[row.asset], { games: Number(row.games), wins: Number(row.wins) });
   }
-  return { publicId: player.public_id, name: player.name, avatar: avatarUrl(player.avatar), created: player.created, isYou: viewer === player.id, level, stats };
+  return { publicId: player.public_id, name: player.name, avatar: avatarUrl(player.avatar), created: player.created, isYou: viewer === player.id, level, stats, friendship: standing };
 }

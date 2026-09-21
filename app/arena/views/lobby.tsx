@@ -141,8 +141,6 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
         </button>
       </div>
 
-      <DailyGemsCard player={player} />
-
       {choice && (
         <div ref={stakePanelRef} className={styles.stakePanel} key={choice}>
           <div className={styles.stakeTop}>
@@ -224,6 +222,10 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           </p>
         </div>
       )}
+
+      {/* The entry panel answers the mode above it, so it comes first; the free
+          gems are an aside either way. */}
+      <DailyGemsCard player={player} />
 
       {!choice && <ArenaDashboard overview={overview} now={now} signedIn={!!data.player} onOpenMatch={onOpenMatch} />}
     </section>

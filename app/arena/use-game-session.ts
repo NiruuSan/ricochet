@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset, Run } from "@/lib/api-types";
-import { GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, seedRows, step, W, type Flight, type Game } from "@/lib/engine";
+import { CLIENT_TICKS_PER_SECOND, GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, seedRows, step, W, type Flight, type Game } from "@/lib/engine";
 import { MAX_AIM_SAMPLES, type AimTrail } from "@/lib/anti-cheat-rules";
 import { clientFlags, signProof, type UnsignedProof } from "./shot-signing";
 import { cleanRun } from "@/lib/ghost-bricks";
@@ -9,7 +9,7 @@ import { gameAction } from "./api";
 import { drawBoard } from "./board-canvas";
 
 const SHOWCASE_SEED = 42076;
-const TICK_MS = 1000 / 120;
+const TICK_MS = 1000 / CLIENT_TICKS_PER_SECOND;
 const DEFAULT_ANGLE = 73;
 
 const clampAngle = (angle: number) => Math.max(MIN_ANGLE, Math.min(MAX_ANGLE, angle));

@@ -175,8 +175,8 @@ export async function analyzeShot(input: {
   const trapped = input.trap ? (trappedShot(input.trap, input.before, input.angle, input.ruleset, quality) ? 1 : 0) : null;
   const db = database();
   await db
-    .prepare("INSERT OR IGNORE INTO shot_analysis(run_key, revision, user_id, aim_ms, aim_moves, gain, best_gain, best_share, quality, trapped, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .bind(input.runKey, input.revision, input.uid, input.aimMs, input.aim ? aimMoves(input.aim) : null, chosen.gain, bestGain, bestShare, quality, trapped, now)
+    .prepare("INSERT OR IGNORE INTO shot_analysis(run_key, revision, user_id, aim_ms, aim_moves, gain, best_gain, best_share, quality, angle, trapped, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .bind(input.runKey, input.revision, input.uid, input.aimMs, input.aim ? aimMoves(input.aim) : null, chosen.gain, bestGain, bestShare, quality, input.angle, trapped, now)
     .run();
   if (trapped !== null) await evaluateTraps(input.uid, input.runKey, now);
   if (input.evaluate) await evaluatePlayer(input.uid, now);
@@ -185,11 +185,11 @@ export async function analyzeShot(input: {
 export async function playerShotStats(uid: string, now = Date.now()) {
   const { results } = await database()
     .prepare(
-      `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs, aim_moves AS aimMoves, quality, trapped FROM shot_analysis
+      `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs, aim_moves AS aimMoves, quality, angle, trapped FROM shot_analysis
        WHERE user_id = ? AND created >= ? ORDER BY created DESC, revision DESC LIMIT ?`,
     )
     .bind(uid, now - STATS.windowMs, STATS.maxShots)
-    .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null; aimMoves: number | null; quality: number | null; trapped: number | null }>();
+    .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null; aimMoves: number | null; quality: number | null; angle: number | null; trapped: number | null }>();
   return results;
 }
 
@@ -224,17 +224,23 @@ export async function evaluatePlayer(uid: string, now = Date.now()) {
   if (await isSuspended(uid)) return [];
   const [shots, population, matches] = await Promise.all([playerShotStats(uid, now), populationQuality(now), recentSolMatches(uid)]);
   const qualities = shots.map((s) => s.quality).filter((q): q is number => q !== null);
-  const findings = [...evaluateShots(shots), ...evaluateQuality(qualities, qualityThreshold(population))];
-  if (findings.length) {
-    if (await antiCheatEnabled()) await suspendForStats(uid, findings, now);
-    else {
-      // Switched off: keep the evidence, at most once a day per kind, without suspending.
-      const db = database();
-      const seen = await db.prepare("SELECT kind FROM cheat_signals WHERE user_id = ? AND level = 'stat' AND created >= ?").bind(uid, now - 24 * 60 * 60_000).all<{ kind: string }>();
-      const fresh = findings.filter((f) => !seen.results.some((row) => row.kind === f.kind));
-      if (fresh.length) await db.batch(fresh.map((f) => signalInsert(db, uid, null, { ...f, detail: { ...f.detail, sanctioned: false } }, now)));
-    }
+  const angles = shots.map((s) => s.angle).filter((a): a is number => a !== null);
+  const findings = [...evaluateShots(shots), ...evaluateQuality(qualities, qualityThreshold(population), angles)];
+  /** Keeps the evidence without sanctioning, at most once a day per kind. */
+  const note = async (recorded: Finding[], sanctioned: boolean) => {
+    const db = database();
+    const seen = await db.prepare("SELECT kind FROM cheat_signals WHERE user_id = ? AND created >= ?").bind(uid, now - 24 * 60 * 60_000).all<{ kind: string }>();
+    const fresh = recorded.filter((f) => !seen.results.some((row) => row.kind === f.kind));
+    if (fresh.length) await db.batch(fresh.map((f) => signalInsert(db, uid, null, { ...f, detail: { ...f.detail, sanctioned } }, now)));
+  };
+  const evidence = findings.filter((f) => f.level !== "watch");
+  if (evidence.length) {
+    if (await antiCheatEnabled()) await suspendForStats(uid, evidence, now);
+    else await note(evidence, false);
   }
+  // A finding that is only worth a look never suspends, whatever the switch says.
+  const looks = findings.filter((f) => f.level === "watch");
+  if (looks.length) await note(looks, false);
   // A jump in results is only put on the admin's watchlist, at most once a week.
   const watch = evaluateTrend(matches);
   if (watch.length) {
