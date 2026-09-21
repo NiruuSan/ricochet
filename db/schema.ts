@@ -517,6 +517,21 @@ export const dailyClaims = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.day] })],
 );
 
+export const questClaims = sqliteTable(
+  "quest_claims",
+  {
+    userId: text("user_id").notNull(),
+    // "daily" or "weekly".
+    scope: text("scope").notNull(),
+    // The UTC day number for a daily quest, the week's start in ms for a weekly one.
+    period: integer("period").notNull(),
+    quest: text("quest").notNull(),
+    amount: integer("amount").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.scope, t.period, t.quest] })],
+);
+
 export const bugReportAttachments = sqliteTable(
   "bug_report_attachments",
   {

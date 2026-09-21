@@ -12,6 +12,7 @@ import { referralCredits } from "./referrals";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
 import { dailyGems } from "./daily";
+import { questsReady } from "./quests";
 import { BLOCKED_MESSAGE, blockedBetween } from "./blocks";
 import { friendAlerts } from "./friends";
 import { listNotifications, notificationInsert } from "./notifications";
@@ -332,7 +333,7 @@ export async function leaderboard(viewer: string | null, asset: Asset): Promise<
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
   const db = database();
   await settleFinishedMatches(uid);
-  const [player, history, active, cash, inbox, tournaments, daily, friends] = await Promise.all([
+  const [player, history, active, cash, inbox, tournaments, daily, friends, quests] = await Promise.all([
     db
       .prepare(
         `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
@@ -371,6 +372,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     tournamentHistory(uid, asset),
     dailyGems(uid),
     friendAlerts(uid),
+    questsReady(uid),
   ]);
   const admin = adminId();
   return {
@@ -381,6 +383,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     suspension: player?.suspension ? { reason: player.suspension } : null,
     daily,
     discountUntil: player?.discount_until && player.discount_until > Date.now() ? player.discount_until : null,
+    questsReady: quests,
     matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
     active,
     isAdmin: !!admin && uid === admin,

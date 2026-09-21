@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Bug, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Radio, Trophy, UserRound, Users, Wallet, X } from "lucide-react";
+import { ArrowUpRight, Bug, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Radio, Target, Trophy, UserRound, Users, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Menu } from "@/components/ui/menu";
 import { signOutToLogin } from "../auth-actions";
@@ -25,6 +25,7 @@ const PlayView = dynamic(() => import("./views/play-view").then((m) => m.PlayVie
 const ProfileView = dynamic(() => import("./views/profile-view").then((m) => m.ProfileView));
 const PrivacyView = dynamic(() => import("./views/privacy-view").then((m) => m.PrivacyView));
 const FriendsView = dynamic(() => import("./views/friends-view").then((m) => m.FriendsView));
+const QuestsView = dynamic(() => import("./views/quests-view").then((m) => m.QuestsView));
 const PublicProfileView = dynamic(() => import("./views/public-profile-view").then((m) => m.PublicProfileView));
 const RulesView = dynamic(() => import("./views/rules-view").then((m) => m.RulesView));
 const TournamentDetailView = dynamic(() => import("./views/tournament-detail-view").then((m) => m.TournamentDetailView));
@@ -85,6 +86,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
 
   // Requests to answer and messages to read, shown on the account menu.
   const friendAlerts = (data.friends?.requests ?? 0) + (data.friends?.unread ?? 0);
+  const questsReady = data.questsReady ?? 0;
 
   // A board on a phone or a tablet plays full screen: the stylesheet hides the
   // chrome around it while this class is on the body.
@@ -175,6 +177,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
                 items={[
                   { label: "Your profile", href: "/profile", icon: <UserRound /> },
                   { label: friendAlerts ? `Friends · ${friendAlerts}` : "Friends", href: "/friends", icon: <Users /> },
+                  { label: questsReady ? `Quests · ${questsReady}` : "Quests", href: "/quests", icon: <Target /> },
                   { label: "Wallet", href: "/wallet", icon: <Wallet /> },
                   { label: "Report a bug", onSelect: () => setReportBug(true), icon: <Bug /> },
                   { label: "Sign out", onSelect: () => void signOutToLogin(), icon: <LogOut />, danger: true, separated: true },
@@ -229,6 +232,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         {(view === "faq" || view === "rules") && <RulesView rules={view === "rules"} />}
         {view === "privacy" && <PrivacyView />}
         {view === "friends" && <FriendsView player={player} />}
+        {view === "quests" && <QuestsView player={player} />}
         {view === "admin" && (adminCaseName ? <AdminCaseView key={adminCaseName} name={adminCaseName} player={player} /> : <AdminView player={player} />)}
         <footer className="foot">
           <span>© {new Date().getFullYear()} Bounce · A good angle changes everything.</span>

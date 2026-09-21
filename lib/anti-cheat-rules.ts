@@ -152,6 +152,15 @@ export const QUALITY = {
   maxAngleShare: 0.8,
   /** Below this many known angles there is nothing to say about variety. */
   minAngleShots: 30,
+  /**
+   * Ghost trap rounds a player must have met, and never aimed into, before this
+   * figure stops being evidence on its own. A program reading the game data
+   * falls into roughly half of them (lib/ghost-trap.ts); a clean record over
+   * this many says the player is aiming at what they can see, and a strong
+   * player's average sits close enough to a program's that nothing else here
+   * can tell them apart.
+   */
+  cleanTrapRounds: 8,
 };
 
 /** Results trend: a sudden jump in real-money results, for review. */
@@ -206,17 +215,34 @@ export function angleConcentration(angles: number[]) {
  * simply a good habit, and the percentile rewards it. So when the angles are
  * all one shot, this is recorded for the administrator and nothing more.
  */
-export function evaluateQuality(qualities: number[], threshold: number, angles: number[] = []): Finding[] {
+export function evaluateQuality(
+  qualities: number[],
+  threshold: number,
+  angles: number[] = [],
+  traps: { rounds: number; trapped: number } = { rounds: 0, trapped: 0 },
+): Finding[] {
   if (qualities.length < QUALITY.minShots) return [];
   const mean = qualities.reduce((a, b) => a + b, 0) / qualities.length;
   if (mean < threshold) return [];
   const elite = qualities.filter((q) => q >= 0.9).length / qualities.length;
   const concentration = angleConcentration(angles);
-  const detail = { shots: qualities.length, meanQuality: Math.round(mean * 1000) / 1000, threshold: Math.round(threshold * 1000) / 1000, eliteShare: Math.round(elite * 1000) / 1000 };
+  const detail = {
+    shots: qualities.length,
+    meanQuality: Math.round(mean * 1000) / 1000,
+    threshold: Math.round(threshold * 1000) / 1000,
+    eliteShare: Math.round(elite * 1000) / 1000,
+    ...(concentration === null ? {} : { angleShare: Math.round(concentration * 1000) / 1000 }),
+  };
   if (concentration !== null && concentration > QUALITY.maxAngleShare) {
-    return [{ kind: "one_angle_quality", level: "watch", detail: { ...detail, angleShare: Math.round(concentration * 1000) / 1000, angleBand: QUALITY.angleBand } }];
+    return [{ kind: "one_angle_quality", level: "watch", detail: { ...detail, angleBand: QUALITY.angleBand } }];
   }
-  return [{ kind: "superhuman_quality", level: "stat", detail: concentration === null ? detail : { ...detail, angleShare: Math.round(concentration * 1000) / 1000 } }];
+  // The traps are the one check with no overlap between a strong player and a
+  // program: a clean record over enough rounds outweighs an average that both
+  // of them reach.
+  if (traps.rounds >= QUALITY.cleanTrapRounds && traps.trapped === 0) {
+    return [{ kind: "unconfirmed_quality", level: "watch", detail: { ...detail, trapRounds: traps.rounds } }];
+  }
+  return [{ kind: "superhuman_quality", level: "stat", detail }];
 }
 
 /** Matches newest first: `won` and the player's score. */
@@ -344,6 +370,7 @@ export const FINDING_LABELS: Record<string, string> = {
   tampered_client: "Game page functions replaced (extension or script)",
   superhuman_quality: "Solver-level shot quality",
   one_angle_quality: "High shot quality from one repeated angle",
+  unconfirmed_quality: "High shot quality, contradicted by the ghost traps",
   sudden_improvement: "Sudden jump in real-money results",
   automation_browser: "Automation browser (webdriver)",
   synthetic_input: "Shot fired by a script, not a real input",

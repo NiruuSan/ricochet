@@ -333,6 +333,30 @@ export type Snapshot = {
   daily: DailyGems;
   /** While this is in the future, this player funds a reduced house fee. */
   discountUntil: number | null;
+  /** Finished quests waiting to be claimed (lib/quests.ts). */
+  questsReady: number;
+};
+
+export type QuestScope = "daily" | "weekly";
+/** One quest of the current period: what it asks, how far the player is, and what it pays. */
+export type Quest = {
+  id: string;
+  scope: QuestScope;
+  title: string;
+  detail: string;
+  target: number;
+  progress: number;
+  /** Gems, paid once the quest is finished and claimed. */
+  reward: number;
+  claimed: boolean;
+};
+/** The quests board: today's, this week's, and how many are waiting to be claimed. */
+export type QuestBoard = {
+  daily: Quest[];
+  weekly: Quest[];
+  dailyEndsAt: number;
+  weeklyEndsAt: number;
+  ready: number;
 };
 
 /** The free gems a player can claim once a day (lib/daily.ts). */

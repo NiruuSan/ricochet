@@ -83,7 +83,16 @@ try {
   const solver = rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread);
   assert.deepEqual([solver[0].kind, solver[0].level], ["superhuman_quality", "stat"], "A high percentile across the range still suspends");
   assert.ok(solver[0].detail.angleShare < 0.2, "And the spread is on the record either way");
-  const habit = rules.evaluateQuality(Array(80).fill(0.9), 0.85, oneShot);
+  // Ghost traps outrank the average. A strong player's mean sits where a
+  // program's does, so an average alone is not enough to take somebody's play
+  // away from them: ten trap rounds met and none aimed into says they are
+  // reading the screen, whatever the percentile says.
+  const clean = { rounds: 10, trapped: 0 };
+  const sighted = rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread, clean);
+  assert.deepEqual([sighted[0].kind, sighted[0].level, sighted[0].detail.trapRounds], ["unconfirmed_quality", "watch", 10], "Nothing else points to a program");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread, { rounds: 10, trapped: 1 })[0].level, "stat", "One trap aimed into and the average counts again");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread, { rounds: 4, trapped: 0 })[0].level, "stat", "Too few rounds to say the record is clean");
+  const habit = rules.evaluateQuality(Array(80).fill(0.9), 0.85, oneShot, clean);
   assert.deepEqual([habit[0].kind, habit[0].level, habit[0].detail.angleShare], ["one_angle_quality", "watch", 1], "One repeated angle is noted, never sanctioned");
   assert.equal(rules.evaluateQuality(Array(80).fill(0.78), 0.85, oneShot).length, 0, "And a habit below the bar is nothing at all");
   const board = (bricks, extra = {}) => ({ seed: 1, round: 5, score: 10, balls: 5, x: 200, bricks, over: false, bonus: false, ...extra });
@@ -257,6 +266,19 @@ try {
   sqlite.prepare("INSERT INTO runs(id, match_id, user_id, state, score, done, created, finished) VALUES('cat-race-run', 'cat-race', ?, '{}', 9999, 1, 0, ?)").run(ids.cat, Date.now());
   assert.ok(!(await race.weeklyRace()).standings.some((s) => s.name === "cat"));
 
+  // A strong player reaches the same average as a program. What separates them
+  // is the traps: ten rounds met, none aimed into. Kept for the administrator,
+  // with their play left alone.
+  sqlite.prepare("INSERT INTO players(id, name, created) VALUES('ac-dee', 'dee', 0)").run();
+  for (let i = 0; i < 70; i++) {
+    sqlite
+      .prepare("INSERT INTO shot_analysis(run_key, revision, user_id, aim_ms, gain, best_gain, best_share, quality, angle, trapped, created) VALUES('dee-run', ?, 'ac-dee', ?, 10, 30, 0.5, 0.88, ?, ?, ?)")
+      .run(i, 1500 + i * 37, 20 + (i % 40) * 3.5, i < 10 ? 0 : null, Date.now() - i);
+  }
+  assert.deepEqual((await antiCheat.evaluatePlayer("ac-dee")).map((f) => [f.kind, f.level]), [["unconfirmed_quality", "watch"]]);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM player_suspensions WHERE user_id = 'ac-dee'").get().n, 0, "An average alone does not take somebody's play away");
+  assert.equal(sqlite.prepare("SELECT level FROM cheat_signals WHERE user_id = 'ac-dee'").get().level, "watch", "It is still put in front of the administrator");
+
   // --- The switch: with sanctions off, checks still run and are recorded -----
   assert.equal(await antiCheat.antiCheatEnabled(), true, "On by default");
   await antiCheat.setAntiCheatEnabled("admin-user", false);
@@ -326,7 +348,7 @@ try {
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%' AND action <> 'anti_cheat_toggle'").get().n, 3);
 
   console.log(
-    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, angle variety that separates solving from one repeated shot, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
+    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, angle variety and a clean ghost-trap record, either of which keeps a high average from suspending, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
   );
 } finally {
   close();

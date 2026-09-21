@@ -225,7 +225,9 @@ export async function evaluatePlayer(uid: string, now = Date.now()) {
   const [shots, population, matches] = await Promise.all([playerShotStats(uid, now), populationQuality(now), recentSolMatches(uid)]);
   const qualities = shots.map((s) => s.quality).filter((q): q is number => q !== null);
   const angles = shots.map((s) => s.angle).filter((a): a is number => a !== null);
-  const findings = [...evaluateShots(shots), ...evaluateQuality(qualities, qualityThreshold(population), angles)];
+  const trapRounds = shots.filter((s) => s.trapped !== null);
+  const traps = { rounds: trapRounds.length, trapped: trapRounds.filter((s) => s.trapped).length };
+  const findings = [...evaluateShots(shots), ...evaluateQuality(qualities, qualityThreshold(population), angles, traps)];
   /** Keeps the evidence without sanctioning, at most once a day per kind. */
   const note = async (recorded: Finding[], sanctioned: boolean) => {
     const db = database();
