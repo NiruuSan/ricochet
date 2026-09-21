@@ -18,6 +18,7 @@ import { signOutEverywhere } from "./sessions";
 
 /** One section of the export: a label, the rows behind it, and how they are looked up. */
 const SECTIONS: { name: string; sql: string; by: "user" | "account" }[] = [
+  { name: "bugAttachments", sql: "SELECT id, report_id, name, type, size, created FROM bug_report_attachments WHERE user_id = ? ORDER BY created", by: "user" },
   { name: "bugReports", sql: "SELECT id, title, description, links, page, status, created, updated FROM bug_reports WHERE user_id = ? ORDER BY created", by: "user" },
   { name: "profile", sql: "SELECT id, name, public_id, balance, created, last_seen, avatar FROM players WHERE id = ?", by: "user" },
   { name: "games", sql: "SELECT id, match_id, score, revision, done, forfeit, clears, created, finished FROM runs WHERE user_id = ? ORDER BY created", by: "user" },
@@ -119,6 +120,8 @@ export async function deleteAccount(uid: string, now = Date.now()) {
     db.prepare("UPDATE players SET name = ?, avatar = NULL, deleted = ? WHERE id = ? AND deleted IS NULL").bind(anonymousName(), now, uid),
     db.prepare("DELETE FROM avatars WHERE user_id = ?").bind(uid),
     db.prepare("DELETE FROM bug_reports WHERE user_id = ?").bind(uid),
+    // Retain only the storage cleanup record until the daily sweep removes the file.
+    db.prepare("UPDATE bug_report_attachments SET user_id = '', name = '' WHERE user_id = ?").bind(uid),
     db.prepare("DELETE FROM notifications WHERE user_id = ?").bind(uid),
     db.prepare("DELETE FROM push_subscriptions WHERE user_id = ?").bind(uid),
     db.prepare("DELETE FROM two_factor WHERE user_id = ?").bind(uid),

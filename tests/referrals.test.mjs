@@ -86,8 +86,10 @@ try {
   assert.equal((await applyReferral(DELTA, "bigfriend", NOW)).referrer, "Friend", "And so does the one they chose");
   await applyReferral(ALPHA, friendCode, NOW);
   assert.equal(sqlite.prepare("SELECT referrer_id FROM referrals WHERE user_id = ?").get(ALPHA).referrer_id, PARTNER, "A player has one referrer, for good");
+  // Found by kind, not by position: the partnership notice beside it is written
+  // against the real clock, so which of the two comes first depends on the hour.
   const inbox = await listNotifications(PARTNER);
-  assert.deepEqual([inbox.items[0].kind, inbox.items[0].data.name], ["referral_joined", "Alpha"]);
+  assert.equal(inbox.items.find((n) => n.kind === "referral_joined")?.data.name, "Alpha");
 
   // 3. A settled match pays exactly what it always did, whoever is at the table.
   const control = { house: balance(HOUSE) };

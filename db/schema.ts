@@ -517,6 +517,21 @@ export const dailyClaims = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.day] })],
 );
 
+export const bugReportAttachments = sqliteTable(
+  "bug_report_attachments",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    reportId: text("report_id"),
+    pathname: text("pathname").notNull(),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    size: integer("size").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [index("bug_attachment_user").on(t.userId), index("bug_attachment_report").on(t.reportId), index("bug_attachment_created").on(t.created)],
+);
+
 export const bugReports = sqliteTable(
   "bug_reports",
   {

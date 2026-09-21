@@ -22,7 +22,7 @@ export function contentSecurityPolicy(nonce: string, production: boolean) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
-    `connect-src 'self'${production ? "" : " ws: wss:"}`,
+    `connect-src 'self' https://vercel.com/api/blob https://vercel.com/api/blob/ https://*.blob.vercel-storage.com${production ? "" : " ws: wss:"}`,
     "object-src 'none'",
     "base-uri 'self'",
     `form-action 'self' ${SIGN_IN_ORIGINS}`,

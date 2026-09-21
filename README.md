@@ -4,6 +4,32 @@ Playable private prototype of the requested asynchronous 1v1 brick-breaker. This
 
 Stack: Next.js 16 on Vercel, Turso (libSQL) database, Auth.js with GitHub sign-in.
 
+## Bug-report attachments
+
+Players can attach up to five images or videos (25 MB per file). Uploads go directly
+from the browser to private Vercel Blob storage; the database holds metadata only.
+The reporter and administrator can read submitted files through authenticated app
+routes. The admin Bug reports tab previews images/videos and provides downloads.
+Existing reports containing external links remain readable.
+
+Setup in Vercel:
+
+1. Open the Bounce project → **Storage** → **Create Database** → **Blob**.
+2. Choose **Private**, then connect it to the environments that need attachments.
+   Vercel adds `BLOB_READ_WRITE_TOKEN` to the project. Never use a `NEXT_PUBLIC_` token.
+3. Set `CRON_SECRET` to a random secret of at least 32 characters if it is not already
+   configured. The existing daily `/api/cron/sweep` job removes abandoned uploads
+   and files whose reports/accounts were deleted, after a 24-hour grace period.
+4. Redeploy. Production builds apply migration `0026_bug_attachments` automatically.
+   For local development, copy the Blob token to `.env.local` and run
+   `npm run db:migrate` against the intended local/preview database.
+
+Text-only reports work without Blob credentials. Real uploads require the private
+store; local automated tests mock Blob storage and exercise the real database and
+authorization checks. Files must be uploaded and the report submitted within 24
+hours; otherwise remove and reselect the file. Closing the dialog preserves the
+current draft, but reloading the page clears unsent local files.
+
 ## Implemented
 
 - Landing page, arena, saved matches, settled P&L leaderboard, login, balances/activity, rules/Q&A.

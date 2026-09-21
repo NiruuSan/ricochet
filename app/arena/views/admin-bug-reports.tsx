@@ -58,6 +58,17 @@ function ReportPage({ offset, onPage }: { offset: number; onPage: (offset: numbe
         </div>
         <p className={styles.description}>{report.description}</p>
         {report.page && <p className={styles.meta}>Page: {report.page}</p>}
+        {!!report.attachments?.length && <div className={styles.attachments}>{report.attachments.map((file) => {
+          const src = `/api/bug-reports/attachments/${file.id}`;
+          return <div className={styles.attachment} key={file.id}>
+            {file.type.startsWith("video/") ? <video src={src} controls preload="none" playsInline aria-label={file.name} /> : file.type === "image/heic" || file.type === "image/heif" ? <p className="muted">HEIC image — download to view</p> :
+              // These private images require the admin session cookie; Next's image optimizer cannot fetch them.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={src} alt={file.name} loading="lazy" />}
+            <a href={`${src}?download=1`}>Download {file.name}</a>
+            <p className={styles.meta}>{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+          </div>;
+        })}</div>}
         {report.links.length > 0 && <ul className={styles.links}>{report.links.map((url, index) => <li key={index}>
           <a href={url} target="_blank" rel="noopener noreferrer">Image / video {index + 1} — {url}</a>
         </li>)}</ul>}

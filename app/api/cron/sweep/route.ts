@@ -2,6 +2,7 @@ import { dispatchPush } from "@/lib/push";
 import { sweepStaleMatches } from "@/lib/expiry";
 import { json } from "@/lib/http";
 import { settleDueTournaments } from "@/lib/tournaments";
+import { cleanupBugAttachments } from "@/lib/bug-attachments";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,8 @@ export async function GET(req: Request) {
     const swept = await sweepStaleMatches();
     await settleDueTournaments();
     await dispatchPush();
-    return json({ ok: true, ...swept });
+    const attachmentsRemoved = await cleanupBugAttachments();
+    return json({ ok: true, ...swept, attachmentsRemoved });
   } catch (e) {
     console.error(e);
     return json({ error: "The sweep failed." }, 503);
