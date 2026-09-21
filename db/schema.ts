@@ -394,6 +394,71 @@ export const referrals = sqliteTable(
   (t) => [index("referral_referrer").on(t.referrerId)],
 );
 
+// Friends. One row per pair, whoever asked: the lower ID is always first, so a
+// pair cannot exist twice, in either direction.
+export const friendLinks = sqliteTable(
+  "friend_links",
+  {
+    lowId: text("low_id").notNull(),
+    highId: text("high_id").notNull(),
+    requestedBy: text("requested_by").notNull(),
+    // pending until the other player answers; a refusal deletes the row.
+    status: text("status").notNull(),
+    created: integer("created").notNull(),
+    answered: integer("answered"),
+  },
+  (t) => [primaryKey({ columns: [t.lowId, t.highId] }), index("friend_low").on(t.lowId, t.status), index("friend_high").on(t.highId, t.status)],
+);
+
+// What friends say to each other. Keyed by the pair, so a conversation is one
+// index lookup, and only friends can write to one.
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: text("id").primaryKey(),
+    lowId: text("low_id").notNull(),
+    highId: text("high_id").notNull(),
+    fromId: text("from_id").notNull(),
+    body: text("body").notNull(),
+    created: integer("created").notNull(),
+    readAt: integer("read_at"),
+  },
+  (t) => [index("message_thread").on(t.lowId, t.highId, t.created), index("message_unread").on(t.fromId, t.readAt)],
+);
+
+// Who a player refuses to hear from. Directional: one row per blocker, and
+// either direction is enough to stop everything between the two.
+export const blocks = sqliteTable(
+  "blocks",
+  {
+    blockerId: text("blocker_id").notNull(),
+    blockedId: text("blocked_id").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] }), index("block_blocked").on(t.blockedId)],
+);
+
+// What a player tells the house about another one. Kept whatever happens next:
+// a report is the record that a decision was asked for.
+export const reports = sqliteTable(
+  "reports",
+  {
+    id: text("id").primaryKey(),
+    reporterId: text("reporter_id").notNull(),
+    targetId: text("target_id").notNull(),
+    // cheating | harassment | spam | other
+    kind: text("kind").notNull(),
+    detail: text("detail").notNull(),
+    created: integer("created").notNull(),
+    // open until an administrator has looked at it.
+    status: text("status").notNull().default("open"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: integer("reviewed_at"),
+    note: text("note"),
+  },
+  (t) => [index("report_open").on(t.status, t.created), index("report_target").on(t.targetId), index("report_reporter").on(t.reporterId)],
+);
+
 // One row per player who signed out everywhere: sessions issued before this
 // moment are refused, whatever cookie carries them.
 export const sessionResets = sqliteTable("session_resets", {

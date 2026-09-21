@@ -1,4 +1,5 @@
 import { assertCanMoveMoney } from "../anti-cheat";
+import { BLOCKED_MESSAGE, blockedBetween } from "../blocks";
 import { database } from "@/db/raw";
 import type { TipReceipt } from "../api-types";
 import { notificationInsert } from "../notifications";
@@ -12,15 +13,12 @@ export class TipNotSentError extends PaymentError {}
 /**
  * A tip is the one way funds leave an account without a withdrawal, so it is
  * gated like one. Small tips stay a one-tap gesture; past a day's worth of them
- * the second factor is asked for, and a hard daily ceiling bounds what a stolen
- * session can move even with a code in hand. Both are counted over the UTC day,
- * like the daily gems.
+ * the second factor is asked for. There is no ceiling beyond that: with the
+ * code in hand a player may tip whatever they hold.
  */
 export const TIP_LIMITS = {
   /** Tips in a day that need nothing but the session. */
   free: 100_000_000,
-  /** Tips in a day, whatever is presented. */
-  daily: 10_000_000_000,
 };
 
 /** Asked for when a tip crosses the free daily allowance; `enrolled` says whether a code can be given at all. */
@@ -59,6 +57,7 @@ export async function sendTip(uid: string, idInput: unknown, recipientInput: unk
   if (!sender) throw new PaymentError("Create your player profile first.");
   if (!recipient) throw new PaymentError("This player is no longer available.");
   if (recipient.id === uid) throw new PaymentError("You cannot tip yourself.");
+  if (await blockedBetween(uid, recipient.id)) throw new PaymentError(BLOCKED_MESSAGE);
   await assertCanMoveMoney(uid);
   const sentId = `tip:${id}:sent`, receivedId = `tip:${id}:received`;
   const replay = async (): Promise<TipReceipt | null> => {
@@ -75,14 +74,11 @@ export async function sendTip(uid: string, idInput: unknown, recipientInput: unk
   if (prior) return prior;
   const [source, destination] = await Promise.all([ensureCashAccount(uid), ensureCashAccount(recipient.id)]);
 
-  // The balance, the day's ceiling and the second factor are all settled before
-  // any code is spent: a tip refused here costs the player nothing.
+  // The balance and the second factor are both settled before any code is
+  // spent: a tip refused here costs the player nothing.
   const funded = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(source).first<{ balance: number }>();
   if (!funded || funded.balance < amount) throw new TipNotSentError("Not enough available devnet SOL. Fund your wallet or choose a smaller tip.");
   const already = await tippedToday(source, now);
-  if (already + amount > TIP_LIMITS.daily) {
-    throw new TipNotSentError(`Tips are limited to ${TIP_LIMITS.daily / 1e9} devnet SOL a day. You have sent ${(already / 1e9).toFixed(4)} today.`);
-  }
   if (already + amount > TIP_LIMITS.free) {
     if (!codeInput) {
       const enrolled = await twoFactorEnabled(uid);

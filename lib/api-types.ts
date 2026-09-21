@@ -208,6 +208,8 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
   | { kind: "challenge"; data: ChallengeNotification }
   | { kind: "referral_joined"; data: { name: string; level: number } }
   | { kind: "referral_partner"; data: { level: number } }
+  | { kind: "friend_request"; data: { name: string } }
+  | { kind: "friend_accepted"; data: { name: string } }
 );
 
 /**
@@ -221,6 +223,41 @@ export type SecurityAlertNotification = {
   /** The player or address the money went to. */
   to?: string;
 };
+
+/** What a report is about. */
+export type ReportKind = "cheating" | "harassment" | "spam" | "other";
+export type BlockedPlayer = { name: string; avatar: string | null; since: number };
+/** A report as the administrator sees it: names only, never player IDs. */
+export type ReportRow = {
+  id: string;
+  reporter: string | null;
+  target: string | null;
+  kind: ReportKind;
+  detail: string;
+  created: number;
+  status: string;
+  note: string | null;
+  reviewedAt: number | null;
+  /** How many reports this player has had against them, all time. */
+  against: number;
+};
+
+/** The longest message a friend can send; anything past it is cut, not refused. */
+export const MESSAGE_MAX = 500;
+
+/** A friend, or someone waiting on an answer either way. */
+export type Friend = {
+  name: string;
+  avatar: string | null;
+  online: boolean;
+  /** When the link was made, or the request sent. */
+  since: number;
+  unread: number;
+  lastMessage: string | null;
+  lastAt: number | null;
+};
+export type FriendList = { friends: Friend[]; incoming: Friend[]; outgoing: Friend[]; blocked: BlockedPlayer[] };
+export type FriendMessage = { id: string; mine: boolean; body: string; created: number };
 
 /** One line of the administrator's referral roster. */
 export type AdminReferral = { name: string; level: number; code: string | null; joined: number; earned: number };
@@ -242,6 +279,8 @@ export type ReferralSummary = {
 export type ChallengeNotification = { matchId: string; invite: string; asset: Asset; stake: number; from: string };
 
 export type Snapshot = {
+  /** Friend requests waiting for an answer, and messages waiting to be read. */
+  friends?: { requests: number; unread: number };
   asset: Asset;
   cashBalance: number;
   launch: LaunchStatus;

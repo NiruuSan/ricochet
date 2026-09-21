@@ -150,13 +150,12 @@ try {
   assert.equal(balance(ALICE), allowance - TIP_LIMITS.free);
   await sendTip(ALICE, crypto.randomUUID(), bob.publicId, "0.05", code(), LIMIT_DAY);
   assert.equal(balance(ALICE), allowance - TIP_LIMITS.free - 50_000_000, "A valid code sends it");
-  const cappedId = crypto.randomUUID();
-  await assert.rejects(
-    () => sendTip(ALICE, cappedId, bob.publicId, String(TIP_LIMITS.daily / 1e9), code(), LIMIT_DAY),
-    /limited to 10 devnet SOL a day/,
-    "The day's ceiling holds whatever is presented",
-  );
-  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM cash_ledger WHERE reference = ?").get(cappedId).n, 0);
+  // Above the allowance there is no ceiling: a code sends whatever is held.
+  const bigId = crypto.randomUUID();
+  fund(ALICE, 50_000_000_000);
+  const big = balance(ALICE);
+  await sendTip(ALICE, bigId, bob.publicId, "20", code(), LIMIT_DAY);
+  assert.equal(balance(ALICE), big - 20_000_000_000, "A large tip goes through with a code");
   // Without an authenticator there is no way to send more than the allowance.
   await assert.rejects(
     () => sendTip(BOB, crypto.randomUUID(), carol.publicId, "0.2", undefined, LIMIT_DAY),
@@ -169,6 +168,12 @@ try {
   assert.ok(alerts.some((n) => n.data.amount === 50_000_000 && n.data.to === "Bobby"), "The notice carries the amount and the recipient");
   assert.ok(alerts.length >= 2, "Every sent tip leaves a notice for its sender");
 
+  // A blocked player cannot be tipped, in either direction.
+  const { blockPlayer, unblockPlayer } = await import("../lib/moderation.ts");
+  await blockPlayer(BOB, "Alice");
+  await assert.rejects(() => sendTip(ALICE, crypto.randomUUID(), bob.publicId, "0.01", undefined, LIMIT_DAY), /cannot reach this player/);
+  await unblockPlayer(BOB, "Alice");
+
   // A credit failure must roll back the debit too.
   sqlite.exec("CREATE TRIGGER reject_tip_credit BEFORE INSERT ON cash_ledger WHEN NEW.kind = 'tip_received' BEGIN SELECT RAISE(ABORT, 'test credit failure'); END;");
   const previous = balance(ALICE);
@@ -179,5 +184,5 @@ try {
   await assert.rejects(() => sendTip(ALICE, crypto.randomUUID(), carol.publicId, "0.1", undefined, 7 * DAY), /devnet only/);
   const serialized = JSON.stringify(await publicProfile("Bobby"));
   for (const secret of [ALICE, BOB, CAROL, "balance", "encrypted_key", "account_id"]) assert.ok(!serialized.includes(secret));
-  console.log("PASS: public profile privacy, all-time and historical PNL, dashboard PNL series and match history, zero stats, stable recipient IDs, tip conservation, tip notifications, idempotency, concurrent spending, rollback, validation, devnet-only tips, the daily free allowance and ceiling, the second factor above it, and the sender's own notice.");
+  console.log("PASS: public profile privacy, all-time and historical PNL, dashboard PNL series and match history, zero stats, stable recipient IDs, tip conservation, tip notifications, idempotency, concurrent spending, rollback, validation, devnet-only tips, the daily free allowance, the second factor and no ceiling above it, the sender's own notice, and no tipping a blocked player.");
 } finally { close(); }

@@ -162,6 +162,20 @@
       "when": 1789941147899,
       "tag": "0022_referrals",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1789946724259,
+      "tag": "0023_friends",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1789982276510,
+      "tag": "0024_moderation",
+      "breakpoints": true
     }
   ]
 }

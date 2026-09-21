@@ -35,7 +35,9 @@ export async function refundMatch(matchId: string, reason: string, now: number, 
     db.prepare("UPDATE matches SET settled = 1, cancelled = 1, fee = 0 WHERE id = ? AND settled = 0").bind(matchId),
     db.prepare("UPDATE runs SET done = 1, finished = COALESCE(finished, ?) WHERE match_id = ? AND done = 0").bind(now, matchId),
   ];
-  if (match.asset === "devnet") {
+  if (match.stake === 0) {
+    // A friendly had no entry to give back.
+  } else if (match.asset === "devnet") {
     for (const run of runs) {
       ops.push(
         db

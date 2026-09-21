@@ -12,6 +12,8 @@ import { referralCredits } from "./referrals";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { launchStatus, requireDevnet } from "./payments/policy";
 import { dailyGems } from "./daily";
+import { BLOCKED_MESSAGE, blockedBetween } from "./blocks";
+import { friendAlerts } from "./friends";
 import { listNotifications, notificationInsert } from "./notifications";
 import { newRowKey, rowsFor } from "./secret-rows";
 import { shotInsert } from "./spectate-shots";
@@ -96,7 +98,9 @@ export async function settle(matchId: string) {
   const fee = winner ? winnerFee(m.stake, m.asset) : 0;
   const recipients = winner ? [winner] : [a.user_id, b.user_id];
   const ops: Statement[] = [];
-  if (m.asset === "devnet") {
+  if (m.stake === 0) {
+    // A friendly: the result is the whole of it.
+  } else if (m.asset === "devnet") {
     await ensureCashAccount(HOUSE);
     for (const uid of recipients) {
       ops.push(
@@ -323,7 +327,7 @@ export async function leaderboard(viewer: string | null, asset: Asset): Promise<
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
   const db = database();
   await settleFinishedMatches(uid);
-  const [player, history, active, cash, inbox, tournaments, daily] = await Promise.all([
+  const [player, history, active, cash, inbox, tournaments, daily, friends] = await Promise.all([
     db
       .prepare(
         `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
@@ -360,6 +364,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     listNotifications(uid),
     tournamentHistory(uid, asset),
     dailyGems(uid),
+    friendAlerts(uid),
   ]);
   const admin = adminId();
   return {
@@ -375,6 +380,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     notifications: inbox.items,
     unreadNotifications: inbox.unread,
     tournaments,
+    friends,
   };
 }
 
@@ -466,7 +472,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
 }
 
 /** Rejects anything that should stop a player entering a match, and returns the entry. */
-async function assertCanEnter(uid: string, stakeInput: unknown, assetInput: unknown) {
+async function assertCanEnter(uid: string, stakeInput: unknown, assetInput: unknown, free = false) {
   const db = database();
   const asset = assetInput ?? "gems";
   if (asset !== "gems" && asset !== "devnet") throw new GameError("Unsupported match currency.");
@@ -478,7 +484,8 @@ async function assertCanEnter(uid: string, stakeInput: unknown, assetInput: unkn
   if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
 
   const stake = Number(stakeInput);
-  if (!isStake(asset, stake)) throw new GameError("Choose one of the five entry amounts.");
+  // A friendly game between friends is the one entry outside the barème.
+  if (!(free && stake === 0) && !isStake(asset, stake)) throw new GameError("Choose one of the five entry amounts.");
   const available =
     asset === "gems"
       ? ((await db.prepare("SELECT balance FROM players WHERE id = ?").bind(uid).first<{ balance: number }>())?.balance ?? 0)
@@ -517,7 +524,10 @@ async function enterMatch(uid: string, stake: number, asset: Asset, joining: Mat
       .prepare("INSERT INTO runs(id, match_id, user_id, state, created) SELECT ?, ?, ?, ?, ? FROM matches WHERE id = ? AND (p1 = ? OR p2 = ?)")
       .bind(runId, match.id, uid, JSON.stringify(initial(match.seed, rowsFor(match.ruleset, match.row_key))), now, match.id, uid, uid),
   );
-  if (asset === "devnet") {
+  // A friendly game (no entry at all) moves nothing, so it writes no ledger line.
+  if (stake === 0) {
+    // Nothing to charge.
+  } else if (asset === "devnet") {
     await ensureCashAccount("escrow:" + match.id);
     ops.push(
       db
@@ -569,7 +579,8 @@ const inviteCode = () => Array.from(crypto.getRandomValues(new Uint8Array(9)), (
  * other seat. With `opponentName`, only that player may take it, and they are told.
  */
 export async function createChallenge(uid: string, stakeInput: unknown, assetInput: unknown, opponentName?: unknown): Promise<Run> {
-  const { asset, stake, active } = await assertCanEnter(uid, stakeInput, assetInput);
+  // Only a challenge may be played for nothing: matchmaking never hands one out.
+  const { asset, stake, active } = await assertCanEnter(uid, stakeInput, assetInput, true);
   if (active) return active;
   const db = database();
   let invited: { id: string; name: string } | null = null;
@@ -578,6 +589,7 @@ export async function createChallenge(uid: string, stakeInput: unknown, assetInp
     invited = await db.prepare("SELECT id, name FROM players WHERE lower(name) = lower(?)").bind(wanted).first<{ id: string; name: string }>();
     if (!invited) throw new GameError("No player by that name.", 404);
     if (invited.id === uid) throw new GameError("You cannot challenge yourself.");
+    if (await blockedBetween(uid, invited.id)) throw new GameError(BLOCKED_MESSAGE, 403);
   }
   const code = inviteCode();
   const run = await enterMatch(uid, stake, asset, null, { code, invited: invited?.id ?? null });
@@ -605,8 +617,10 @@ export async function joinChallenge(uid: string, codeInput: unknown): Promise<Ru
     throw new GameError("This is your own challenge. Send the link to a rival.", 409);
   }
   if (match.p2) throw new GameError("Someone already took this seat.", 409);
+  if (await blockedBetween(uid, match.p1)) throw new GameError(BLOCKED_MESSAGE, 403);
   if (match.invited && match.invited !== uid) throw new GameError("This challenge was sent to another player.", 403);
-  const { asset, stake, active } = await assertCanEnter(uid, match.stake, match.asset);
+  // The entry comes from the match, not the caller, so a friendly seat is allowed.
+  const { asset, stake, active } = await assertCanEnter(uid, match.stake, match.asset, true);
   if (active) return active;
   return enterMatch(uid, stake, asset, match, null);
 }

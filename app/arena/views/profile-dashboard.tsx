@@ -14,6 +14,8 @@ import { Avatar } from "../avatar";
 import { fullSol } from "../funded-wallet";
 import { shortId } from "../format";
 import { ordinal } from "../tournament-format";
+import { AddFriend } from "../add-friend";
+import { PlayerActions } from "../player-actions";
 import { TipButton } from "../tip-button";
 import styles from "./profile-dashboard.module.css";
 
@@ -221,7 +223,7 @@ export function ProfileDashboard({
         </div>
         <p className={styles.heroDescription}>{own ? "Your best runs, closest matches, and next milestone." : "The runs, results, and ranks behind the player."}</p>
         <div className={styles.profileActions}>
-          {own ? <><button className={styles.editButton} onClick={onEdit}><Settings2 size={15} />Edit profile</button><Link href={`/players/${encodeURIComponent(profile.name)}`}>Public profile <ArrowUpRight size={14} /></Link></> : profile.isYou ? <Link className={styles.editButton} href="/profile"><Settings2 size={15} />Manage profile</Link> : <TipButton profile={profile} player={player} />}
+          {own ? <><button className={styles.editButton} onClick={onEdit}><Settings2 size={15} />Edit profile</button><Link href={`/players/${encodeURIComponent(profile.name)}`}>Public profile <ArrowUpRight size={14} /></Link></> : profile.isYou ? <Link className={styles.editButton} href="/profile"><Settings2 size={15} />Manage profile</Link> : <><AddFriend name={profile.name} /><TipButton profile={profile} player={player} /><PlayerActions name={profile.name} /></>}
           <button className={styles.shareButton} aria-label="Copy public profile link" onClick={async () => {
             try { await navigator.clipboard.writeText(`${window.location.origin}/players/${encodeURIComponent(profile.name)}`); setShared(true); setShareError(""); }
             catch { setShareError("Could not copy the link. Open the public profile to copy its address."); }
