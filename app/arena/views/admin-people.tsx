@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { RotateCcw, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { useActionDialog } from "@/components/ui/action-dialog";
+import { PlayerNameInput } from "@/components/ui/player-name-input";
 import type { AdminPlayer } from "@/lib/admin-players";
 import { request } from "../api";
 import { fullSol } from "../funded-wallet";
@@ -103,10 +104,10 @@ Balances, wallets and the ledger are untouched. Write the reason; it is recorded
           {notice}
         </p>
       )}
-      <label className="field" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: 10 }}>
+      <div className="field" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: 10 }}>
         <Search size={17} />
-        <input className="input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by player name" aria-label="Search players" style={{ marginTop: 0 }} />
-      </label>
+        <PlayerNameInput value={search} onValueChange={setSearch} names={(list ?? []).map((player) => player.name)} placeholder="Search by player name" aria-label="Search players" style={{ marginTop: 0 }} />
+      </div>
       {!list ? (
         <p className="muted" style={{ marginTop: 16 }}>Loading…</p>
       ) : !shown.length ? (

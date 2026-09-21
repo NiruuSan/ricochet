@@ -517,6 +517,22 @@ export const dailyClaims = sqliteTable(
   (t) => [primaryKey({ columns: [t.userId, t.day] })],
 );
 
+export const bugReports = sqliteTable(
+  "bug_reports",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    links: text("links").notNull().default("[]"),
+    page: text("page").notNull().default(""),
+    status: text("status").notNull().default("open"),
+    created: integer("created").notNull(),
+    updated: integer("updated").notNull(),
+  },
+  (t) => [index("bug_report_user").on(t.userId), index("bug_report_created").on(t.created, t.id), check("bug_report_status", sql`${t.status} IN ('open', 'resolved')`)],
+);
+
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

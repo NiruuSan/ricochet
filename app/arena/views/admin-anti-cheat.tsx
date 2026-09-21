@@ -2,6 +2,7 @@
 import { ENTRY_BATCH, ShowMore } from "@/components/ui/show-more";
 
 import { Form } from "@/components/ui/form";
+import { PlayerNameInput } from "@/components/ui/player-name-input";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -166,10 +167,10 @@ export function AdminAntiCheat() {
             void act({ action: "suspend", name, note: reason }).then((ok) => ok && (setName(""), setReason("")));
           }}
         >
-          <label className="field" style={{ margin: 0 }}>
-            Player
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Player name" />
-          </label>
+          <div className="field" style={{ margin: 0 }}>
+            <label htmlFor="suspension-player-name">Player</label>
+            <PlayerNameInput id="suspension-player-name" scope="admin" value={name} onValueChange={setName} required placeholder="Player name" />
+          </div>
           <label className="field" style={{ margin: 0 }}>
             Reason
             <input className="input" value={reason} onChange={(e) => setReason(e.target.value)} required minLength={3} placeholder="Reported by several players" />

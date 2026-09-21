@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, MessageSquare, Send, UserPlus, UserRound, X } from "lucide-react";
 import { Form } from "@/components/ui/form";
+import { PlayerNameInput } from "@/components/ui/player-name-input";
 import { MESSAGE_MAX, type Asset, type Friend, type FriendList, type FriendMessage } from "@/lib/api-types";
 import { Avatar } from "../avatar";
 import { ChallengeFriend, type Entry } from "../challenge-friend";
@@ -320,10 +321,10 @@ export function FriendsView({ player }: { player: PlayerState }) {
               if (name.trim()) void act({ action: "request", name: name.trim() }, name.trim(), `Request sent to ${name.trim()}.`).then((ok) => ok && setName(""));
             }}
           >
-            <label className="field">
-              Add a friend
-              <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Their player name" autoComplete="off" />
-            </label>
+            <div className="field">
+              <label htmlFor="friend-name">Add a friend</label>
+              <PlayerNameInput id="friend-name" value={name} onValueChange={setName} placeholder="Their player name" />
+            </div>
             <button className="btn btn-primary" disabled={!name.trim() || !!busy}>
               <UserPlus size={15} /> Send request
             </button>

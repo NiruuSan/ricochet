@@ -75,6 +75,7 @@ const PURGE = [
   "DELETE FROM push_subscriptions WHERE user_id = ?",
   "DELETE FROM notifications WHERE user_id = ?",
   "DELETE FROM avatars WHERE user_id = ?",
+  "DELETE FROM bug_reports WHERE user_id = ?",
   "DELETE FROM two_factor_recovery WHERE user_id = ?",
   "DELETE FROM two_factor WHERE user_id = ?",
   "DELETE FROM security_holds WHERE user_id = ?",

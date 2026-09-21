@@ -1,0 +1,18 @@
+.dialog {
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+}
+.fields { display: grid; gap: 18px; min-width: 0; border: 0; padding: 0; }
+.field { display: block; font-size: 14px; color: #b3bfd3; min-width: 0; }
+.field textarea { resize: vertical; min-height: 120px; }
+.linkRow { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.linkRow input { min-width: 0; margin-top: 8px; }
+.linkRow button { margin-top: 8px; flex-shrink: 0; }
+.report { padding: 22px; margin-top: 14px; border: 1px solid #303c50; border-radius: 16px; background: #141c28; }
+.heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.heading h3 { font-size: 19px; overflow-wrap: anywhere; }
+.description { white-space: pre-wrap; overflow-wrap: anywhere; margin: 16px 0; }
+.links { display: grid; gap: 10px; margin: 12px 0; padding-left: 20px; }
+.links a { color: #c6f564; overflow-wrap: anywhere; }
+.meta { margin-top: 8px; font-size: 13px; color: #a5b0c5; overflow-wrap: anywhere; }
+.pagination { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 20px 0; }

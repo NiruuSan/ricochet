@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Radio, Trophy, UserRound, Users, Wallet, X } from "lucide-react";
+import { ArrowUpRight, Bug, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Radio, Trophy, UserRound, Users, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Menu } from "@/components/ui/menu";
 import { signOutToLogin } from "../auth-actions";
@@ -15,6 +15,7 @@ import type { View } from "./views";
 import { usePlayerData } from "./use-player-data";
 // Each page only downloads the view it shows; the others load when you navigate to them.
 const AdminView = dynamic(() => import("./views/admin-view").then((m) => m.AdminView));
+const BugReportDialog = dynamic(() => import("./bug-report-dialog").then((m) => m.BugReportDialog));
 const AdminCaseView = dynamic(() => import("./views/admin-case-view").then((m) => m.AdminCaseView));
 const AuthView = dynamic(() => import("./views/auth-view").then((m) => m.AuthView));
 const LeaderboardView = dynamic(() => import("./views/leaderboard-view").then((m) => m.LeaderboardView));
@@ -51,6 +52,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
   const onSaved = useCallback(() => void refresh(), [refresh]);
   const session = useGameSession({ onSaved, onError: setError });
   const [confirmForfeit, setConfirmForfeit] = useState(false);
+  const [reportBug, setReportBug] = useState(false);
   const router = useRouter();
   // A match recap opened from a notification or a `/?match=<id>` link.
   const [recapMatchId, setRecapState] = useState<string | null>(view === "play" ? (initialMatchId ?? null) : null);
@@ -174,6 +176,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
                   { label: "Your profile", href: "/profile", icon: <UserRound /> },
                   { label: friendAlerts ? `Friends · ${friendAlerts}` : "Friends", href: "/friends", icon: <Users /> },
                   { label: "Wallet", href: "/wallet", icon: <Wallet /> },
+                  { label: "Report a bug", onSelect: () => setReportBug(true), icon: <Bug /> },
                   { label: "Sign out", onSelect: () => void signOutToLogin(), icon: <LogOut />, danger: true, separated: true },
                 ]}
               />
@@ -229,14 +232,16 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         {view === "admin" && (adminCaseName ? <AdminCaseView key={adminCaseName} name={adminCaseName} player={player} /> : <AdminView player={player} />)}
         <footer className="foot">
           <span>© {new Date().getFullYear()} Bounce · A good angle changes everything.</span>
-          <div className="links">
+          <div className="links" style={{ alignItems: "center", flexWrap: "wrap" }}>
             <Link href="/rules">Game rules</Link>
             <Link href="/faq">Q&A</Link>
             <Link href="/privacy">Privacy</Link>
+            <button className="btn" onClick={() => setReportBug(true)}><Bug size={16} /> Report a bug</button>
             <Link href="/wallet">Test funds only</Link>
           </div>
         </footer>
       </main>
+      <BugReportDialog open={reportBug} onOpenChange={setReportBug} signedIn={!!data.authenticated} hasProfile={!!data.player} />
       <Dialog open={confirmForfeit} onOpenChange={setConfirmForfeit}>
         <DialogContent className="dialog-dark">
           <DialogTitle>Leave this match?</DialogTitle>

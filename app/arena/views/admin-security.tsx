@@ -1,5 +1,6 @@
 "use client";
 import { Form } from "@/components/ui/form";
+import { PlayerNameInput } from "@/components/ui/player-name-input";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { AdminSecuritySnapshot } from "@/lib/api-types";
@@ -46,9 +47,9 @@ export function AdminSecurity() {
         catch (e) { setError((e as Error).message); setData(null); }
         finally { setBusy(false); }
       }}>
-        <label className="field">Player public name
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={32} required placeholder="Exact public name" />
-        </label>
+        <div className="field"><label htmlFor="security-player-name">Player public name</label>
+          <PlayerNameInput id="security-player-name" scope="admin" value={name} onValueChange={setName} maxLength={32} required placeholder="Exact public name" />
+        </div>
         <button className="btn" disabled={busy}>{busy ? "Loading..." : "Find player"}</button>
         {searched && data && !data.player && <p className="muted" role="status" style={{ marginTop: 12 }}>No player found with that exact public name.</p>}
       </Form>

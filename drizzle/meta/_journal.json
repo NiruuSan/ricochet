@@ -176,6 +176,13 @@
       "when": 1789982276510,
       "tag": "0024_moderation",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1789991359557,
+      "tag": "0025_bug_reports",
+      "breakpoints": true
     }
   ]
 }

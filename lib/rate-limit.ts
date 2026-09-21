@@ -10,6 +10,7 @@ export const LIMITS = {
   walletWrite: 30,
   treasuryWrite: 60,
   profileWrite: 20,
+  bugReportWrite: 5,
   tournamentWrite: 30,
   /** Two-factor setup and changes; wrong codes are also locked out after five tries. */
   securityWrite: 20,

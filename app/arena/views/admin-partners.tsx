@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Form } from "@/components/ui/form";
+import { PlayerNameInput } from "@/components/ui/player-name-input";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import type { AdminReferral } from "@/lib/api-types";
 import { request } from "../api";
@@ -87,10 +88,10 @@ export function AdminPartners() {
           if (name.trim()) void setLevel(name.trim(), 2);
         }}
       >
-        <label className="field">
-          Player name
-          <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="Exact player name" autoComplete="off" />
-        </label>
+        <div className="field">
+          <label htmlFor="partner-name">Player name</label>
+          <PlayerNameInput id="partner-name" scope="admin" value={name} onValueChange={setName} placeholder="Exact player name" />
+        </div>
         <button className="btn btn-primary" disabled={!name.trim() || !!busy}>
           Grant partnership
         </button>
