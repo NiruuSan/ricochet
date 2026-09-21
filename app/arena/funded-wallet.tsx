@@ -336,7 +336,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
           </div>
           {!treasury && (
             <section className={styles.referral}>
-              <ReferralCard />
+              <ReferralCard onClaimed={() => void load()} />
             </section>
           )}
           <section className={treasury ? undefined : styles.history}>

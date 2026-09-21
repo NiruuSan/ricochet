@@ -1,6 +1,8 @@
 import { database, type Database, type Statement } from "@/db/raw";
-import type { Asset } from "./api-types";
+import { REFERRAL_FEES, type Asset } from "./api-types";
 import { adminAudit, adminNote } from "./admin";
+import { isSuspended } from "./anti-cheat";
+import { SUSPENDED_MESSAGE } from "./anti-cheat-rules";
 import { GameError } from "./matches";
 import { notificationInsert } from "./notifications";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
@@ -19,18 +21,28 @@ import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
  * for it out of the fee it just took. So a player's opponent is never affected
  * by a discount they cannot see, and nobody gains an edge at the table.
  *
+ * A partner's share is not paid into their balance as it is earned. It gathers
+ * in an account of their own that nothing else can spend from, and a claim
+ * moves the lot across in one line. The money is theirs from the moment the
+ * match settles — the claim only decides when it becomes spendable — which is
+ * why the pending account counts as a liability of the pool like any balance.
+ *
  * Gem matches are fee-free, so none of this applies to them.
  */
 export const REFERRAL = {
   /** What a player normally funds of the house fee: 12% of their own stake. */
-  standardFee: 12,
+  standardFee: REFERRAL_FEES.standard,
   /** What a referred player funds while their window is open. */
-  discountedFee: 8,
+  discountedFee: REFERRAL_FEES.discounted,
   /** A level 2 partner's share of what the house keeps from a player they brought. */
   partnerShare: 10,
   /** How long the reduced fee lasts, by the level of the code that was used. */
   window: { 1: 24 * 60 * 60_000, 2: 7 * 24 * 60 * 60_000 } as Record<number, number>,
 };
+
+/** Where a partner's share waits until they claim it. */
+const earningsOwner = (uid: string) => `earnings:${uid}`;
+export const earningsAccount = (uid: string) => cashAccountId(earningsOwner(uid));
 
 /** Codes travel in links and chat: short, unambiguous, hard to guess. */
 const CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -143,14 +155,18 @@ type Standing = { user_id: string; referrer_id: string; discount_until: number; 
  *
  * `fee` is what the house took from the whole pot, so half of it is what each
  * player funded. A draw takes no fee, and there is nothing to give back.
+ *
+ * The rebates are reported back as well as written, so the match can tell each
+ * player what their reduced fee was worth without reading the ledger again.
  */
 export async function referralCredits(
   db: Database,
   match: { id: string; asset: Asset; fee: number },
   players: string[],
   now = Date.now(),
-): Promise<Statement[]> {
-  if (match.asset !== "devnet" || match.fee <= 0 || !players.length) return [];
+): Promise<{ ops: Statement[]; rebates: Record<string, number> }> {
+  const nothing = { ops: [], rebates: {} };
+  if (match.asset !== "devnet" || match.fee <= 0 || !players.length) return nothing;
   const { results } = await db
     .prepare(
       `SELECT r.user_id, r.referrer_id, r.discount_until, p.referral_level AS referrer_level
@@ -159,11 +175,12 @@ export async function referralCredits(
     )
     .bind(...players)
     .all<Standing>();
-  if (!results.length) return [];
+  if (!results.length) return nothing;
 
   const house = cashAccountId(HOUSE);
   const funded = Math.floor(match.fee / 2);
   const ops: Statement[] = [];
+  const rebates: Record<string, number> = {};
   const credit = (id: string, account: string, kind: string, amount: number) =>
     db
       .prepare("INSERT OR IGNORE INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, ?, ?, ?, ?)")
@@ -175,39 +192,68 @@ export async function referralCredits(
     const partner = standing.referrer_level >= 2 ? Math.floor(((funded - rebate) * REFERRAL.partnerShare) / 100) : 0;
     if (rebate > 0) {
       await ensureCashAccount(standing.user_id);
+      rebates[standing.user_id] = rebate;
       ops.push(
         credit(`${match.id}:rebate:${standing.user_id}`, cashAccountId(standing.user_id), "referral_rebate", rebate),
         credit(`${match.id}:rebate-house:${standing.user_id}`, house, "referral_rebate", -rebate),
       );
     }
     if (partner > 0) {
-      await ensureCashAccount(standing.referrer_id);
+      // Into the partner's own pot, not their balance: it is theirs, and it
+      // waits there until they come and take it.
+      await ensureCashAccount(earningsOwner(standing.referrer_id));
       ops.push(
-        credit(`${match.id}:partner:${standing.user_id}`, cashAccountId(standing.referrer_id), "referral_commission", partner),
+        credit(`${match.id}:partner:${standing.user_id}`, earningsAccount(standing.referrer_id), "referral_commission", partner),
         credit(`${match.id}:partner-house:${standing.user_id}`, house, "referral_commission", -partner),
       );
     }
   }
-  return ops;
+  return { ops, rebates };
 }
 
-export type ReferralStanding = { code: string; level: number; discountUntil: number | null; referredBy: string | null; joined: number; earned: number };
+/**
+ * Moves everything a partner has earned into their spendable balance in one
+ * line. The pot cannot go below zero, so two claims at once cannot both pay:
+ * the second finds nothing left and the batch refuses it.
+ */
+export async function claimPartnerEarnings(uid: string, now = Date.now()) {
+  const db = database();
+  const account = earningsAccount(uid);
+  const pot = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(account).first<{ balance: number }>();
+  const amount = Number(pot?.balance ?? 0);
+  if (amount <= 0) throw new GameError("There is nothing to claim yet.", 409);
+  // A held account does not get to move money, its own included.
+  if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
+  await ensureCashAccount(uid);
+  const id = crypto.randomUUID();
+  const line = (ledgerId: string, accountId: string, value: number) =>
+    db
+      .prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'referral_claim', ?, ?, ?)")
+      .bind(ledgerId, accountId, value, `claim:${uid}`, now);
+  await db.batch([line(`claim:${id}:out`, account, -amount), line(`claim:${id}:in`, cashAccountId(uid), amount)]);
+  return { claimed: amount };
+}
+
+export type ReferralStanding = { code: string; level: number; discountUntil: number | null; referredBy: string | null; joined: number; earned: number; pending: number };
 
 /** What a player sees of their own referrals: their code, their window, and what it brought. */
 export async function referralSummary(uid: string, now = Date.now()): Promise<ReferralStanding> {
   const db = database();
   const code = await referralCode(uid);
-  const [player, mine, joined, earned] = await Promise.all([
+  const [player, mine, joined, earned, pot] = await Promise.all([
     db.prepare("SELECT referral_level FROM players WHERE id = ?").bind(uid).first<{ referral_level: number }>(),
     db
       .prepare("SELECT r.discount_until, p.name FROM referrals r JOIN players p ON p.id = r.referrer_id WHERE r.user_id = ?")
       .bind(uid)
       .first<{ discount_until: number; name: string }>(),
     db.prepare("SELECT COUNT(*) AS n FROM referrals WHERE referrer_id = ?").bind(uid).first<{ n: number }>(),
+    // All time, claimed or not. Commissions paid straight into the balance
+    // before there was a pot to hold them still count towards it.
     db
-      .prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM cash_ledger WHERE account_id = ? AND kind = 'referral_commission'")
-      .bind(cashAccountId(uid))
+      .prepare("SELECT COALESCE(SUM(amount), 0) AS total FROM cash_ledger WHERE account_id IN (?, ?) AND kind = 'referral_commission' AND amount > 0")
+      .bind(earningsAccount(uid), cashAccountId(uid))
       .first<{ total: number }>(),
+    db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(earningsAccount(uid)).first<{ balance: number }>(),
   ]);
   return {
     code,
@@ -216,6 +262,7 @@ export async function referralSummary(uid: string, now = Date.now()): Promise<Re
     referredBy: mine?.name ?? null,
     joined: Number(joined?.n ?? 0),
     earned: Number(earned?.total ?? 0),
+    pending: Number(pot?.balance ?? 0),
   };
 }
 
@@ -226,13 +273,15 @@ export async function referralRoster(limit = 50) {
       `SELECT p.name, p.referral_level AS level, p.referral_code AS code,
          (SELECT COUNT(*) FROM referrals r WHERE r.referrer_id = p.id) AS joined,
          (SELECT COALESCE(SUM(l.amount), 0) FROM cash_ledger l
-            WHERE l.account_id = 'devnet:' || p.id AND l.kind = 'referral_commission') AS earned
+            WHERE l.account_id IN ('devnet:earnings:' || p.id, 'devnet:' || p.id)
+              AND l.kind = 'referral_commission' AND l.amount > 0) AS earned,
+         COALESCE((SELECT a.balance FROM cash_accounts a WHERE a.id = 'devnet:earnings:' || p.id), 0) AS pending
        FROM players p
        WHERE p.deleted IS NULL AND (p.referral_level >= 2 OR EXISTS (SELECT 1 FROM referrals r WHERE r.referrer_id = p.id))
        ORDER BY p.referral_level DESC, joined DESC LIMIT ?`,
     )
     .bind(limit)
-    .all<{ name: string; level: number; code: string | null; joined: number; earned: number }>();
+    .all<{ name: string; level: number; code: string | null; joined: number; earned: number; pending: number }>();
   return results;
 }
 

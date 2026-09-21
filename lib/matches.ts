@@ -98,6 +98,8 @@ export async function settle(matchId: string) {
   const fee = winner ? winnerFee(m.stake, m.asset) : 0;
   const recipients = winner ? [winner] : [a.user_id, b.user_id];
   const ops: Statement[] = [];
+  /** What each player's reduced house fee handed back, if they are on one. */
+  let rebates: Record<string, number> = {};
   if (m.stake === 0) {
     // A friendly: the result is the whole of it.
   } else if (m.asset === "devnet") {
@@ -124,7 +126,9 @@ export async function settle(matchId: string) {
     // What the house gives back to a player it brought in at a reduced fee, and
     // what it owes the partner who brought them. Both come out of the fee just
     // taken, which is why they follow it (lib/referrals.ts).
-    ops.push(...(await referralCredits(db, { id: matchId, asset: m.asset, fee }, [a.user_id, b.user_id], now)));
+    const credits = await referralCredits(db, { id: matchId, asset: m.asset, fee }, [a.user_id, b.user_id], now);
+    ops.push(...credits.ops);
+    rebates = credits.rebates;
   } else {
     for (const uid of recipients) {
       ops.push(
@@ -167,6 +171,7 @@ export async function settle(matchId: string) {
       score: me.score,
       opponentScore: other.score,
       bonusGems: result === "win" ? bonusGems : 0,
+      ...(rebates[me.user_id] ? { rebate: rebates[me.user_id] } : {}),
       ...(disqualified ? { disqualified: other.user_id === disqualified } : {}),
     };
     // The ID names the seat, not the player: notification IDs reach the browser.
@@ -331,11 +336,12 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     db
       .prepare(
         `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
-           (SELECT reason FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS suspension
+           (SELECT reason FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS suspension,
+           (SELECT discount_until FROM referrals r WHERE r.user_id = players.id) AS discount_until
          FROM players WHERE id = ? AND deleted IS NULL`,
       )
       .bind(uid)
-      .first<Profile & { suspension: string | null; wagered: number }>(),
+      .first<Profile & { suspension: string | null; wagered: number; discount_until: number | null }>(),
     db
       .prepare(
         `SELECT m.id, m.stake, m.fee, m.settled, m.created,
@@ -374,6 +380,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     player: player && { publicId: player.publicId, name: player.name, balance: player.balance, avatar: avatarUrl(player.avatar), created: player.created, level: levelFor(experienceFromWagered(player.wagered)) },
     suspension: player?.suspension ? { reason: player.suspension } : null,
     daily,
+    discountUntil: player?.discount_until && player.discount_until > Date.now() ? player.discount_until : null,
     matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
     active,
     isAdmin: !!admin && uid === admin,
@@ -408,6 +415,7 @@ type RecapRow = {
   other_name: string | null;
   other_avatar: string | null;
   bonus: number | null;
+  rebate: number | null;
 };
 
 function recapSide(name: string, avatar: string | null, stateJson: string, clears: number, forfeit: number): RecapSide {
@@ -431,7 +439,8 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
            o.state AS other_state, o.clears AS other_clears, o.done AS other_done, o.forfeit AS other_forfeit,
            op.name AS other_name, op.avatar AS other_avatar,
            ${wageredSql("p.id")} AS wagered, ${wageredSql("op.id")} AS other_wagered,
-           (SELECT amount FROM ledger WHERE id = ?) AS bonus
+           (SELECT amount FROM ledger WHERE id = ?) AS bonus,
+           (SELECT amount FROM cash_ledger WHERE id = ?) AS rebate
          FROM runs r
          JOIN matches m ON m.id = r.match_id
          JOIN players p ON p.id = r.user_id
@@ -439,7 +448,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
          LEFT JOIN runs o ON o.match_id = m.id AND o.user_id = op.id
          WHERE r.match_id = ? AND r.user_id = ?`,
       )
-      .bind(`${matchId}:gem-bonus:${uid}`, matchId, uid)
+      .bind(`${matchId}:gem-bonus:${uid}`, `${matchId}:rebate:${uid}`, matchId, uid)
       .first<RecapRow>();
   let row = await load();
   if (!row) throw new GameError("Match not found.", 404);
@@ -459,6 +468,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
     result,
     net: settled ? netResult(result, row.stake, row.fee) : null,
     bonusGems: row.bonus ?? 0,
+    rebate: row.rebate ?? 0,
     you: { ...recapSide(row.name, row.avatar, row.state, row.clears, row.forfeit), level: levelFor(experienceFromWagered(row.wagered)) },
     opponent: row.other_name
       ? {

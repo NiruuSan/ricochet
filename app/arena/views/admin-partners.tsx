@@ -40,7 +40,7 @@ export function AdminPartners() {
     const reason = await dialog.prompt(
       level === 2
         ? `Make ${player} a partner?\n\nPlayers who sign up with their code get a week of reduced fees instead of a day, and ${player} earns 10% of the house fee on every match those players play, for as long as they play.\n\nWrite the reason. It is recorded in the audit log.`
-        : `End ${player}'s partnership?\n\nTheir code keeps working at level 1: a day of reduced fees for new players, and nothing paid out. Commission already earned stays paid.\n\nWrite the reason. It is recorded in the audit log.`,
+        : `End ${player}'s partnership?\n\nTheir code keeps working at level 1: a day of reduced fees for new players, and nothing paid out. What they have already earned stays theirs, claimed or not.\n\nWrite the reason. It is recorded in the audit log.`,
       { title: level === 2 ? "Grant partnership" : "End partnership", confirmLabel: level === 2 ? "Grant partnership" : "End partnership", danger: level === 1 },
     );
     if (reason === null) return;
@@ -106,7 +106,7 @@ export function AdminPartners() {
                 </b>
                 <span className={styles.muted}>
                   Code {row.code ?? "—"} · {row.joined} {row.joined === 1 ? "player" : "players"} brought in
-                  {row.level >= 2 && ` · ${fullSol(row.earned)} SOL earned`}
+                  {row.level >= 2 && ` · ${fullSol(row.earned)} SOL earned${row.pending > 0 ? ` · ${fullSol(row.pending)} SOL waiting to be claimed` : ""}`}
                 </span>
               </div>
               <button className="btn" disabled={busy === row.name} onClick={() => void setLevel(row.name, row.level >= 2 ? 1 : 2)}>

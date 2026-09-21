@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Form } from "@/components/ui/form";
-import { Check, Copy, Gift, Pencil, Share2, Users } from "lucide-react";
-import type { ReferralSummary } from "@/lib/api-types";
+import { Check, Copy, Gift, HandCoins, Pencil, Share2, Users } from "lucide-react";
+import { REFERRAL_FEES, type ReferralSummary } from "@/lib/api-types";
 import { request } from "./api";
 import { fullSol } from "./funded-wallet";
 import styles from "./wallet.module.css";
@@ -14,13 +14,15 @@ const hoursLeft = (until: number) => Math.max(1, Math.round((until - Date.now())
  * has paid back. A partnership (level 2) is granted by an administrator and
  * adds a share of the house fee on every match its players play.
  */
-export function ReferralCard() {
+export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
   const [data, setData] = useState<ReferralSummary | null>(null);
   const [copied, setCopied] = useState<"" | "code" | "link">("");
   const [error, setError] = useState("");
   const [failed, setFailed] = useState(false);
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimed, setClaimed] = useState(0);
   useEffect(() => {
     let active = true;
     request<ReferralSummary>("/api/referrals").then(
@@ -48,6 +50,22 @@ export function ReferralCard() {
       setError((e as Error).message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  /** Takes everything the partnership has earned into the spendable balance. */
+  const claim = async () => {
+    setClaiming(true);
+    setError("");
+    try {
+      const { claimed: amount } = await request<{ claimed: number }>("/api/referrals", { action: "claim" });
+      setClaimed(amount);
+      setData({ ...data, pending: 0 });
+      onClaimed?.();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setClaiming(false);
     }
   };
 
@@ -133,10 +151,34 @@ export function ReferralCard() {
         </div>
       </div>
 
+      {partner && (
+        <div className={styles.claimCard}>
+          <div>
+            <span>
+              <HandCoins size={15} /> Ready to claim
+            </span>
+            <b className={styles.claimAmount}>
+              {fullSol(data.pending)}
+              <small>SOL</small>
+            </b>
+            <p className={styles.claimNote}>
+              {claimed > 0
+                ? `${fullSol(claimed)} SOL is in your balance.`
+                : data.pending > 0
+                  ? "Your share of every match your players play, waiting for you."
+                  : "Your share gathers here as your players play. Come back and take it."}
+            </p>
+          </div>
+          <button className="btn btn-primary" disabled={claiming || data.pending <= 0} onClick={() => void claim()}>
+            <HandCoins size={15} /> {claiming ? "Claiming…" : "Claim earnings"}
+          </button>
+        </div>
+      )}
+
       {data.discountUntil && (
         <p className="callout-inline" role="status" style={{ marginTop: 14 }}>
-          <Gift size={14} /> {data.referredBy ? `${data.referredBy} brought you in: ` : ""}your house fee is 8% instead of 12% for the next {hoursLeft(data.discountUntil)} hours. The
-          rebate lands in your balance after each match.
+          <Gift size={14} /> {data.referredBy ? `${data.referredBy} brought you in: ` : ""}your house fee is {REFERRAL_FEES.discounted}% instead of {REFERRAL_FEES.standard}% for the
+          next {hoursLeft(data.discountUntil)} hours. The rebate lands in your balance after each match.
         </p>
       )}
       {!partner && (

@@ -76,10 +76,13 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
     };
   }
   const scores = `${score.toLocaleString("en")} – ${opponentScore.toLocaleString("en")}`;
-  const bonus = n.data.bonusGems ? ` · +${n.data.bonusGems} gems` : "";
+  // A reduced house fee comes back as its own credit, win or lose, so it is
+  // named on both: the number in the balance would not add up otherwise.
+  const back = n.data.rebate ? ` · +${units(n.data.rebate, asset)} ${CURRENCY[asset]} fee back` : "";
+  const bonus = `${n.data.bonusGems ? ` · +${n.data.bonusGems} gems` : ""}${back}`;
   if (result === "win" && n.data.disqualified) return { tone: "win", title: `You won: ${vs} was disqualified`, detail: `Automated play was detected on their side · +${units(net, asset)} ${CURRENCY[asset]}${bonus}` };
   if (result === "win") return { tone: "win", title: `You won vs ${vs}`, detail: `+${units(net, asset)} ${CURRENCY[asset]}${bonus} · ${scores}` };
-  if (result === "loss") return { tone: "loss", title: `You lost vs ${vs}`, detail: `${units(net, asset)} ${CURRENCY[asset]} · ${scores}` };
+  if (result === "loss") return { tone: "loss", title: `You lost vs ${vs}`, detail: `${units(net, asset)} ${CURRENCY[asset]}${back} · ${scores}` };
   return { tone: "draw", title: `Draw vs ${vs}`, detail: `Entry refunded · ${scores}` };
 }
 

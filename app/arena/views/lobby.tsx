@@ -4,7 +4,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, Gem, Link2, Target, Zap } from "lucide-react";
 import { useState } from "react";
-import { STAKES, winnerPayout, type Asset, type Run } from "@/lib/api-types";
+import { feeRebate, REFERRAL_FEES, STAKES, winnerPayout, type Asset, type Run } from "@/lib/api-types";
 import { amount, CURRENCY, shareChallenge, units } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./screens.module.css";
@@ -41,6 +41,9 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
   const balance = (asset: Asset) => (asset === "gems" ? (data.player?.balance ?? 0) : (data.cashBalance ?? 0));
   const stake = choice ? STAKES[choice][stakeIndex] : 0;
   const affordable = choice ? balance(choice) >= stake : false;
+  // A reduced house fee never changes the pot: it comes back afterwards, which
+  // is worth saying here rather than leaving it to be noticed in the wallet.
+  const rebate = data.discountUntil && choice ? feeRebate(stake, choice) : 0;
   const { overview, now } = useArenaOverview();
   const [inviting, setInviting] = useState(false);
 
@@ -164,6 +167,12 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
                 <span>Winner receives</span>
                 <b className="lime">{amount(winnerPayout(stake, choice), choice)}</b>
               </div>
+              {rebate > 0 && (
+                <div>
+                  <span>Back to you, win or lose</span>
+                  <b className="lime">+{amount(rebate, choice)}</b>
+                </div>
+              )}
             </div>
             <div className="row-actions">
               <button className="btn" onClick={() => onChoose(null)}>
@@ -185,6 +194,12 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
               )}
             </div>
           </div>
+          {rebate > 0 && (
+            <p className={styles.lobbyNote} style={{ color: "#c6f564" }}>
+              Your referral window is open: you fund {REFERRAL_FEES.discounted}% of the fee instead of {REFERRAL_FEES.standard}%. The pot and the payout are the same for
+              everyone — the difference comes back to you once the match settles.
+            </p>
+          )}
           <p className={styles.lobbyNote}>
             {data.player && !affordable
               ? choice === "gems"

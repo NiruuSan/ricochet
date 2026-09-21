@@ -7,7 +7,7 @@ import { createDatabase } from "./helpers/test-env.mjs";
 // house, out of the fee it just took.
 const { sqlite, close } = await createDatabase();
 
-const { applyReferral, chooseReferralCode, referralCode, referralCodeHistory, referralCredits, referralSummary, referralRoster, setReferralLevel, REFERRAL } =
+const { applyReferral, chooseReferralCode, claimPartnerEarnings, referralCode, referralCodeHistory, referralCredits, referralSummary, referralRoster, setReferralLevel, REFERRAL } =
   await import("../lib/referrals.ts");
 const { createPlayer } = await import("../lib/profile.ts");
 const { settle } = await import("../lib/matches.ts");
@@ -27,6 +27,8 @@ const DAY = 86_400_000;
 const balance = (uid) => Number(sqlite.prepare("SELECT balance FROM cash_accounts WHERE id = ?").get(cashAccountId(uid))?.balance ?? 0);
 const credit = (uid, amount, id = crypto.randomUUID()) => sqlite.prepare("INSERT INTO cash_ledger VALUES(?, ?, 'deposit', ?, 'test', 0)").run(id, cashAccountId(uid), amount);
 const liabilities = () => Number(sqlite.prepare("SELECT COALESCE(SUM(balance), 0) AS n FROM cash_accounts").get().n);
+/** What a partner has earned and not yet taken. */
+const pending = (uid) => balance("earnings:" + uid);
 
 /** A finished devnet match, staked and escrowed, ready for the real settlement. */
 async function played(id, winner, loser, stake = SOL) {
@@ -96,10 +98,11 @@ try {
 
   // 4. The same match with a referred player: identical payout, plus a rebate.
   await played("discount", ALPHA, GAMMA);
-  const before = { house: balance(HOUSE), alpha: balance(ALPHA), partner: balance(PARTNER), pool: liabilities() };
+  const before = { house: balance(HOUSE), alpha: balance(ALPHA), partner: balance(PARTNER), pot: pending(PARTNER), pool: liabilities() };
   await settle("discount");
   assert.equal(balance(ALPHA) - before.alpha, 1.76 * SOL + 0.04 * SOL, "The winner's payout is untouched; the rebate is its own line");
-  assert.equal(balance(PARTNER) - before.partner, 0.008 * SOL, "The partner earns 10% of what the house kept from their player");
+  assert.equal(balance(PARTNER) - before.partner, 0, "A partner's share is not dropped into their balance");
+  assert.equal(pending(PARTNER) - before.pot, 0.008 * SOL, "It waits in their own pot: 10% of what the house kept from their player");
   assert.equal(balance(HOUSE) - before.house, 0.24 * SOL - 0.04 * SOL - 0.008 * SOL, "Both come out of the fee the house just took");
   assert.equal(liabilities(), before.pool, "Nothing was created: the pool still owes what it owed");
 
@@ -127,10 +130,10 @@ try {
   // Settlement reads the clock, so the window has to be closed against it.
   sqlite.prepare("UPDATE referrals SET discount_until = 1 WHERE user_id = ?").run(ALPHA);
   await played("later", ALPHA, GAMMA);
-  const after = { alpha: balance(ALPHA), partner: balance(PARTNER), house: balance(HOUSE) };
+  const after = { alpha: balance(ALPHA), partner: pending(PARTNER), house: balance(HOUSE) };
   await settle("later");
   assert.equal(balance(ALPHA) - after.alpha, 1.76 * SOL, "No rebate once the window has closed");
-  assert.equal(balance(PARTNER) - after.partner, 0.012 * SOL, "The partner still earns 10% of the full fee share");
+  assert.equal(pending(PARTNER) - after.partner, 0.012 * SOL, "The partner still earns 10% of the full fee share");
   assert.equal(balance(HOUSE) - after.house, 0.24 * SOL - 0.012 * SOL);
 
   // 9. A draw takes no fee, so there is nothing to give back.
@@ -142,20 +145,20 @@ try {
     sqlite.prepare("INSERT INTO cash_ledger VALUES(?, ?, 'match_entry', ?, 'drawn', 0)").run("drawn" + uid + "entry", cashAccountId(uid), -SOL);
   }
   credit("escrow:drawn", 2 * SOL, "drawnescrow");
-  const draw = { alpha: balance(ALPHA), partner: balance(PARTNER) };
+  const draw = { alpha: balance(ALPHA), partner: pending(PARTNER) };
   await settle("drawn");
   assert.equal(balance(ALPHA) - draw.alpha, SOL, "A draw returns both entries");
-  assert.equal(balance(PARTNER) - draw.partner, 0, "And pays no commission");
+  assert.equal(pending(PARTNER) - draw.partner, 0, "And pays no commission");
 
   // 10. Gem matches are fee-free, so referrals never touch them.
-  assert.deepEqual(await referralCredits({ prepare: () => { throw new Error("no query for gems"); } }, { id: "g", asset: "gems", fee: 0 }, [ALPHA]), []);
+  assert.deepEqual(await referralCredits({ prepare: () => { throw new Error("no query for gems"); } }, { id: "g", asset: "gems", fee: 0 }, [ALPHA]), { ops: [], rebates: {} });
 
   // 11. What each side sees of it.
   const mine = await referralSummary(ALPHA, NOW);
   assert.deepEqual([mine.level, mine.referredBy, mine.joined, mine.earned], [1, "Partner", 0, 0]);
   assert.ok(mine.discountUntil > Date.now(), "A window still open is reported with its end");
   const theirs = await referralSummary(PARTNER, NOW);
-  assert.deepEqual([theirs.level, theirs.joined, theirs.earned], [2, 1, 0.028 * SOL], "A partner sees what they brought in and what it paid");
+  assert.deepEqual([theirs.level, theirs.joined, theirs.earned, theirs.pending], [2, 1, 0.028 * SOL, 0.028 * SOL], "A partner sees what they brought in, and what is waiting");
   const roster = await referralRoster();
   assert.deepEqual(roster.map((r) => r.name), ["Partner", "Friend"], "The administrator sees partners first, then anyone who referred");
 
@@ -165,14 +168,36 @@ try {
   await assert.rejects(() => setReferralLevel("admin", "Friend", 2, ""), /note explaining/);
   await setReferralLevel("admin", "Partner", 1, "Partnership ended");
   await played("expartner", ALPHA, GAMMA);
-  const ended = { partner: balance(PARTNER) };
+  const ended = { partner: pending(PARTNER) };
   await settle("expartner");
-  assert.equal(balance(PARTNER) - ended.partner, 0, "A withdrawn partnership stops earning");
+  assert.equal(pending(PARTNER) - ended.partner, 0, "A withdrawn partnership stops earning");
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'referral_%'").get().n, 2, "Both decisions are on the record");
   assert.equal(REFERRAL.standardFee - REFERRAL.discountedFee, 4, "The discount is four points of the player's own stake");
 
+  // 13. Claiming: the pot crosses into the balance in one move, and only once.
+  await assert.rejects(() => claimPartnerEarnings(FRIEND), /nothing to claim yet/);
+  const owed = pending(PARTNER);
+  assert.ok(owed > 0);
+  const claim = { balance: balance(PARTNER), pool: liabilities() };
+  assert.deepEqual(await claimPartnerEarnings(PARTNER), { claimed: owed });
+  assert.equal(balance(PARTNER) - claim.balance, owed, "All of it, in one line");
+  assert.equal(pending(PARTNER), 0, "And the pot is empty");
+  assert.equal(liabilities(), claim.pool, "It was already owed: the pool's total does not move");
+  assert.equal((await referralSummary(PARTNER, NOW)).earned, owed, "What was earned is still counted once it is taken");
+  await assert.rejects(() => claimPartnerEarnings(PARTNER), /nothing to claim yet/, "There is nothing left to take");
+
+  // Two claims at once cannot both pay: the pot cannot go below zero.
+  await played("racing", ALPHA, GAMMA);
+  await setReferralLevel("admin", "Partner", 2, "Back on");
+  await settle("racing");
+  const racing = pending(PARTNER);
+  assert.ok(racing > 0);
+  const both = await Promise.allSettled([claimPartnerEarnings(PARTNER), claimPartnerEarnings(PARTNER)]);
+  assert.equal(both.filter((r) => r.status === "fulfilled").length, 1, "Only one of them pays");
+  assert.equal(pending(PARTNER), 0);
+
   console.log(
-    "PASS: referrals (codes made once or chosen, old codes kept and never reused, reserved names refused, races settled once, signup only, no self-referral, one referrer for good, a day or a week by level, payouts untouched, rebates win or lose, partner share of the net, idempotent settlement, no fee no rebate, gems untouched, summaries, admin grant and withdrawal).",
+    "PASS: referrals (codes made once or chosen, old codes kept and never reused, reserved names refused, races settled once, signup only, no self-referral, one referrer for good, a day or a week by level, payouts untouched, rebates win or lose, partner share of the net, idempotent settlement, no fee no rebate, gems untouched, summaries, admin grant and withdrawal, earnings that wait in their own pot until claimed, claimed once and never twice at a time).",
   );
 } finally {
   close();

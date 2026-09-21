@@ -246,6 +246,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
                 <em>
                   Entry {amount(recap!.stake, asset)}
                   {recap!.bonusGems > 0 && <b className={styles.gemBonus}> · +{recap!.bonusGems} gems bonus</b>}
+                  {recap!.rebate > 0 && <b className={styles.gemBonus}> · +{amount(recap!.rebate, asset)} fee back</b>}
                 </em>
               </>
             ) : (

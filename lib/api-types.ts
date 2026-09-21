@@ -28,6 +28,21 @@ export const isStake = (asset: Asset, stake: number) => STAKES[asset].includes(s
 // Gem matches are fee-free. Devnet fees are the part of the pot not paid out.
 export const winnerPayout = (stake: number, asset: Asset) => asset === "gems" ? stake * 2 : Math.floor((stake * 176) / 100); // 88% of both entries
 export const winnerFee = (stake: number, asset: Asset) => stake * 2 - winnerPayout(stake, asset); // 12% of both entries
+
+/** What each side funds of the house fee, and what a referred player funds instead. */
+export const REFERRAL_FEES = { standard: 12, discounted: 8 } as const;
+
+/**
+ * What a player on a reduced fee gets back after a match at this entry, win or
+ * lose. The match itself settles exactly as it would without any of it: this is
+ * the house handing back part of the fee it just took (lib/referrals.ts), so
+ * the same arithmetic serves the lobby, the result screen and the ledger.
+ */
+export function feeRebate(stake: number, asset: Asset) {
+  if (asset !== "devnet" || stake <= 0) return 0;
+  const funded = Math.floor(winnerFee(stake, asset) / 2);
+  return Math.floor((funded * (REFERRAL_FEES.standard - REFERRAL_FEES.discounted)) / REFERRAL_FEES.standard);
+}
 export const cancelRefund = (stake: number, asset: Asset) => asset === "gems" ? stake : Math.floor((stake * 88) / 100); // entry minus the 12% fee
 
 export type Run = {
@@ -137,6 +152,8 @@ export type MatchRecap = {
   net: number | null;
   /** Gems awarded for winning this devnet SOL match. */
   bonusGems: number;
+  /** Lamports the house gave back on a reduced fee, win or lose. */
+  rebate: number;
   you: RecapSide;
   /** The opponent's stats appear only once the match has settled; scores stay hidden until both finish. */
   opponent: { name: string; avatar: string | null; level: PlayerLevel; stats: RecapSide | null } | null;
@@ -154,6 +171,8 @@ export type MatchNotification = {
   opponentScore: number;
   /** Gems won alongside a devnet SOL win; absent on older notifications. */
   bonusGems?: number;
+  /** Lamports handed back because this player is on a reduced house fee. */
+  rebate?: number;
   /** Set when the match ended because a player was disqualified for automated play: true if it was the opponent. */
   disqualified?: boolean;
   /** Why an administrator cancelled the match. */
@@ -260,7 +279,7 @@ export type FriendList = { friends: Friend[]; incoming: Friend[]; outgoing: Frie
 export type FriendMessage = { id: string; mine: boolean; body: string; created: number };
 
 /** One line of the administrator's referral roster. */
-export type AdminReferral = { name: string; level: number; code: string | null; joined: number; earned: number };
+export type AdminReferral = { name: string; level: number; code: string | null; joined: number; earned: number; pending: number };
 
 /** A player's own referral standing: their code, their window, and what it brought in. */
 export type ReferralSummary = {
@@ -271,8 +290,10 @@ export type ReferralSummary = {
   discountUntil: number | null;
   referredBy: string | null;
   joined: number;
-  /** Lamports earned as a partner, all time. */
+  /** Lamports earned as a partner, all time, claimed or not. */
   earned: number;
+  /** Lamports waiting to be claimed into the spendable balance. */
+  pending: number;
 };
 
 /** A private match opened for one player: its link is the code. */
@@ -296,6 +317,8 @@ export type Snapshot = {
   suspension: { reason: string } | null;
   /** The free daily gems: what today pays, and whether it is still to claim. */
   daily: DailyGems;
+  /** While this is in the future, this player funds a reduced house fee. */
+  discountUntil: number | null;
 };
 
 /** The free gems a player can claim once a day (lib/daily.ts). */
