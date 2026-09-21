@@ -13,8 +13,10 @@ export async function GET(req: Request) {
     const user = await currentUser();
     if (!user) return json({ error: "Sign in to see your friends." }, 401);
     if (await rateLimited("gameRead", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
-    const name = new URL(req.url).searchParams.get("with");
-    if (name) return json({ messages: await conversation(user.userId, name) });
+    const params = new URL(req.url).searchParams;
+    const name = params.get("with");
+    // `after` turns the poll of an open thread into a delta: usually nothing.
+    if (name) return json({ messages: await conversation(user.userId, name, Date.now(), params.get("after")) });
     return json(await friendList(user.userId));
   } catch (e) {
     if (e instanceof GameError) return json({ error: e.message }, e.status);

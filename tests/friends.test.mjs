@@ -68,6 +68,18 @@ try {
   await friends.sendMessage(ANA, "Ben", long, NOW + 3000);
   assert.equal(sqlite.prepare("SELECT length(body) AS n FROM messages ORDER BY created DESC").get().n, MESSAGE_MAX, "A message is capped, not refused");
 
+  // A thread already on screen asks only for what it does not hold. The message
+  // the cursor names comes back with it, so two written in the same millisecond
+  // cannot fall through the gap, and a poll that carries nothing marks nothing.
+  const said = await friends.sendMessage(BEN, "Ana", "you got faster", NOW + 4000);
+  const delta = await friends.conversation(ANA, "Ben", NOW + 4100, NOW + 3000);
+  assert.deepEqual(delta.map((m) => m.body), [long.slice(0, MESSAGE_MAX), "you got faster"], "From the cursor, the message it names included");
+  assert.equal(delta[1].id, said.id, "The sender is handed the id the thread will carry");
+  assert.equal((await friends.friendAlerts(ANA)).unread, 0, "Reading a delta marks what was in it");
+  await friends.sendMessage(BEN, "Ana", "still here", NOW + 4500);
+  assert.deepEqual(await friends.conversation(ANA, "Ben", NOW + 4600, NOW + 5000), [], "Nothing newer, nothing to say");
+  assert.equal((await friends.friendAlerts(ANA)).unread, 1, "An empty poll leaves what is waiting alone");
+
   // 4. A friendly game: a private match with no entry at all.
   const before = gems(ANA);
   const friendly = await matches.createChallenge(ANA, 0, "gems", "Ben");
@@ -149,7 +161,7 @@ try {
   assert.deepEqual(await moderation.reportPlayer(ANA, "Ben", "cheating", "It happened again in our last match.", NOW + 11_000), { name: "Ben", kind: "cheating" });
 
   console.log(
-    "PASS: friends (one row per pair, no self or unknown, asking back accepts, notices sent, only friends message, trimmed and capped bodies, unread counts and read marking, friendly matches that cost and pay nothing, never from matchmaking, removal takes the conversation, a refusal leaves no trace); blocking (ends the friendship and the conversation, stops messages, requests, challenges and seats both ways, listed only by its owner, undone without restoring anything); reporting (validated, one open case per pair, names only, closed once with a note and an audit row).",
+    "PASS: friends (one row per pair, no self or unknown, asking back accepts, notices sent, only friends message, trimmed and capped bodies, unread counts and read marking, deltas from a cursor that never skip and never mark an empty answer, friendly matches that cost and pay nothing, never from matchmaking, removal takes the conversation, a refusal leaves no trace); blocking (ends the friendship and the conversation, stops messages, requests, challenges and seats both ways, listed only by its owner, undone without restoring anything); reporting (validated, one open case per pair, names only, closed once with a note and an audit row).",
   );
 } finally {
   close();

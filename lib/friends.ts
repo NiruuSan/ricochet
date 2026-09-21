@@ -178,27 +178,44 @@ export async function sendMessage(uid: string, nameInput: unknown, bodyInput: un
   const link = await linkFor(uid, them.id);
   if (link?.status !== "accepted") throw new GameError(`You can only message friends. Add ${them.name} first.`, 403);
   const { low, high } = pair(uid, them.id);
+  const id = crypto.randomUUID();
   await database()
     .prepare("INSERT INTO messages(id, low_id, high_id, from_id, body, created) VALUES(?, ?, ?, ?, ?, ?)")
-    .bind(crypto.randomUUID(), low, high, uid, body, now)
+    .bind(id, low, high, uid, body, now)
     .run();
-  return { name: them.name, body, created: now };
+  // The id and the time come back so the sender's own screen, which already
+  // shows the message, can settle it without asking for the thread again.
+  return { id, name: them.name, body, created: now };
 }
 
-/** A conversation, oldest first, marked as read on the way out. */
-export async function conversation(uid: string, nameInput: unknown, now = Date.now()): Promise<FriendMessage[]> {
+/**
+ * A conversation, oldest first, marked as read on the way out.
+ *
+ * `after` asks for only what is newer than the last message the caller already
+ * holds, which is what an open thread polls for a few times a minute. The
+ * boundary itself comes back again — `>=`, not `>` — so two messages written in
+ * the same millisecond cannot fall through the gap; the caller drops what it
+ * knows by id. Marking read is a write, so it only happens when the answer
+ * actually carries something of theirs, or when the thread is being opened.
+ */
+export async function conversation(uid: string, nameInput: unknown, now = Date.now(), afterInput?: unknown): Promise<FriendMessage[]> {
   const them = await other(uid, nameInput);
   const link = await linkFor(uid, them.id);
   if (link?.status !== "accepted") throw new GameError("You can only read a conversation with a friend.", 403);
   const { low, high } = pair(uid, them.id);
+  const since = Number(afterInput);
+  const after = Number.isFinite(since) && since > 0 ? since : null;
   const db = database();
-  const { results } = await db
-    .prepare("SELECT id, from_id, body, created FROM messages WHERE low_id = ? AND high_id = ? ORDER BY created DESC LIMIT 100")
-    .bind(low, high)
-    .all<{ id: string; from_id: string; body: string; created: number }>();
-  await db
-    .prepare("UPDATE messages SET read_at = ? WHERE low_id = ? AND high_id = ? AND from_id <> ? AND read_at IS NULL")
-    .bind(now, low, high, uid)
-    .run();
+  const { results } = await (after === null
+    ? db.prepare("SELECT id, from_id, body, created FROM messages WHERE low_id = ? AND high_id = ? ORDER BY created DESC LIMIT 100").bind(low, high)
+    : db
+        .prepare("SELECT id, from_id, body, created FROM messages WHERE low_id = ? AND high_id = ? AND created >= ? ORDER BY created DESC LIMIT 100")
+        .bind(low, high, after)
+  ).all<{ id: string; from_id: string; body: string; created: number }>();
+  if (after === null || results.some((m) => m.from_id !== uid))
+    await db
+      .prepare("UPDATE messages SET read_at = ? WHERE low_id = ? AND high_id = ? AND from_id <> ? AND read_at IS NULL")
+      .bind(now, low, high, uid)
+      .run();
   return results.reverse().map((m) => ({ id: m.id, mine: m.from_id === uid, body: m.body, created: m.created }));
 }

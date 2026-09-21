@@ -1,43 +1,58 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, MessageSquare, Send, Swords, UserPlus, UserRound, X } from "lucide-react";
+import { ArrowLeft, Check, MessageSquare, Send, UserPlus, UserRound, X } from "lucide-react";
 import { Form } from "@/components/ui/form";
-import { Select } from "@/components/ui/select";
-import { MESSAGE_MAX, STAKES, type Asset, type Friend, type FriendList, type FriendMessage } from "@/lib/api-types";
+import { MESSAGE_MAX, type Asset, type Friend, type FriendList, type FriendMessage } from "@/lib/api-types";
 import { Avatar } from "../avatar";
+import { ChallengeFriend, type Entry } from "../challenge-friend";
 import { PlayerActions } from "../player-actions";
 import { request } from "../api";
-import { units, timeAgo } from "../format";
+import { timeAgo } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./friends.module.css";
 
-const REFRESH_MS = 10_000;
+/** How often the list behind the conversation is refreshed. */
+const LIST_MS = 10_000;
+/** An open thread, while the tab is in front and the talk is alive. */
+const LIVE_MS = 1_500;
+/** The same thread once nothing has been said for a while. */
+const CALM_MS = 5_000;
+/** Silence that turns a live thread calm. */
+const CALM_AFTER = 60_000;
+/** A thread behind a hidden tab: slow enough to cost nothing, fast enough to catch up. */
+const HIDDEN_MS = 30_000;
 
-/** Every way a friendly game can be entered: for nothing, for gems, for devnet SOL. */
-const ENTRIES = [
-  { value: "free", label: "Friendly · no entry" },
-  ...STAKES.gems.map((stake) => ({ value: `gems:${stake}`, label: `${units(stake, "gems")} gems` })),
-  ...STAKES.devnet.map((stake) => ({ value: `devnet:${stake}`, label: `${units(stake, "devnet")} SOL` })),
-];
+/** A message on screen, including one the server has not confirmed yet. */
+type Shown = FriendMessage & { pending?: boolean };
 
 /**
  * Friends: who they are, what they said, and the fastest way to put a board
  * between you. A challenge from here is the private match the arena already
  * knows how to play — for nothing, for gems, or for devnet SOL.
+ *
+ * The conversation is meant to feel immediate: what you write is on screen
+ * before the request leaves, and the thread asks the server only for what it
+ * does not already have, often enough that an answer lands while you are still
+ * reading the last one.
  */
 export function FriendsView({ player }: { player: PlayerState }) {
   const router = useRouter();
   const [list, setList] = useState<FriendList | null>(null);
   const [open, setOpen] = useState<string | null>(null);
-  const [messages, setMessages] = useState<FriendMessage[] | null>(null);
+  const [messages, setMessages] = useState<Shown[] | null>(null);
   const [draft, setDraft] = useState("");
   const [name, setName] = useState("");
-  const [entry, setEntry] = useState("free");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  // The thread poller outlives any one render: what it needs lives in refs.
+  const openRef = useRef<string | null>(null);
+  const cursorRef = useRef(0);
+  const refreshRef = useRef(player.refresh);
+  const scroller = useRef<HTMLDivElement>(null);
 
   const load = useCallback(
     () =>
@@ -47,17 +62,97 @@ export function FriendsView({ player }: { player: PlayerState }) {
       ),
     [],
   );
-  const loadThread = useCallback((who: string) => request<{ messages: FriendMessage[] }>(`/api/friends?with=${encodeURIComponent(who)}`).then(({ messages: m }) => setMessages(m), () => {}), []);
+
+  useEffect(() => {
+    refreshRef.current = player.refresh;
+  });
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => {
-      if (document.hidden) return;
-      void load();
-      if (open) void loadThread(open);
-    }, REFRESH_MS);
+    const timer = setInterval(() => !document.hidden && void load(), LIST_MS);
     return () => clearInterval(timer);
-  }, [load, loadThread, open]);
+  }, [load]);
+
+  /**
+   * Pulls what the open thread does not have yet. Returns true when the other
+   * player said something, which is what keeps the poll quick.
+   */
+  const pull = useCallback(async (who: string, first: boolean) => {
+    const after = first ? 0 : cursorRef.current;
+    let fresh: FriendMessage[];
+    try {
+      const query = `/api/friends?with=${encodeURIComponent(who)}${after ? `&after=${after}` : ""}`;
+      fresh = (await request<{ messages: FriendMessage[] }>(query)).messages;
+    } catch (e) {
+      if (first) setError((e as Error).message);
+      return false;
+    }
+    if (openRef.current !== who) return false;
+    for (const m of fresh) if (m.created > cursorRef.current) cursorRef.current = m.created;
+    let theirs = false;
+    setMessages((current) => {
+      // A first read replaces the thread; a delta is merged into it. Either way
+      // a message still in flight stays on screen until its own reply lands.
+      const base = after && current ? current : (current ?? []).filter((m) => m.pending);
+      const known = new Set(base.map((m) => m.id));
+      const added = fresh.filter((m) => !known.has(m.id));
+      theirs = added.some((m) => !m.mine);
+      if (!added.length) return base === current ? current : base;
+      return [...base, ...added].sort((a, b) => a.created - b.created);
+    });
+    return theirs;
+  }, []);
+
+  // One chain of timers per open thread: quick while it is alive, cheap when it
+  // is not. Coming back to the tab always asks straight away.
+  useEffect(() => {
+    openRef.current = open;
+    if (!open) return;
+    let live = true;
+    let chain = 0;
+    let quiet = Date.now();
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = async (token: number, first = false) => {
+      if (!live || token !== chain) return;
+      if (!document.hidden && (await pull(open, first))) quiet = Date.now();
+      if (first) {
+        // The badges this thread just cleared are on the list and in the navbar.
+        void load();
+        void refreshRef.current();
+      }
+      if (!live || token !== chain) return;
+      const delay = document.hidden ? HIDDEN_MS : Date.now() - quiet < CALM_AFTER ? LIVE_MS : CALM_MS;
+      timer = setTimeout(() => void tick(token), delay);
+    };
+    const start = (first = false) => {
+      chain += 1;
+      clearTimeout(timer);
+      void tick(chain, first);
+    };
+
+    start(true);
+    const wake = () => {
+      if (document.hidden) return;
+      quiet = Date.now();
+      start();
+    };
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("focus", wake);
+    };
+  }, [open, pull, load]);
+
+  // Whatever arrives, the newest line is the one you are looking at. The
+  // conversation scrolls itself, never the page behind it.
+  useEffect(() => {
+    const box = scroller.current;
+    if (box) box.scrollTop = box.scrollHeight;
+  }, [messages?.length]);
 
   const act = async (body: Record<string, unknown>, who: string, done?: string) => {
     setBusy(who);
@@ -76,29 +171,42 @@ export function FriendsView({ player }: { player: PlayerState }) {
     }
   };
 
-  const openThread = async (who: string) => {
-    setOpen(who);
+  // Opening a thread empties the one before it: the poller that follows reads
+  // the whole conversation, not a delta against somebody else's messages.
+  const openThread = (who: string) => {
+    cursorRef.current = 0;
     setMessages(null);
     setDraft("");
-    await loadThread(who);
-    await player.refresh();
-    await load();
+    setError("");
+    setNotice("");
+    setOpen(who);
   };
 
+  /** Says it on screen first, then to the server. A refusal hands the words back. */
   const say = async () => {
-    if (!open || !draft.trim()) return;
     const body = draft.trim();
+    if (!open || !body) return;
+    const placeholder = `pending:${crypto.randomUUID()}`;
     setDraft("");
-    if (await act({ action: "message", name: open, body }, open)) await loadThread(open);
+    setMessages((current) => [...(current ?? []), { id: placeholder, mine: true, body, created: Date.now(), pending: true }]);
+    try {
+      const sent = await request<{ id: string; created: number }>("/api/friends", { action: "message", name: open, body });
+      if (sent.created > cursorRef.current) cursorRef.current = sent.created;
+      setMessages((current) => (current ?? []).map((m) => (m.id === placeholder ? { id: sent.id, mine: true, body, created: sent.created } : m)));
+      void load();
+    } catch (e) {
+      setError((e as Error).message);
+      setMessages((current) => (current ?? []).filter((m) => m.id !== placeholder));
+      setDraft((current) => current || body);
+    }
   };
 
-  /** Opens a private match for this friend and goes to the board. */
-  const challenge = async (who: string) => {
-    const [kind, amount] = entry === "free" ? ["gems", "0"] : entry.split(":");
+  /** Opens a private match at the entry they chose, and goes to the board. */
+  const challenge = async (who: string, entry: Entry) => {
     setBusy(who);
     setError("");
     try {
-      await request("/api/game", { action: "challenge", stake: Number(amount), asset: kind as Asset, opponent: who });
+      await request("/api/game", { action: "challenge", stake: entry.stake, asset: entry.asset, opponent: who });
       router.push("/");
     } catch (e) {
       setError((e as Error).message);
@@ -121,10 +229,12 @@ export function FriendsView({ player }: { player: PlayerState }) {
   }
 
   const friend = list?.friends.find((f) => f.name === open) ?? null;
+  const balance = (asset: Asset) => (asset === "gems" ? (player.data.player?.balance ?? 0) : (player.data.cashBalance ?? 0));
+  const solConfigured = !!player.data.launch?.configured;
 
   const row = (f: Friend, kind: "friend" | "incoming" | "outgoing") => (
     <div key={f.name} className={`${styles.row} ${open === f.name ? styles.rowOpen : ""}`}>
-      <button type="button" className={styles.who} onClick={() => kind === "friend" && void openThread(f.name)} disabled={kind !== "friend"}>
+      <button type="button" className={styles.who} onClick={() => kind === "friend" && openThread(f.name)} disabled={kind !== "friend"}>
         <span className={styles.face}>
           <Avatar name={f.name} src={f.avatar} size={40} />
           {f.online && <i className={styles.online} aria-label="online" />}
@@ -150,10 +260,8 @@ export function FriendsView({ player }: { player: PlayerState }) {
       <div className={styles.actions}>
         {kind === "friend" && (
           <>
-            <button className="btn" disabled={busy === f.name} onClick={() => void challenge(f.name)}>
-              <Swords size={15} /> Challenge
-            </button>
-            <button className="btn" disabled={busy === f.name} onClick={() => void openThread(f.name)}>
+            <ChallengeFriend name={f.name} balance={balance} solConfigured={solConfigured} busy={busy === f.name} onChallenge={(entry) => challenge(f.name, entry)} />
+            <button className="btn" disabled={busy === f.name} onClick={() => openThread(f.name)}>
               <MessageSquare size={15} /> Message
             </button>
           </>
@@ -221,11 +329,6 @@ export function FriendsView({ player }: { player: PlayerState }) {
             </button>
           </Form>
 
-          <div className={styles.entry}>
-            <span>Challenge entry</span>
-            <Select label="Entry for a friendly challenge" value={entry} onValueChange={setEntry} options={ENTRIES} />
-          </div>
-
           {!list ? (
             <p className="muted">Loading your friends…</p>
           ) : (
@@ -285,6 +388,7 @@ export function FriendsView({ player }: { player: PlayerState }) {
                 <small>{friend?.online ? "Online now" : "Offline"}</small>
               </div>
               <div className={styles.threadActions}>
+                <ChallengeFriend name={open} balance={balance} solConfigured={solConfigured} busy={busy === open} onChallenge={(entry) => challenge(open, entry)} />
                 <Link className={styles.profileLink} href={`/players/${encodeURIComponent(open)}`}>
                   Profile
                 </Link>
@@ -298,14 +402,14 @@ export function FriendsView({ player }: { player: PlayerState }) {
                 />
               </div>
             </div>
-            <div className={styles.messages}>
+            <div className={styles.messages} ref={scroller}>
               {!messages ? (
                 <p className="muted">Loading…</p>
               ) : messages.length ? (
                 messages.map((m) => (
-                  <div key={m.id} className={m.mine ? styles.mine : styles.theirs}>
+                  <div key={m.id} className={`${m.mine ? styles.mine : styles.theirs} ${m.pending ? styles.pending : ""}`}>
                     <p>{m.body}</p>
-                    <small>{timeAgo(m.created)}</small>
+                    <small>{m.pending ? "Sending…" : timeAgo(m.created)}</small>
                   </div>
                 ))
               ) : (
