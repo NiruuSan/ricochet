@@ -66,6 +66,9 @@ export function AdminPartners() {
         Every player has a code. A code gives whoever signs up with it 8% house fee instead of 12% — a day from an ordinary code, a week from a partner&apos;s.
         Winnings never change: the difference is credited back to the player after each match, out of the house fee.
       </p>
+      <p className="muted">
+        Net site earnings are the all-time fees from referred players, after player rebates and partner commissions.
+      </p>
       {error && (
         <div className="error" role="alert" style={{ marginTop: 14 }}>
           <span>{error}</span>
@@ -99,14 +102,17 @@ export function AdminPartners() {
       ) : (
         <div style={{ marginTop: 16 }}>
           {list.map((row) => (
-            <div key={row.name} className={styles.adminRow}>
+            <div key={row.name} className={`${styles.adminRow} ${styles.partnerRow}`}>
               <div>
                 <b>
                   {row.name} {row.level >= 2 && <span className="tag lime">PARTNER</span>}
                 </b>
                 <span className={styles.muted}>
                   Code {row.code ?? "—"} · {row.joined} {row.joined === 1 ? "player" : "players"} brought in
-                  {row.level >= 2 && ` · ${fullSol(row.earned)} SOL earned${row.pending > 0 ? ` · ${fullSol(row.pending)} SOL waiting to be claimed` : ""}`}
+                  {(row.level >= 2 || row.earned > 0) && ` · ${fullSol(row.earned)} SOL partner earnings${row.pending > 0 ? ` · ${fullSol(row.pending)} SOL waiting to be claimed` : ""}`}
+                </span>
+                <span className={styles.partnerRevenue}>
+                  {fullSol(row.siteEarned)} SOL net site earnings
                 </span>
               </div>
               <button className="btn" disabled={busy === row.name} onClick={() => void setLevel(row.name, row.level >= 2 ? 1 : 2)}>

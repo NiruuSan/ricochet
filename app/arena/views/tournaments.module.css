@@ -355,6 +355,15 @@
 .adminRow b {
   display: block;
 }
+.adminRow.partnerRow {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.partnerRevenue {
+  display: block;
+  margin-top: 6px;
+  color: #c6f564;
+  font-weight: 700;
+}
 
 @keyframes pulse {
   50% {

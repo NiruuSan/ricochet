@@ -1,5 +1,5 @@
 import { database, type Database, type Statement } from "@/db/raw";
-import { REFERRAL_FEES, type Asset } from "./api-types";
+import { REFERRAL_FEES, type AdminReferral, type Asset } from "./api-types";
 import { adminAudit, adminNote } from "./admin";
 import { isSuspended } from "./anti-cheat";
 import { SUSPENDED_MESSAGE } from "./anti-cheat-rules";
@@ -266,7 +266,12 @@ export async function referralSummary(uid: string, now = Date.now()): Promise<Re
   };
 }
 
-/** Every player brought in by a partner, for the administrator's view. */
+/**
+ * Referral totals for the administrator. Attribute half of a two-player fee
+ * to each referred player (the full fee for a solo cancellation), then deduct
+ * their actual rebates and commissions. Historical ledger amounts preserve
+ * the result across discount expiry, partnership changes and earnings claims.
+ */
 export async function referralRoster(limit = 50) {
   const { results } = await database()
     .prepare(
@@ -275,13 +280,23 @@ export async function referralRoster(limit = 50) {
          (SELECT COALESCE(SUM(l.amount), 0) FROM cash_ledger l
             WHERE l.account_id IN ('devnet:earnings:' || p.id, 'devnet:' || p.id)
               AND l.kind = 'referral_commission' AND l.amount > 0) AS earned,
-         COALESCE((SELECT a.balance FROM cash_accounts a WHERE a.id = 'devnet:earnings:' || p.id), 0) AS pending
+         COALESCE((SELECT a.balance FROM cash_accounts a WHERE a.id = 'devnet:earnings:' || p.id), 0) AS pending,
+         (SELECT COALESCE(SUM(
+            CASE WHEN m.p2 IS NULL THEN fee.amount ELSE CAST(fee.amount / 2 AS INTEGER) END
+            + COALESCE(rebate.amount, 0) + COALESCE(commission.amount, 0)
+          ), 0)
+          FROM referrals r
+          JOIN matches m ON (m.p1 = r.user_id OR m.p2 = r.user_id)
+          JOIN cash_ledger fee ON fee.id = m.id || ':cash:fee' AND fee.account_id = ? AND fee.kind = 'house_fee'
+          LEFT JOIN cash_ledger rebate ON rebate.id = m.id || ':rebate-house:' || r.user_id
+          LEFT JOIN cash_ledger commission ON commission.id = m.id || ':partner-house:' || r.user_id
+          WHERE r.referrer_id = p.id AND m.asset = 'devnet' AND m.settled = 1) AS siteEarned
        FROM players p
        WHERE p.deleted IS NULL AND (p.referral_level >= 2 OR EXISTS (SELECT 1 FROM referrals r WHERE r.referrer_id = p.id))
        ORDER BY p.referral_level DESC, joined DESC LIMIT ?`,
     )
-    .bind(limit)
-    .all<{ name: string; level: number; code: string | null; joined: number; earned: number; pending: number }>();
+    .bind(cashAccountId(HOUSE), limit)
+    .all<AdminReferral>();
   return results;
 }
 

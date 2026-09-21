@@ -3,7 +3,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, Gem, Link2, Target, Zap } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { feeRebate, REFERRAL_FEES, STAKES, winnerPayout, type Asset, type Run } from "@/lib/api-types";
 import { amount, CURRENCY, shareChallenge, units } from "../format";
 import type { PlayerState } from "../arena";
@@ -46,6 +46,19 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
   const rebate = data.discountUntil && choice ? feeRebate(stake, choice) : 0;
   const { overview, now } = useArenaOverview();
   const [inviting, setInviting] = useState(false);
+  const stakePanelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!choice || !window.matchMedia("(max-width: 720px)").matches) return;
+    // Wait for the entry panel to mount before bringing it into view.
+    const frame = window.requestAnimationFrame(() => {
+      stakePanelRef.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+        block: "start",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [choice]);
 
   /** Opens a private match and puts its link where the player can send it. */
   const openChallenge = async () => {
@@ -131,7 +144,7 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
       <DailyGemsCard player={player} />
 
       {choice && (
-        <div className={styles.stakePanel} key={choice}>
+        <div ref={stakePanelRef} className={styles.stakePanel} key={choice}>
           <div className={styles.stakeTop}>
             <h2>Choose your entry</h2>
             <span>

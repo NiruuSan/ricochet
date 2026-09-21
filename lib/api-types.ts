@@ -279,7 +279,16 @@ export type FriendList = { friends: Friend[]; incoming: Friend[]; outgoing: Frie
 export type FriendMessage = { id: string; mine: boolean; body: string; created: number };
 
 /** One line of the administrator's referral roster. */
-export type AdminReferral = { name: string; level: number; code: string | null; joined: number; earned: number; pending: number };
+export type AdminReferral = {
+  name: string;
+  level: number;
+  code: string | null;
+  joined: number;
+  earned: number;
+  pending: number;
+  /** All-time match fees attributable to referred players, net of rebates and commissions, in lamports. */
+  siteEarned: number;
+};
 
 /** A player's own referral standing: their code, their window, and what it brought in. */
 export type ReferralSummary = {

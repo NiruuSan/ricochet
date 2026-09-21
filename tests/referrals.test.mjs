@@ -78,6 +78,7 @@ try {
   assert.equal(await applyReferral(ALPHA, "nosuchcode", NOW), null, "An unknown code is ignored");
   assert.equal(await applyReferral(PARTNER, partnerCode, NOW), null, "Nobody refers themselves");
   await setReferralLevel("admin", "Partner", 2, "Signed partnership");
+  assert.equal((await referralRoster())[0].siteEarned, 0, "A partner with no referred play has no site earnings");
   const joinedAlpha = await applyReferral(ALPHA, partnerCode.toUpperCase(), NOW);
   assert.deepEqual([joinedAlpha.referrer, joinedAlpha.level, joinedAlpha.discountUntil], ["Partner", 2, NOW + 7 * DAY], "A partner's code opens a week");
   const joinedBeta = await applyReferral(BETA, friendCode, NOW);
@@ -161,6 +162,10 @@ try {
   assert.deepEqual([theirs.level, theirs.joined, theirs.earned, theirs.pending], [2, 1, 0.028 * SOL, 0.028 * SOL], "A partner sees what they brought in, and what is waiting");
   const roster = await referralRoster();
   assert.deepEqual(roster.map((r) => r.name), ["Partner", "Friend"], "The administrator sees partners first, then anyone who referred");
+  assert.equal(roster.find((r) => r.name === "Partner").siteEarned, 0.252 * SOL,
+    "Only the referred player's fee share counts, less actual rebates and commissions; draws and repeated settlement add nothing");
+  assert.equal(roster.find((r) => r.name === "Friend").siteEarned, 0.08 * SOL,
+    "Ordinary referrals also generate site revenue, without a commission deduction");
 
   // 12. A partnership is granted and withdrawn by an administrator, on the record.
   await assert.rejects(() => setReferralLevel("admin", "Nobody", 2, "who?"), /No player by that name/);
@@ -171,6 +176,8 @@ try {
   const ended = { partner: pending(PARTNER) };
   await settle("expartner");
   assert.equal(pending(PARTNER) - ended.partner, 0, "A withdrawn partnership stops earning");
+  assert.equal((await referralRoster()).find((r) => r.name === "Partner").siteEarned, 0.332 * SOL,
+    "Ending a partnership keeps historical deductions and adds new fees without a commission");
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'referral_%'").get().n, 2, "Both decisions are on the record");
   assert.equal(REFERRAL.standardFee - REFERRAL.discountedFee, 4, "The discount is four points of the player's own stake");
 
@@ -184,6 +191,8 @@ try {
   assert.equal(pending(PARTNER), 0, "And the pot is empty");
   assert.equal(liabilities(), claim.pool, "It was already owed: the pool's total does not move");
   assert.equal((await referralSummary(PARTNER, NOW)).earned, owed, "What was earned is still counted once it is taken");
+  assert.equal((await referralRoster()).find((r) => r.name === "Partner").siteEarned, 0.332 * SOL,
+    "Claiming a commission does not deduct it from site earnings a second time");
   await assert.rejects(() => claimPartnerEarnings(PARTNER), /nothing to claim yet/, "There is nothing left to take");
 
   // Two claims at once cannot both pay: the pot cannot go below zero.
@@ -195,6 +204,26 @@ try {
   const both = await Promise.allSettled([claimPartnerEarnings(PARTNER), claimPartnerEarnings(PARTNER)]);
   assert.equal(both.filter((r) => r.status === "fulfilled").length, 1, "Only one of them pays");
   assert.equal(pending(PARTNER), 0);
+
+  // Each side belongs to its own referrer, even when both players were referred.
+  const revenue = async (name) => (await referralRoster()).find((r) => r.name === name).siteEarned;
+  const separate = { partner: await revenue("Partner"), friend: await revenue("Friend"), house: balance(HOUSE) };
+  await played("two-referrers", ALPHA, BETA);
+  assert.equal(await revenue("Partner"), separate.partner, "Unsettled stakes are not site earnings");
+  await settle("two-referrers");
+  assert.equal(await revenue("Partner") - separate.partner, 0.072 * SOL);
+  assert.equal(await revenue("Friend") - separate.friend, 0.08 * SOL);
+  assert.equal((await revenue("Partner") - separate.partner) + (await revenue("Friend") - separate.friend),
+    balance(HOUSE) - separate.house, "Attributed earnings sum to the actual net house fee");
+
+  await ensureCashAccount(DELTA);
+  credit(DELTA, SOL);
+  const shared = { friend: await revenue("Friend"), house: balance(HOUSE) };
+  await played("same-referrer", BETA, DELTA);
+  await settle("same-referrer");
+  assert.equal(await revenue("Friend") - shared.friend, 0.16 * SOL,
+    "Two players from one referrer contribute both shares, without double counting the fee");
+  assert.equal(await revenue("Friend") - shared.friend, balance(HOUSE) - shared.house);
 
   console.log(
     "PASS: referrals (codes made once or chosen, old codes kept and never reused, reserved names refused, races settled once, signup only, no self-referral, one referrer for good, a day or a week by level, payouts untouched, rebates win or lose, partner share of the net, idempotent settlement, no fee no rebate, gems untouched, summaries, admin grant and withdrawal, earnings that wait in their own pot until claimed, claimed once and never twice at a time).",
