@@ -1222,10 +1222,16 @@
   }
 }
 @media (max-width: 900px) {
-  /* Phones: the outcome and the comparison fit one screen; the final boards stay on larger screens. */
+  /* Phones: the outcome and the comparison stack, and the final boards stay on
+     larger screens. They stack in normal flow rather than in grid rows: rows
+     share out the screen's height, and both of these sections hide their own
+     overflow, so a row could be handed less height than it holds — the end of
+     the outcome disappeared under the comparison, and the comparison's own
+     content spilled upwards behind it, where no amount of scrolling reaches it.
+     That is what cut the avatars in half. In flow each section is as tall as
+     what it holds, and the screen scrolls. */
   .result {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
+    display: block;
   }
   .outcome {
     padding: 22px 20px 20px;

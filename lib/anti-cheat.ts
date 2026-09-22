@@ -182,13 +182,28 @@ export async function analyzeShot(input: {
   if (input.evaluate) await evaluatePlayer(input.uid, now);
 }
 
-export async function playerShotStats(uid: string, now = Date.now()) {
+/**
+ * When this player's statistics start. Normally the window; after a review that
+ * cleared them, the moment of the review. Evidence an administrator has already
+ * looked at and rejected is never allowed to suspend the same player again —
+ * without this, the shots that led to a lifted suspension are still in the
+ * window and the next one they play puts them straight back under it.
+ */
+export async function statsSince(uid: string, now = Date.now()) {
+  const row = await database()
+    .prepare("SELECT reviewed_at AS at FROM player_suspensions WHERE user_id = ? AND status = 'lifted'")
+    .bind(uid)
+    .first<{ at: number | null }>();
+  return Math.max(now - STATS.windowMs, Number(row?.at ?? 0));
+}
+
+export async function playerShotStats(uid: string, now = Date.now(), since = now - STATS.windowMs) {
   const { results } = await database()
     .prepare(
       `SELECT gain, best_gain AS bestGain, best_share AS bestShare, aim_ms AS aimMs, aim_moves AS aimMoves, quality, angle, trapped FROM shot_analysis
        WHERE user_id = ? AND created >= ? ORDER BY created DESC, revision DESC LIMIT ?`,
     )
-    .bind(uid, now - STATS.windowMs, STATS.maxShots)
+    .bind(uid, since, STATS.maxShots)
     .all<{ gain: number; bestGain: number; bestShare: number; aimMs: number | null; aimMoves: number | null; quality: number | null; angle: number | null; trapped: number | null }>();
   return results;
 }
@@ -222,7 +237,8 @@ async function recentSolMatches(uid: string) {
 /** Suspends the player for review when their recent shots cross a statistical threshold. */
 export async function evaluatePlayer(uid: string, now = Date.now()) {
   if (await isSuspended(uid)) return [];
-  const [shots, population, matches] = await Promise.all([playerShotStats(uid, now), populationQuality(now), recentSolMatches(uid)]);
+  const since = await statsSince(uid, now);
+  const [shots, population, matches] = await Promise.all([playerShotStats(uid, now, since), populationQuality(now), recentSolMatches(uid)]);
   const qualities = shots.map((s) => s.quality).filter((q): q is number => q !== null);
   const angles = shots.map((s) => s.angle).filter((a): a is number => a !== null);
   const trapRounds = shots.filter((s) => s.trapped !== null);
@@ -267,7 +283,7 @@ export async function evaluateTraps(uid: string, runKey: string | null, now = Da
   const db = database();
   const { results } = await db
     .prepare("SELECT trapped FROM shot_analysis WHERE user_id = ? AND trapped IS NOT NULL AND created >= ? ORDER BY created DESC, revision DESC LIMIT ?")
-    .bind(uid, now - STATS.windowMs, TRAP.window)
+    .bind(uid, await statsSince(uid, now), TRAP.window)
     .all<{ trapped: number }>();
   const trapped = results.filter((r) => r.trapped).length;
   const detail = { trapped, trapRounds: results.length };

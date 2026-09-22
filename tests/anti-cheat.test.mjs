@@ -62,9 +62,11 @@ try {
   assert.equal(rules.qualityThreshold(crowd), rules.QUALITY.floorMean, "A weak population never lowers the bar under the floor");
   const strong = Array.from({ length: 100 }, (_, i) => 0.8 + i * 0.001);
   assert.equal(rules.qualityThreshold(strong), 0.899, "A strong population raises the bar to its 99th percentile");
-  assert.deepEqual(rules.evaluateQuality(Array(59).fill(0.95), 0.85), [], "Too few shots");
-  assert.deepEqual(rules.evaluateQuality(Array(80).fill(0.78), 0.85), [], "A careful player");
-  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.85)[0].kind, "superhuman_quality");
+  assert.deepEqual(rules.evaluateQuality(Array(59).fill(0.96), rules.QUALITY.absoluteMean), [], "Too few shots");
+  assert.deepEqual(rules.evaluateQuality(Array(80).fill(0.78), rules.QUALITY.absoluteMean), [], "A careful player");
+  // The site's own best player, by hand on a phone over 400 shots: 0.85 to 0.86.
+  assert.deepEqual(rules.evaluateQuality(Array(400).fill(0.86), rules.QUALITY.absoluteMean), [], "A strong player is not a case at all");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.96), rules.QUALITY.absoluteMean)[0].kind, "superhuman_quality", "An average no hand reaches");
 
   // Angle variety. Beating most of the sampled angles is only evidence of
   // solving if the player is choosing per board; someone who always aims flat
@@ -80,21 +82,23 @@ try {
   assert.equal(rules.angleConcentration(Array(29).fill(8)), null, "Too few angles to say anything");
   assert.equal(rules.angleConcentration(oneShot), 1, "Every shot is the same shot");
   assert.ok(rules.angleConcentration(spread) < 0.2, "Angles that answer the board are spread out");
-  const solver = rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread);
-  assert.deepEqual([solver[0].kind, solver[0].level], ["superhuman_quality", "stat"], "A high percentile across the range still suspends");
+  const solver = rules.evaluateQuality(Array(80).fill(0.96), 0.88, spread);
+  assert.deepEqual([solver[0].kind, solver[0].level], ["superhuman_quality", "stat"], "A solver-level percentile across the range suspends");
   assert.ok(solver[0].detail.angleShare < 0.2, "And the spread is on the record either way");
   // Ghost traps outrank the average. A strong player's mean sits where a
-  // program's does, so an average alone is not enough to take somebody's play
-  // away from them: ten trap rounds met and none aimed into says they are
-  // reading the screen, whatever the percentile says.
+  // program's does, so an average below solver level is never enough on its own
+  // to take somebody's play away from them: what makes it evidence is the traps
+  // saying the same thing, and one trapped round is chance, not a pattern.
   const clean = { rounds: 10, trapped: 0 };
-  const sighted = rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread, clean);
+  const sighted = rules.evaluateQuality(Array(80).fill(0.9), 0.88, spread, clean);
   assert.deepEqual([sighted[0].kind, sighted[0].level, sighted[0].detail.trapRounds], ["unconfirmed_quality", "watch", 10], "Nothing else points to a program");
-  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread, { rounds: 10, trapped: 1 })[0].level, "stat", "One trap aimed into and the average counts again");
-  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.85, spread, { rounds: 4, trapped: 0 })[0].level, "stat", "Too few rounds to say the record is clean");
-  const habit = rules.evaluateQuality(Array(80).fill(0.9), 0.85, oneShot, clean);
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.88, spread, { rounds: 22, trapped: 1 })[0].level, "watch", "One trap in twenty-two rounds is chance");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.88, spread, { rounds: 10, trapped: 3 })[0].level, "stat", "A trap record that agrees makes the average evidence");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.9), 0.88, spread, { rounds: 4, trapped: 2 })[0].level, "watch", "Too few rounds to read anything into the record");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.96), 0.88, spread, clean)[0].level, "stat", "A solver-level average stands on its own");
+  const habit = rules.evaluateQuality(Array(80).fill(0.96), 0.88, oneShot, clean);
   assert.deepEqual([habit[0].kind, habit[0].level, habit[0].detail.angleShare], ["one_angle_quality", "watch", 1], "One repeated angle is noted, never sanctioned");
-  assert.equal(rules.evaluateQuality(Array(80).fill(0.78), 0.85, oneShot).length, 0, "And a habit below the bar is nothing at all");
+  assert.equal(rules.evaluateQuality(Array(80).fill(0.78), 0.88, oneShot).length, 0, "And a habit below the bar is nothing at all");
   const board = (bricks, extra = {}) => ({ seed: 1, round: 5, score: 10, balls: 5, x: 200, bricks, over: false, bonus: false, ...extra });
   const before = board([]);
   assert.ok(rules.boardValue(before, board([{ col: 0, row: 2, hp: 5 }], { score: 20 })) < rules.boardValue(before, board([{ col: 0, row: 6, hp: 5 }], { score: 18 })), "Bricks near the ground cost more than a few points");
@@ -279,6 +283,41 @@ try {
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM player_suspensions WHERE user_id = 'ac-dee'").get().n, 0, "An average alone does not take somebody's play away");
   assert.equal(sqlite.prepare("SELECT level FROM cheat_signals WHERE user_id = 'ac-dee'").get().level, "watch", "It is still put in front of the administrator");
 
+  // The same average, with the traps agreeing: three of ten rounds aimed at
+  // bricks that were never on the screen is not chance, and the two together
+  // are evidence.
+  sqlite.prepare("INSERT INTO players(id, name, created) VALUES('ac-gus', 'gus', 0)").run();
+  for (let i = 0; i < 70; i++) {
+    sqlite
+      .prepare("INSERT INTO shot_analysis(run_key, revision, user_id, aim_ms, gain, best_gain, best_share, quality, angle, trapped, created) VALUES('gus-run', ?, 'ac-gus', ?, 10, 30, 0.5, 0.9, ?, ?, ?)")
+      .run(i, 1500 + i * 37, 20 + (i % 40) * 3.5, i < 10 ? (i < 3 ? 1 : 0) : null, Date.now() - i);
+  }
+  assert.deepEqual((await antiCheat.evaluatePlayer("ac-gus")).map((f) => [f.kind, f.level]), [["superhuman_quality", "stat"]]);
+  assert.equal(suspension("ac-gus").source, "stats");
+
+  // A review that cleared somebody clears the evidence with it. Without this,
+  // the shots an administrator has just looked at are still in the window and
+  // the player's next shot puts them straight back under suspension.
+  const reviewAt = Date.now() - 30_000;
+  sqlite.prepare("INSERT INTO players(id, name, created) VALUES('ac-fay', 'fay', 0)").run();
+  const fayShots = (from, quality) => {
+    for (let i = 0; i < 70; i++) {
+      sqlite
+        .prepare("INSERT INTO shot_analysis(run_key, revision, user_id, gain, best_gain, best_share, quality, angle, created) VALUES(?, ?, 'ac-fay', 10, 30, 0.5, ?, ?, ?)")
+        .run(`fay-${from}`, i, quality, 20 + (i % 40) * 3.5, from + i);
+    }
+  };
+  fayShots(reviewAt - 60_000, 0.97);
+  assert.deepEqual((await antiCheat.evaluatePlayer("ac-fay")).map((f) => f.kind), ["superhuman_quality"]);
+  await admin.adminLift("admin-user", "fay", "Watched the replays: played by hand", reviewAt);
+  assert.deepEqual(await antiCheat.evaluatePlayer("ac-fay"), [], "The reviewed shots are spent");
+  assert.equal(sqlite.prepare("SELECT status FROM player_suspensions WHERE user_id = 'ac-fay'").get().status, "lifted");
+  // What they play afterwards still counts, on its own.
+  fayShots(reviewAt + 1_000, 0.97);
+  assert.deepEqual((await antiCheat.evaluatePlayer("ac-fay")).map((f) => f.kind), ["superhuman_quality"], "A fresh run is judged on itself");
+  assert.equal(suspension("ac-fay").status, "suspended");
+  sqlite.prepare("DELETE FROM player_suspensions WHERE user_id = 'ac-fay'").run();
+
   // --- The switch: with sanctions off, checks still run and are recorded -----
   assert.equal(await antiCheat.antiCheatEnabled(), true, "On by default");
   await antiCheat.setAntiCheatEnabled("admin-user", false);
@@ -345,10 +384,10 @@ try {
   await admin.adminSuspend("admin-user", "ben", "Reported by several players");
   assert.equal(suspension(ids.ben).source, "admin");
   await assert.rejects(() => matches.playShot(ids.ben, benRun.id, benSaved.revision, "shot", 90, true, signed(benSaved, 90)), (e) => e.status === 403, "A suspension stops a run mid-match");
-  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%' AND action <> 'anti_cheat_toggle'").get().n, 3);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%' AND action <> 'anti_cheat_toggle'").get().n, 4);
 
   console.log(
-    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, angle variety and a clean ghost-trap record, either of which keeps a high average from suspending, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
+    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, angle variety, an average that only suspends at solver level or with the ghost traps agreeing, statistics that start again after a review, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
   );
 } finally {
   close();

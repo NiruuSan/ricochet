@@ -130,16 +130,27 @@ export const STATS = {
 export const QUALITY = {
   minShots: 60,
   /**
-   * Without enough players to compare with, this average percentile is suspicious on its own.
-   * Simulated models (work/redteam/calibrate.mjs): random 0.65, average player 0.74, careful
-   * player aiming within ±3° of a top plan 0.78, the red-team bot 0.89, a points solver 0.999.
+   * Without enough players to compare with, this average percentile is worth a
+   * look. Simulated models (work/redteam/calibrate.mjs): random 0.65, average
+   * player 0.74, careful player aiming within ±3° of a top plan 0.78, the
+   * red-team bot 0.89, a points solver 0.999 — and a real strong player, on a
+   * phone, over 400 shots: 0.85 to 0.86. A person and a program sit close
+   * enough together up here that this figure opens a case; it never closes one
+   * (see `evaluateQuality`).
    */
-  absoluteMean: 0.85,
+  absoluteMean: 0.88,
   /** With a population, the player must also be above its 99th percentile… */
   populationPercentile: 0.99,
   /** …and above this floor, so a population of weak players never makes good play suspicious. */
-  floorMean: 0.82,
+  floorMean: 0.86,
   minPopulation: 20,
+  /**
+   * The one average no person reaches: a run of 60 shots this close to the best
+   * available angle every time is a search, not a hand. The red-team bot itself
+   * stays below it, which is the point — below this line an average is never
+   * evidence on its own.
+   */
+  solverMean: 0.95,
   /** Shots within this many degrees of each other count as the same shot. */
   angleBand: 5,
   /**
@@ -153,14 +164,15 @@ export const QUALITY = {
   /** Below this many known angles there is nothing to say about variety. */
   minAngleShots: 30,
   /**
-   * Ghost trap rounds a player must have met, and never aimed into, before this
-   * figure stops being evidence on its own. A program reading the game data
-   * falls into roughly half of them (lib/ghost-trap.ts); a clean record over
-   * this many says the player is aiming at what they can see, and a strong
-   * player's average sits close enough to a program's that nothing else here
-   * can tell them apart.
+   * Ghost trap rounds a player must have met before their trap record can
+   * corroborate a high average. A program reading the game data falls into
+   * roughly half of them (lib/ghost-trap.ts); a person lands in one by chance
+   * now and again, so a single trapped shot says nothing.
    */
-  cleanTrapRounds: 8,
+  minTrapRounds: 8,
+  /** Trapped shots, and the share of trap rounds they must be, to corroborate. */
+  corroboratingTraps: 2,
+  corroboratingTrapShare: 0.25,
 };
 
 /** Results trend: a sudden jump in real-money results, for review. */
@@ -209,11 +221,25 @@ export function angleConcentration(angles: number[]) {
 }
 
 /**
- * A high average percentile is only evidence of solving if the player is
- * actually choosing per board. Someone who plays the same flat angle every time
- * beats most of the sampled angles without computing anything — the shot is
- * simply a good habit, and the percentile rewards it. So when the angles are
- * all one shot, this is recorded for the administrator and nothing more.
+ * What a player's average shot quality is worth as evidence.
+ *
+ * On its own: very little. A strong person and a program both live in the high
+ * eighties up here — the site's own best player averages 0.85 to 0.86 over 400
+ * shots played by hand on a phone, and the red-team bot 0.89 — so an average in
+ * that band cannot tell them apart, and taking somebody's play away on it alone
+ * suspends good players for being good. Two things can make it evidence:
+ *
+ * - an average no hand reaches at all (`solverMean`), or
+ * - the ghost traps saying the same thing. They are the one check with no
+ *   overlap: a program reading the game data aims at bricks that are not on the
+ *   screen, and a person does not. Chance puts a person in one now and again,
+ *   so corroboration means a repeated pattern, not a single unlucky round.
+ *
+ * Anything else is recorded for the administrator, with the player's play left
+ * alone. A high average from one repeated angle is not even that: someone who
+ * plays the same flat shot every time beats most of the sampled angles without
+ * computing anything — the shot is simply a good habit, and the percentile
+ * rewards it.
  */
 export function evaluateQuality(
   qualities: number[],
@@ -232,17 +258,17 @@ export function evaluateQuality(
     threshold: Math.round(threshold * 1000) / 1000,
     eliteShare: Math.round(elite * 1000) / 1000,
     ...(concentration === null ? {} : { angleShare: Math.round(concentration * 1000) / 1000 }),
+    ...(traps.rounds ? { trapRounds: traps.rounds, trapped: traps.trapped } : {}),
   };
   if (concentration !== null && concentration > QUALITY.maxAngleShare) {
     return [{ kind: "one_angle_quality", level: "watch", detail: { ...detail, angleBand: QUALITY.angleBand } }];
   }
-  // The traps are the one check with no overlap between a strong player and a
-  // program: a clean record over enough rounds outweighs an average that both
-  // of them reach.
-  if (traps.rounds >= QUALITY.cleanTrapRounds && traps.trapped === 0) {
-    return [{ kind: "unconfirmed_quality", level: "watch", detail: { ...detail, trapRounds: traps.rounds } }];
-  }
-  return [{ kind: "superhuman_quality", level: "stat", detail }];
+  const corroborated =
+    traps.rounds >= QUALITY.minTrapRounds &&
+    traps.trapped >= QUALITY.corroboratingTraps &&
+    traps.trapped / traps.rounds >= QUALITY.corroboratingTrapShare;
+  if (mean >= QUALITY.solverMean || corroborated) return [{ kind: "superhuman_quality", level: "stat", detail }];
+  return [{ kind: "unconfirmed_quality", level: "watch", detail }];
 }
 
 /** Matches newest first: `won` and the player's score. */
@@ -370,7 +396,7 @@ export const FINDING_LABELS: Record<string, string> = {
   tampered_client: "Game page functions replaced (extension or script)",
   superhuman_quality: "Solver-level shot quality",
   one_angle_quality: "High shot quality from one repeated angle",
-  unconfirmed_quality: "High shot quality, contradicted by the ghost traps",
+  unconfirmed_quality: "High shot quality, with nothing else pointing to a program",
   sudden_improvement: "Sudden jump in real-money results",
   automation_browser: "Automation browser (webdriver)",
   synthetic_input: "Shot fired by a script, not a real input",

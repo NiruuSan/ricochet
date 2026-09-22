@@ -6,6 +6,7 @@ import { Ban, Eye, RotateCcw, UserX } from "lucide-react";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import type { CheatCase, CheatSignalView } from "@/lib/anti-cheat-admin";
+import { QUALITY } from "@/lib/anti-cheat-rules";
 import { units } from "../format";
 import styles from "./tournaments.module.css";
 import review from "./anti-cheat.module.css";
@@ -17,6 +18,10 @@ export const CASE_STATUS: Record<CheatCase["status"], { label: string; color: st
 };
 const SOURCE: Record<string, string> = { proof: "Automatic · technical proof", stats: "Automatic · statistics", admin: "Administrator", watch: "Last signal" };
 const percent = (value: number | null) => (value === null ? "—" : `${Math.round(value * 100)}%`);
+
+/** Whether a trap record is enough to turn a high average into evidence (lib/anti-cheat-rules.ts). */
+const corroborating = (traps: { rounds: number; trapped: number }) =>
+  traps.rounds >= QUALITY.minTrapRounds && traps.trapped >= QUALITY.corroboratingTraps && traps.trapped / traps.rounds >= QUALITY.corroboratingTrapShare;
 
 const detailText = (detail: Record<string, unknown>) =>
   Object.entries(detail)
@@ -127,7 +132,10 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
         <div className={styles.stat}>
           <small className={styles.muted}>SHOT QUALITY</small>
           <b style={{ color: item.stats.meanQuality !== null && item.stats.meanQuality >= item.stats.qualityThreshold ? "#ff8091" : undefined }}>{percent(item.stats.meanQuality)}</b>
-          <span className={styles.muted}>Average percentile among all angles · flagged from {percent(item.stats.qualityThreshold)}</span>
+          <span className={styles.muted}>
+            Average percentile among all angles · a case opens from {percent(item.stats.qualityThreshold)}, but an average alone only suspends above{" "}
+            {percent(QUALITY.solverMean)} or with the traps agreeing.
+          </span>
         </div>
         <div className={styles.stat}>
           <small className={styles.muted}>AIM VARIETY</small>
@@ -140,10 +148,14 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
         </div>
         <div className={styles.stat}>
           <small className={styles.muted}>GHOST TRAPS</small>
-          <b style={{ color: item.stats.traps.trapped ? "#ff8091" : undefined }}>
+          {/* Chance puts a person in one now and again: the colour follows the rule, not the count. */}
+          <b style={{ color: corroborating(item.stats.traps) ? "#ff8091" : item.stats.traps.trapped ? "#ffb86b" : undefined }}>
             {item.stats.traps.trapped} / {item.stats.traps.rounds}
           </b>
-          <span className={styles.muted}>Rounds with ghost bricks, and shots aimed at them. A person aims at what they see.</span>
+          <span className={styles.muted}>
+            Rounds with ghost bricks, and shots aimed at them. A person aims at what they see; {percent(QUALITY.corroboratingTrapShare)} of the rounds or more says
+            otherwise.
+          </span>
         </div>
         <div className={styles.stat}>
           <small className={styles.muted}>AIM TRAJECTORIES</small>
