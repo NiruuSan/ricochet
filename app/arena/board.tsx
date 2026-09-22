@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Tooltip } from "@/components/ui/tooltip";
 
-import { FastForward, Play } from "lucide-react";
+import { FastForward, Play, Volume2, VolumeX } from "lucide-react";
 import { H, MAX_ANGLE, MIN_ANGLE, W, type Game } from "@/lib/engine";
 import type { GameSession } from "./use-game-session";
+import { isMuted, setMuted, subscribe } from "./sound";
 
 /** How long the board-cleared celebration plays, keyframes included. */
 const CLEAR_MS = 1600;
@@ -35,6 +36,17 @@ function useClearCelebration(game: Game, mini: boolean) {
   return cleared;
 }
 
+/** The sound preference, shared by every board on the page and kept in storage. */
+function useSoundPreference() {
+  const muted = useSyncExternalStore(
+    subscribe,
+    () => isMuted(),
+    // The server has no storage and no speakers; it renders the sound as on.
+    () => false,
+  );
+  return [muted, () => setMuted(!muted)] as const;
+}
+
 type Props = {
   session: GameSession;
   /** A decorative, non-interactive board (the welcome page). */
@@ -46,6 +58,7 @@ type Props = {
 
 export function Board({ session, mini = false, startLabel, startDisabled, onStart }: Props) {
   const { game, started, flying, busy, syncing, awaitingRow, liveScore, speed, attachCanvas } = session;
+  const [muted, toggleSound] = useSoundPreference();
   const locked = flying || busy || awaitingRow;
   const cleared = useClearCelebration(game, mini);
   return (
@@ -147,10 +160,15 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
           {busy ? "Saving…" : flying ? "Let it bounce." : awaitingRow ? "Next row incoming…" : started ? "Aim anywhere above the line." : "472 × 612 · 7 columns · 9 rows"}
           {syncing && !game.over && <Tooltip content="Saving your shots in the background"><span className="sync-dot" /></Tooltip>}
         </span>
-        <button aria-label="Toggle animation speed" className="icon-btn" onClick={() => session.toggleSpeed()}>
-          <FastForward size={15} />
-          {speed}×
-        </button>
+        <span className="board-tools">
+          <button aria-label={muted ? "Turn the sound on" : "Turn the sound off"} aria-pressed={!muted} className="icon-btn" onClick={toggleSound}>
+            {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+          </button>
+          <button aria-label="Toggle animation speed" className="icon-btn" onClick={() => session.toggleSpeed()}>
+            <FastForward size={15} />
+            {speed}×
+          </button>
+        </span>
       </div>
     </div>
   );

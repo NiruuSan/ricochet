@@ -7,6 +7,7 @@ import { clientFlags, signProof, type UnsignedProof } from "./shot-signing";
 import { cleanRun } from "@/lib/ghost-bricks";
 import { gameAction } from "./api";
 import { drawBoard } from "./board-canvas";
+import { playSound, resetCombo } from "./sound";
 
 const SHOWCASE_SEED = 42076;
 const TICK_MS = 1000 / CLIENT_TICKS_PER_SECOND;
@@ -272,6 +273,8 @@ export function useGameSession({ onSaved, onError }: Options) {
     setFlying(true);
     setLiveScore(gameRef.current.score);
     flightRef.current = f;
+    resetCombo();
+    playSound("launch");
 
     // Hidden rows: send the shot now, and show the server's board once the balls land.
     let confirmed: Run | null = null;
@@ -296,6 +299,9 @@ export function useGameSession({ onSaved, onError }: Options) {
     const finish = () => {
       flightRef.current = null;
       setFlying(false);
+      // The round has a last word: the game ending, the board cleared, or the
+      // plain thud of the last ball coming home.
+      playSound(f.game.over ? "over" : f.game.bonus ? "clear" : "land");
       if (hiddenRows) {
         landed = true;
         if (confirmed) {
@@ -321,6 +327,11 @@ export function useGameSession({ onSaved, onError }: Options) {
 
     let previous = 0;
     let pending = 0;
+    // What the last frame left behind, so this one can hear what changed: points
+    // are hits, missing bricks are breaks, and a ball that stopped has landed.
+    let heardScore = f.game.score;
+    let heardBricks = f.game.bricks.length;
+    let heardLandings = 0;
     const tick = (ts: number) => {
       // Stop if unmounted, or if this flight was abandoned (reset or restored board).
       if (disposedRef.current || flightRef.current !== f) return;
@@ -331,6 +342,16 @@ export function useGameSession({ onSaved, onError }: Options) {
         step(f);
         pending -= TICK_MS;
       }
+      const hits = f.game.score - heardScore;
+      const breaks = heardBricks - f.game.bricks.length;
+      const landings = f.balls.filter((ball) => ball.done).length - heardLandings;
+      heardScore = f.game.score;
+      heardBricks = f.game.bricks.length;
+      heardLandings += landings;
+      if (hits > 0) playSound("hit", hits);
+      if (breaks > 0) playSound("break", breaks);
+      // The last ball lands with the round; its thud would tread on the fanfare.
+      if (landings > 0 && !f.done) playSound("land");
       if (f.aborted) {
         flightRef.current = null;
         busyRef.current = false;

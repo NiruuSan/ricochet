@@ -8,6 +8,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import { drawBoard } from "../board-canvas";
 import { CURRENCY, signedAmount, units, amount } from "../format";
+import { playSound } from "../sound";
 import styles from "./screens.module.css";
 
 const POLL_MS = 4_000;
@@ -157,6 +158,17 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
   const { recap, error } = useRecap(target, onSettled);
   // One rematch per result screen, so a double tap does not open two matches.
   const [rematched, setRematched] = useState(false);
+
+  // The result has a sound, once. The recap is polled until the match settles,
+  // so the answer arriving again must not ring again.
+  const sounded = useRef(false);
+  const settledResult = recap?.status === "settled" ? recap.result : null;
+  useEffect(() => {
+    if (!settledResult || sounded.current) return;
+    sounded.current = true;
+    if (settledResult === "win") playSound("win");
+    else if (settledResult === "loss" || settledResult === "draw") playSound("lose");
+  }, [settledResult]);
 
   // Close on Escape, like any full-screen overlay.
   useEffect(() => {
