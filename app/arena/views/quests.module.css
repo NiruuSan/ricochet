@@ -7,11 +7,11 @@
 
 .quest { display: flex; align-items: center; gap: 18px; padding: 18px 22px; border: 1px solid #2b3546; border-radius: 16px; background: linear-gradient(135deg, #161e2b, #111925); }
 .done { border-color: #c6f56440; background: radial-gradient(ellipse at top left, #c6f5640f, transparent 60%), linear-gradient(135deg, #161e2b, #111925); }
-.taken { opacity: 0.62; }
 .icon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 13px; border: 1px solid #2f3b4f; background: #0f1724; color: #8e9cb1; }
 .done .icon { border-color: #c6f56440; color: #c6f564; }
 .copy { flex: 1; min-width: 0; }
-.copy h3 { font-size: 16px; letter-spacing: -0.3px; overflow-wrap: anywhere; }
+.copy h3 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 16px; letter-spacing: -0.3px; overflow-wrap: anywhere; }
+.tier { padding: 3px 8px; border-radius: 999px; border: 1px solid #c6f5643a; background: #c6f56414; color: #c6f564; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
 .copy p { margin-top: 4px; color: #93a1b8; font-size: 13px; }
 .bar { position: relative; height: 7px; margin-top: 11px; border-radius: 999px; background: #1b2434; overflow: hidden; }
 .fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: #4a5b78; transition: width 0.4s cubic-bezier(0.2, 0.9, 0.3, 1); }
@@ -21,7 +21,6 @@
 .action :global(.btn) { white-space: nowrap; }
 .reward { display: flex; align-items: center; gap: 6px; color: #c6f564; font-size: 14px; font-weight: 800; }
 .reward svg { flex-shrink: 0; }
-.claimed { color: #8e9cb1; font-size: 12px; }
 .empty { display: grid; place-items: center; gap: 12px; text-align: center; padding: 60px 0; color: #93a1b8; }
 .empty svg { color: #c6f564; }
 

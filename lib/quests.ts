@@ -18,6 +18,11 @@ import { WEEK, weekStart } from "./weekly-race";
  * and a challenge nobody joined is practice with a link, so counting either
  * would turn the quests into a way of printing gems alone in a room.
  *
+ * A finished quest does not go away: it comes back asking for more. Every rung
+ * claimed raises the bar and the gems with it, so a good day keeps giving a
+ * player something to aim at instead of an empty board — and the whole ladder
+ * drops back to its first rung when the period turns over.
+ *
  * The reward is gems, the free currency, paid the way the daily gems are paid:
  * the claim row is the lock, and the ledger line only exists if this call is
  * the one that took the slot.
@@ -26,6 +31,9 @@ import { WEEK, weekStart } from "./weekly-race";
 const DAY_MS = 86_400_000;
 /** How many of the catalogue are live in one period. */
 const ACTIVE = 3;
+/** What each further rung adds to the gems, and where that stops. */
+const REWARD_STEP = 0.5;
+const REWARD_CAP = 3;
 
 /** What a quest counts, taken from the player's finished runs in the window. */
 type Counter = "played" | "won" | "cleared" | "points" | "best";
@@ -33,9 +41,11 @@ type Counter = "played" | "won" | "cleared" | "points" | "best";
 type Definition = {
   id: string;
   counter: Counter;
-  /** The target and the gems, per scope. */
+  /** The first rung's target and gems, per scope. */
   daily: [target: number, reward: number];
   weekly: [target: number, reward: number];
+  /** Each rung asks for this much more than the one below it. */
+  growth: number;
   title: (target: number) => string;
   detail: string;
 };
@@ -51,6 +61,7 @@ const CATALOGUE: Definition[] = [
     counter: "played",
     daily: [3, 150],
     weekly: [15, 900],
+    growth: 2,
     title: (n) => `Play ${n} ${n === 1 ? "match" : "matches"}`,
     detail: "Any entry, gems or devnet SOL. The match counts once your rival has taken the seat.",
   },
@@ -59,6 +70,7 @@ const CATALOGUE: Definition[] = [
     counter: "won",
     daily: [2, 200],
     weekly: [8, 1_200],
+    growth: 2,
     title: (n) => `Win ${n} ${n === 1 ? "match" : "matches"}`,
     detail: "Outscore your rival on the same board.",
   },
@@ -67,6 +79,7 @@ const CATALOGUE: Definition[] = [
     counter: "best",
     daily: [400, 200],
     weekly: [900, 1_200],
+    growth: 2.4,
     title: (n) => `Score ${n.toLocaleString("en")} in one match`,
     detail: "Your best single run of the period. One good angle is worth a hundred.",
   },
@@ -75,6 +88,7 @@ const CATALOGUE: Definition[] = [
     counter: "points",
     daily: [1_200, 150],
     weekly: [7_000, 900],
+    growth: 2.2,
     title: (n) => `Score ${n.toLocaleString("en")} points in all`,
     detail: "Every brick you break in a match adds to it, win or lose.",
   },
@@ -83,10 +97,35 @@ const CATALOGUE: Definition[] = [
     counter: "cleared",
     daily: [2, 200],
     weekly: [10, 1_200],
+    growth: 2.2,
     title: (n) => `Clear the board ${n} ${n === 1 ? "time" : "times"}`,
     detail: "Leave a round with nothing standing and take the bonus balls.",
   },
 ];
+
+/**
+ * A target a player can hold in their head. Small counts stay exact; larger
+ * numbers land on something round, so a rung reads as "2,000 points" rather
+ * than "1,987".
+ */
+function readable(value: number) {
+  const step = value < 40 ? 1 : value < 200 ? 5 : value < 2_000 ? 50 : value < 20_000 ? 500 : 2_500;
+  return Math.max(1, Math.round(value / step) * step);
+}
+
+/**
+ * One rung of a quest's ladder. Each one asks for more than the last and pays
+ * better, but the reward grows more slowly than the work and stops climbing
+ * after a while: the fourth board cleared in a day should be worth taking, not
+ * worth farming.
+ */
+export function rung(definition: Definition, scope: QuestScope, tier: number) {
+  const [target, reward] = definition[scope];
+  return {
+    target: readable(target * definition.growth ** tier),
+    reward: Math.round((reward * Math.min(REWARD_CAP, 1 + tier * REWARD_STEP)) / 10) * 10,
+  };
+}
 
 /** A small stable hash, so a period always draws the same quests. */
 function hash(key: string) {
@@ -152,23 +191,29 @@ export async function questBoard(uid: string, now = Date.now()): Promise<QuestBo
   const [counters, claimed] = await Promise.all([
     progress(uid, now),
     database()
-      .prepare("SELECT scope, quest FROM quest_claims WHERE user_id = ? AND ((scope = 'daily' AND period = ?) OR (scope = 'weekly' AND period = ?))")
+      .prepare(
+        `SELECT scope, quest, COUNT(*) AS taken FROM quest_claims
+         WHERE user_id = ? AND ((scope = 'daily' AND period = ?) OR (scope = 'weekly' AND period = ?))
+         GROUP BY scope, quest`,
+      )
       .bind(uid, dayOf(now), weekStart(now))
-      .all<{ scope: string; quest: string }>(),
+      .all<{ scope: string; quest: string; taken: number }>(),
   ]);
   const board = (scope: QuestScope): Quest[] =>
     questsFor(scope, periodOf(scope, now)).map((definition) => {
-      const [target, reward] = definition[scope];
-      const done = Math.min(counters[scope][definition.counter], target);
+      // Every rung taken moves this quest up one. What the player has already
+      // done carries over: the same work is never asked for twice.
+      const tier = Number(claimed.results.find((row) => row.scope === scope && row.quest === definition.id)?.taken ?? 0);
+      const { target, reward } = rung(definition, scope, tier);
       return {
         id: definition.id,
         scope,
+        tier,
         title: definition.title(target),
         detail: definition.detail,
         target,
-        progress: done,
+        progress: Math.min(counters[scope][definition.counter], target),
         reward,
-        claimed: claimed.results.some((row) => row.scope === scope && row.quest === definition.id),
       };
     });
   const daily = board("daily");
@@ -178,7 +223,7 @@ export async function questBoard(uid: string, now = Date.now()): Promise<QuestBo
     weekly,
     dailyEndsAt: periodEnd("daily", now),
     weeklyEndsAt: periodEnd("weekly", now),
-    ready: [...daily, ...weekly].filter((quest) => quest.progress >= quest.target && !quest.claimed).length,
+    ready: [...daily, ...weekly].filter((quest) => quest.progress >= quest.target).length,
   };
 }
 
@@ -186,8 +231,9 @@ export async function questBoard(uid: string, now = Date.now()): Promise<QuestBo
 export const questsReady = async (uid: string, now = Date.now()) => (await questBoard(uid, now)).ready;
 
 /**
- * Pays one finished quest, once. The claim row's primary key is the player, the
- * period and the quest, so two taps land one payment.
+ * Pays one finished rung, once, and leaves the next one standing. The claim
+ * row's key is the player, the period, the quest and the rung, so two taps land
+ * one payment while the rung above is a different row entirely.
  */
 export async function claimQuest(uid: string, scopeInput: unknown, questInput: unknown, now = Date.now()) {
   const scope = scopeInput === "daily" || scopeInput === "weekly" ? scopeInput : null;
@@ -196,20 +242,28 @@ export async function claimQuest(uid: string, scopeInput: unknown, questInput: u
   const definition = questsFor(scope, period).find((quest) => quest.id === questInput);
   if (!definition) throw new GameError("That quest is not running.", 404);
   if (await isSuspended(uid)) throw new GameError("Your account is suspended. Contact support if you think this is a mistake.", 403);
-  const [target, reward] = definition[scope];
+  const db = database();
+  const taken = await db
+    .prepare("SELECT COUNT(*) AS n FROM quest_claims WHERE user_id = ? AND scope = ? AND period = ? AND quest = ?")
+    .bind(uid, scope, period, definition.id)
+    .first<{ n: number }>();
+  const tier = Number(taken?.n ?? 0);
+  const { target, reward } = rung(definition, scope, tier);
   const counters = await progress(uid, now);
   if (counters[scope][definition.counter] < target) throw new GameError("This quest is not finished yet.", 409);
-  const db = database();
   const [claim] = await db.batch([
-    db.prepare("INSERT OR IGNORE INTO quest_claims(user_id, scope, period, quest, amount, created) VALUES(?, ?, ?, ?, ?, ?)").bind(uid, scope, period, definition.id, reward, now),
-    // The gems only exist if this call is the one that took the slot.
+    db
+      .prepare("INSERT OR IGNORE INTO quest_claims(user_id, scope, period, quest, tier, amount, created) VALUES(?, ?, ?, ?, ?, ?, ?)")
+      .bind(uid, scope, period, definition.id, tier, reward, now),
+    // The gems only exist if this call is the one that took the rung.
     db
       .prepare(
         `INSERT OR IGNORE INTO ledger(id, user_id, match_id, kind, amount, created)
-         SELECT ?, ?, NULL, 'quest_reward', ?, ? FROM quest_claims WHERE user_id = ? AND scope = ? AND period = ? AND quest = ? AND created = ?`,
+         SELECT ?, ?, NULL, 'quest_reward', ?, ? FROM quest_claims
+         WHERE user_id = ? AND scope = ? AND period = ? AND quest = ? AND tier = ? AND created = ?`,
       )
-      .bind(`quest:${uid}:${scope}:${period}:${definition.id}`, uid, reward, now, uid, scope, period, definition.id, now),
+      .bind(`quest:${uid}:${scope}:${period}:${definition.id}:${tier}`, uid, reward, now, uid, scope, period, definition.id, tier, now),
   ]);
   if (!claim.meta.changes) throw new GameError("You have already claimed this quest.", 409);
-  return { quest: definition.id, scope, reward };
+  return { quest: definition.id, scope, tier, reward, next: rung(definition, scope, tier + 1).target };
 }

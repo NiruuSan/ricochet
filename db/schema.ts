@@ -526,10 +526,12 @@ export const questClaims = sqliteTable(
     // The UTC day number for a daily quest, the week's start in ms for a weekly one.
     period: integer("period").notNull(),
     quest: text("quest").notNull(),
+    // Which rung of the quest's ladder this claim paid for: 0 is the first.
+    tier: integer("tier").notNull().default(0),
     amount: integer("amount").notNull(),
     created: integer("created").notNull(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.scope, t.period, t.quest] })],
+  (t) => [primaryKey({ columns: [t.userId, t.scope, t.period, t.quest, t.tier] })],
 );
 
 export const bugReportAttachments = sqliteTable(

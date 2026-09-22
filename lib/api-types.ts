@@ -342,13 +342,14 @@ export type QuestScope = "daily" | "weekly";
 export type Quest = {
   id: string;
   scope: QuestScope;
+  /** Rungs of this quest already taken in this period; each one raised the bar. */
+  tier: number;
   title: string;
   detail: string;
   target: number;
   progress: number;
   /** Gems, paid once the quest is finished and claimed. */
   reward: number;
-  claimed: boolean;
 };
 /** The quests board: today's, this week's, and how many are waiting to be claimed. */
 export type QuestBoard = {

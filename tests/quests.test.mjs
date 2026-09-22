@@ -73,6 +73,23 @@ try {
   for (const [id, quest] of catalogue) {
     assert.ok(quest.weekly[0] > quest.daily[0], `${id}: the week asks for more`);
     assert.ok(quest.weekly[1] > quest.daily[1], `${id}: and pays more for it`);
+    // The ladder: each rung asks for more than the one below, pays more up to a
+    // ceiling, and lands on a number a player can hold in their head.
+    for (const scope of ["daily", "weekly"]) {
+      const rungs = [0, 1, 2, 3, 4, 5, 6].map((tier) => quests.rung(quest, scope, tier));
+      for (let i = 1; i < rungs.length; i++) {
+        assert.ok(rungs[i].target > rungs[i - 1].target, `${id} ${scope}: rung ${i} asks for more`);
+        assert.ok(rungs[i].reward >= rungs[i - 1].reward, `${id} ${scope}: and never pays less`);
+      }
+      assert.equal(rungs[0].target, quest[scope][0], `${id} ${scope}: the first rung is the one in the catalogue`);
+      assert.equal(rungs[0].reward, quest[scope][1]);
+      assert.ok(rungs[6].reward <= quest[scope][1] * 3, `${id} ${scope}: the gems stop climbing`);
+      assert.equal(rungs[6].reward, rungs[5].reward, `${id} ${scope}: and have stopped by the sixth`);
+      for (const { target } of rungs) {
+        const step = target < 40 ? 1 : target < 200 ? 5 : target < 2_000 ? 50 : target < 20_000 ? 500 : 2_500;
+        assert.equal(target % step, 0, `${id} ${scope}: ${target} is a round number`);
+      }
+    }
   }
 
   // 3. What counts, and what does not.
@@ -115,41 +132,71 @@ try {
   let paid = 0;
   for (const quest of full.daily) {
     const result = await quests.claimQuest(ANA, "daily", quest.id, NOW);
-    assert.deepEqual([result.scope, result.quest, result.reward], ["daily", quest.id, quest.reward]);
+    assert.deepEqual([result.scope, result.quest, result.tier, result.reward], ["daily", quest.id, 0, quest.reward]);
+    assert.ok(result.next > quest.target, "The claim says what the next rung will ask for");
     paid += quest.reward;
   }
   assert.equal(gems(ANA) - start, paid, "The gems land in the balance, through the ledger like everything else");
   assert.equal(count("SELECT COUNT(*) AS n FROM ledger WHERE user_id = ? AND kind = 'quest_reward'", ANA), full.daily.length);
-  const claimedBoard = await quests.questBoard(ANA, NOW);
-  assert.ok(claimedBoard.daily.every((q) => q.claimed), "The board says so");
-  await assert.rejects(() => quests.claimQuest(ANA, "daily", full.daily[0].id, NOW), (e) => e.status === 409, "A quest pays once");
-  assert.equal(gems(ANA) - start, paid, "And a second attempt moves nothing");
 
-  // Two taps at the same moment land one payment.
-  const weekly = (await quests.questBoard(ANA, NOW)).weekly.find((q) => q.progress >= q.target && !q.claimed);
+  // 6. A claimed quest does not go away: it comes back harder, and richer, with
+  //    the work already done still counting towards it.
+  const raised = await quests.questBoard(ANA, NOW);
+  for (const quest of raised.daily) {
+    const was = full.daily.find((q) => q.id === quest.id);
+    assert.equal(quest.tier, 1, `${quest.id}: one rung taken`);
+    assert.ok(quest.target > was.target, `${quest.id}: the bar went up`);
+    assert.ok(quest.reward > was.reward, `${quest.id}: and so did the gems`);
+    assert.ok(quest.title.includes(quest.target.toLocaleString("en")), `${quest.id}: the title says the new target`);
+    assert.ok(quest.progress >= Math.min(was.target, quest.target), `${quest.id}: nothing already done was thrown away`);
+  }
+
+  // Climbing until a rung is out of reach, one claim at a time.
+  const ladder = raised.daily[0];
+  let rungs = 1;
+  for (;;) {
+    const current = (await quests.questBoard(ANA, NOW)).daily.find((q) => q.id === ladder.id);
+    if (current.progress < current.target) break;
+    await quests.claimQuest(ANA, "daily", ladder.id, NOW);
+    rungs++;
+  }
+  assert.ok(rungs > 1, "A good day is worth more than one rung");
+  const stopped = (await quests.questBoard(ANA, NOW)).daily.find((q) => q.id === ladder.id);
+  assert.equal(stopped.tier, rungs, "The board sits on the first rung still out of reach");
+  await assert.rejects(() => quests.claimQuest(ANA, "daily", ladder.id, NOW), /not finished yet/, "And that one is not payable yet");
+  assert.equal(
+    count("SELECT COUNT(DISTINCT id) AS n FROM ledger WHERE user_id = ? AND kind = 'quest_reward'", ANA),
+    count("SELECT COUNT(*) AS n FROM ledger WHERE user_id = ? AND kind = 'quest_reward'", ANA),
+    "Every rung paid on its own ledger line",
+  );
+
+  // Two taps at the same moment land one payment: they are the same rung.
+  const weekly = (await quests.questBoard(ANA, NOW)).weekly.find((q) => q.progress >= q.target);
   assert.ok(weekly, "A week's worth of play finishes a weekly quest too");
   const before = gems(ANA);
   const both = await Promise.allSettled([quests.claimQuest(ANA, "weekly", weekly.id, NOW), quests.claimQuest(ANA, "weekly", weekly.id, NOW)]);
   assert.equal(both.filter((r) => r.status === "fulfilled").length, 1, "Only one of them pays");
   assert.equal(gems(ANA) - before, weekly.reward);
 
-  // 6. Tomorrow is a clean slate; the week still remembers.
+  // 7. Tomorrow the ladder is back on the ground; the week keeps its rungs.
   const tomorrow = await quests.questBoard(ANA, NOW + DAY);
-  assert.ok(tomorrow.daily.every((q) => !q.claimed), "A new day, and nothing claimed on it");
-  assert.ok(tomorrow.weekly.some((q) => q.claimed), "The week carries on");
+  assert.ok(tomorrow.daily.every((q) => q.tier === 0), "A new day, and every quest back to its first rung");
+  assert.ok(tomorrow.weekly.some((q) => q.tier > 0), "The week carries on from where it was");
+  const nextWeek = await quests.questBoard(ANA, NOW + 7 * DAY);
+  assert.ok(nextWeek.weekly.every((q) => q.tier === 0), "And a new week starts again too");
 
-  // 7. A suspended account claims nothing.
+  // 8. A suspended account claims nothing.
   sqlite.prepare("INSERT INTO player_suspensions(user_id, status, source, reason, evidence, created) VALUES(?, 'suspended', 'stats', 'review', '{}', 0)").run(ANA);
-  const left = (await quests.questBoard(ANA, NOW)).weekly.find((q) => q.progress >= q.target && !q.claimed);
+  const left = (await quests.questBoard(ANA, NOW)).weekly.find((q) => q.progress >= q.target);
   if (left) await assert.rejects(() => quests.claimQuest(ANA, "weekly", left.id, NOW), (e) => e.status === 403);
   sqlite.prepare("DELETE FROM player_suspensions WHERE user_id = ?").run(ANA);
 
-  // 8. The badge the rest of the site shows is the board's own count.
+  // 9. The badge the rest of the site shows is the board's own count.
   const snapshot = await playerSnapshot(ANA, "gems");
   assert.equal(snapshot.questsReady, (await quests.questBoard(ANA)).ready);
 
   console.log(
-    "PASS: quests (three a day and three a week, the same for everyone, stable within a period and rotating between them; the week asks more and pays more; progress read from finished runs only, ignoring practice, unjoined seats, cancelled matches and other players; yesterday counts for the week and not the day; claims refused before the target, on an unknown quest or scope, and from a suspended account; gems paid through the ledger, once, even from two taps at the same moment; a new day clears the daily board and leaves the week's; and the badge matching the board).",
+    "PASS: quests (three a day and three a week, the same for everyone, stable within a period and rotating between them; the week asks more and pays more; a ladder whose every rung asks for more, pays more up to a ceiling and lands on a round number; progress read from finished runs only, ignoring practice, unjoined seats, cancelled matches and other players; yesterday counts for the week and not the day; claims refused before the target, on an unknown quest or scope, and from a suspended account; gems paid through the ledger, one line per rung, once, even from two taps at the same moment; a claimed quest coming back harder with the work already done still counting; the daily ladder back on the ground tomorrow and the weekly one next week; and the badge matching the board).",
   );
 } finally {
   close();

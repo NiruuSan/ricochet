@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Check, Gem, Target } from "lucide-react";
+import { ChevronsUp, Gem, Target } from "lucide-react";
 import type { Quest, QuestBoard } from "@/lib/api-types";
 import { request } from "../api";
 import { units } from "../format";
@@ -25,6 +25,7 @@ export function closesIn(at: number, now: number) {
 export function QuestsView({ player }: { player: PlayerState }) {
   const [board, setBoard] = useState<QuestBoard | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
@@ -60,8 +61,10 @@ export function QuestsView({ player }: { player: PlayerState }) {
   const claim = async (quest: Quest) => {
     setBusy(`${quest.scope}:${quest.id}`);
     setError("");
+    setNotice("");
     try {
       setBoard(await request<QuestBoard>("/api/quests", { action: "claim", scope: quest.scope, quest: quest.id }));
+      setNotice(`+${units(quest.reward, "gems")} gems. ${quest.title} is now worth more, and asks for more.`);
       await player.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -75,12 +78,17 @@ export function QuestsView({ player }: { player: PlayerState }) {
     const finished = quest.progress >= quest.target;
     const key = `${quest.scope}:${quest.id}`;
     return (
-      <div key={key} className={`${styles.quest} ${finished ? styles.done : ""} ${quest.claimed ? styles.taken : ""}`}>
+      <div key={key} className={`${styles.quest} ${finished ? styles.done : ""}`}>
         <span className={styles.icon} aria-hidden>
-          {quest.claimed ? <Check size={20} /> : <Target size={20} />}
+          {quest.tier > 0 ? <ChevronsUp size={20} /> : <Target size={20} />}
         </span>
         <div className={styles.copy}>
-          <h3>{quest.title}</h3>
+          <h3>
+            {quest.title}
+            {/* Each rung already taken is on the record: the bar rose because
+                the player cleared it, not because the board is unkind. */}
+            {quest.tier > 0 && <b className={styles.tier}>Tier {quest.tier + 1}</b>}
+          </h3>
           <p>{quest.detail}</p>
           <div className={styles.bar} role="progressbar" aria-valuenow={quest.progress} aria-valuemin={0} aria-valuemax={quest.target} aria-label={quest.title}>
             <i className={styles.fill} style={{ width: `${Math.min(100, (quest.progress / quest.target) * 100)}%` }} />
@@ -93,13 +101,9 @@ export function QuestsView({ player }: { player: PlayerState }) {
           <span className={styles.reward}>
             <Gem size={15} /> {units(quest.reward, "gems")}
           </span>
-          {quest.claimed ? (
-            <span className={styles.claimed}>Claimed</span>
-          ) : (
-            <button className="btn btn-primary" disabled={!finished || busy === key} onClick={() => void claim(quest)}>
-              {busy === key ? "Claiming…" : finished ? "Claim" : "Keep playing"}
-            </button>
-          )}
+          <button className="btn btn-primary" disabled={!finished || busy === key} onClick={() => void claim(quest)}>
+            {busy === key ? "Claiming…" : finished ? "Claim" : "Keep playing"}
+          </button>
         </div>
       </div>
     );
@@ -112,8 +116,8 @@ export function QuestsView({ player }: { player: PlayerState }) {
           <div className="tag lime">SOMETHING TO PLAY FOR</div>
           <h1>Quests.</h1>
           <p>
-            Three a day and three a week, the same for everybody, and different tomorrow. Matches against a rival count, in gems or devnet SOL; practice does not. The
-            gems are yours to claim as soon as a quest is finished.
+            Three a day and three a week, the same for everybody, and different tomorrow. Matches against a rival count, in gems or devnet SOL; practice does not.
+            Claim one and it comes back asking for more, worth more — until the day or the week turns over and the board starts again.
           </p>
         </div>
       </div>
@@ -122,6 +126,11 @@ export function QuestsView({ player }: { player: PlayerState }) {
         <div className="error" role="alert">
           <span>{error}</span>
         </div>
+      )}
+      {notice && (
+        <p className="success" role="status">
+          {notice}
+        </p>
       )}
 
       {!board ? (
