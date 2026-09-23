@@ -19,7 +19,6 @@ import { friendAlerts } from "./friends";
 import { listNotifications, notificationInsert } from "./notifications";
 import { newRowKey, rowsFor } from "./secret-rows";
 import { themeById } from "./themes";
-import { currentSeason } from "./seasons";
 import { shotInsert } from "./spectate-shots";
 import { tournamentHistory } from "./tournament-history";
 
@@ -314,16 +313,15 @@ export async function touchPlayer(uid: string, now = Date.now()) {
 
 /** Top 50 players by settled match P&L in one currency. `viewer` only marks the viewer's own row; it may be null. */
 export async function leaderboard(viewer: string | null, asset: Asset): Promise<Leader[]> {
-  const season = (await currentSeason()).startedAt;
   const sql =
     asset === "gems"
-      ? `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id", season)} AS wagered
+      ? `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id")} AS wagered
          FROM players p
          JOIN ledger l ON l.user_id = p.id
          JOIN matches m ON m.id = l.match_id AND m.settled = 1 AND m.asset = 'gems'
          WHERE p.deleted IS NULL
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`
-      : `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id", season)} AS wagered
+      : `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id")} AS wagered
          FROM players p
          JOIN cash_accounts a ON a.user_id = p.id AND a.network = 'devnet'
          JOIN cash_ledger l ON l.account_id = a.id
@@ -337,11 +335,10 @@ export async function leaderboard(viewer: string | null, asset: Asset): Promise<
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
   const db = database();
   await settleFinishedMatches(uid);
-  const season = await currentSeason();
   const [player, history, active, cash, inbox, tournaments, daily, friends, quests, cashback] = await Promise.all([
     db
       .prepare(
-        `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id", season.startedAt)} AS wagered, ${wageredSql("players.id")} AS career,
+        `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
            theme,
            (SELECT reason FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS suspension,
            (SELECT restricted FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS restricted,
@@ -350,7 +347,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
          FROM players WHERE id = ? AND deleted IS NULL`,
       )
       .bind(uid)
-      .first<Profile & { suspension: string | null; restricted: number | null; appealed_at: number | null; wagered: number; career: number; discount_until: number | null; theme: string | null }>(),
+      .first<Profile & { suspension: string | null; restricted: number | null; appealed_at: number | null; wagered: number; discount_until: number | null; theme: string | null }>(),
     db
       .prepare(
         `SELECT m.id, m.stake, m.fee, m.settled, m.created,
@@ -395,11 +392,9 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
       avatar: avatarUrl(player.avatar),
       created: player.created,
       level: levelFor(experienceFromWagered(player.wagered)),
-      careerLevel: levelFor(experienceFromWagered(player.career)),
     },
     suspension: player?.suspension ? { reason: player.suspension, restricted: !!player.restricted, appealed: !!player.appealed_at } : null,
     theme: themeById(player?.theme).id,
-    season,
     daily,
     discountUntil: player?.discount_until && player.discount_until > Date.now() ? player.discount_until : null,
     questsReady: quests,
@@ -454,7 +449,6 @@ function recapSide(name: string, avatar: string | null, stateJson: string, clear
 export async function matchRecap(uid: string, matchIdInput: unknown): Promise<MatchRecap> {
   const matchId = String(matchIdInput ?? "");
   const db = database();
-  const season = (await currentSeason()).startedAt;
   const load = () =>
     db
       .prepare(
@@ -462,7 +456,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
            r.user_id AS me, r.state, r.clears, r.done, r.forfeit, p.name, p.avatar,
            o.state AS other_state, o.clears AS other_clears, o.done AS other_done, o.forfeit AS other_forfeit,
            op.name AS other_name, op.avatar AS other_avatar,
-           ${wageredSql("p.id", season)} AS wagered, ${wageredSql("op.id", season)} AS other_wagered,
+           ${wageredSql("p.id")} AS wagered, ${wageredSql("op.id")} AS other_wagered,
            (SELECT amount FROM ledger WHERE id = ?) AS bonus,
            (SELECT amount FROM cash_ledger WHERE id = ?) AS rebate
          FROM runs r

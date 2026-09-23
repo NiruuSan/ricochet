@@ -60,6 +60,9 @@
   font-size: 15px;
 }
 .copy p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin-top: 3px;
   color: #93a1b8;
   font-size: 13px;
@@ -87,27 +90,36 @@
   color: #bb8cff;
 }
 
-.grid {
-  width: 100%;
-  margin-top: 18px;
-  border-collapse: collapse;
-  font-size: 12.5px;
+/* The ladder: every rank is permanently worth more than the one below. */
+.ladder {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
 }
-.grid td {
-  padding: 8px 10px 8px 0;
-  border-top: 1px solid #1e2634;
-  color: #a5b0c5;
-}
-.grid td:first-child {
-  color: #d4dded;
-  font-weight: 700;
-}
-.from,
-.paid {
+.ladder li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid #2f3b4f;
+  border-radius: 12px;
+  background: #0f1724;
+  font-size: 12px;
   color: #7f8d9f;
 }
-.paid {
-  text-align: right;
+.ladder b {
+  color: #d4dded;
+  font-size: 14px;
+}
+.here {
+  border-color: #c6f56466;
+  background: #c6f5640f;
+}
+.here b {
+  color: #c6f564;
 }
 .empty {
   margin-top: 16px;

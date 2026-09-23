@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { createDatabase } from "./helpers/test-env.mjs";
 
-// Cashback, the widened race, the daily cup and seasons: the four things that
-// give a player a reason to come back, and the three of them that cost money.
+// Cashback, the widened race and the daily cup: three reasons to come back.
 //
-// The one rule holding the cashback up is that it is a share of the fee the
-// player funded, never of what they wagered — so the cost is bounded by the
-// revenue it came from. The entry tiers are paid in gems, which cost nothing,
-// and a period that has closed cannot be claimed twice or late.
+// The rules holding the cashback up are that it is a share of the fee the
+// player funded — never of what they wagered — and that the share comes from
+// their rank, which is earned slowly from everything they have ever staked. So
+// the cost is bounded by the revenue it came from, the first three ranks cost
+// nothing at all, and a period that has closed cannot be claimed twice or late.
 Object.assign(process.env, {
   SOLANA_NETWORK: "devnet",
   SOLANA_RPC_URL: "https://rpc.invalid",
@@ -18,7 +18,6 @@ const { sqlite, close } = await createDatabase();
 
 const rewards = await import("../lib/rewards.ts");
 const race = await import("../lib/weekly-race.ts");
-const seasons = await import("../lib/seasons.ts");
 const tournaments = await import("../lib/tournaments.ts");
 const { cashAccountId, ensureCashAccount, HOUSE } = await import("../lib/payments/accounts.ts");
 const { playerLevel } = await import("../lib/experience.ts");
@@ -57,20 +56,23 @@ try {
   }
 
   // --- The grid -------------------------------------------------------------
-  assert.equal(rewards.tierFor(0).share, 3, "Any play at all is worth something");
-  assert.equal(rewards.tierFor(3 * SOL).name, "Regular");
-  assert.equal(rewards.tierFor(30 * SOL).share, 9);
-  assert.equal(rewards.tierFor(1_000 * SOL).share, 14, "And it stops climbing at the top tier");
-  assert.ok(rewards.TIERS.filter((t) => t.gems).length === 2, "The two entry tiers are paid in gems, which cost nothing");
+  // The share is set by rank, which is earned from everything ever wagered, so
+  // climbing is worth something for good and one huge week buys nothing.
+  assert.equal(rewards.tierFor("iron").share, 3);
+  assert.equal(rewards.tierFor("gold").share, 6);
+  assert.equal(rewards.tierFor("bouncer").share, 14, "And it stops climbing at the last rank");
+  assert.deepEqual(rewards.TIERS.filter((t) => t.gems).map((t) => t.tier), ["iron", "bronze", "silver"], "The first three ranks are paid in gems, which cost nothing");
+  assert.ok(rewards.TIERS.every((t, i, all) => i === 0 || t.share > all[i - 1].share), "Every rank is worth more than the one below");
 
   // --- A small week: paid in gems, so the house pays nothing ----------------
   played(ANA, SOL / 2, lastWeek + 3_600_000);
   played(ANA, SOL / 2, lastWeek + 7_200_000);
   const small = await rewards.rewardFor(ANA, "weekly", NOW);
-  assert.equal(small.asset, "gems", "A one-SOL week is an entry tier");
-  assert.equal(small.volume, SOL, "It counts what was staked, not the pot");
-  assert.equal(small.fees, Math.floor((SOL * 12) / 100), "And the fee is 12% of that");
-  assert.equal(small.amount, Math.floor(Math.floor((small.fees * 5) / 100) / 20_000), "5% of the fee, in gems");
+  const fee = Math.floor((SOL * 12) / 100);
+  assert.equal(small.asset, "gems", "One SOL wagered in all is an Iron rank, paid in gems");
+  assert.equal(small.rank.tier, "iron");
+  assert.equal(small.share, 3);
+  assert.equal(small.amount, Math.floor(Math.floor((fee * 3) / 100) / 20_000), "3% of the fee it funded, in gems");
   const houseBefore = cash(HOUSE);
   await rewards.claimReward(ANA, "weekly", NOW);
   assert.equal(gems(ANA), small.amount, "The gems arrived");
@@ -82,26 +84,42 @@ try {
   // --- A big week: real SOL, out of the house ------------------------------
   for (let i = 0; i < 6; i++) played(BEN, 5 * SOL, lastWeek + i * 3_600_000);
   const big = await rewards.rewardFor(BEN, "weekly", NOW);
-  assert.equal(big.asset, "devnet", "Thirty SOL of play is paid in SOL");
-  assert.equal(big.share, 9);
-  assert.equal(big.amount, Math.floor((Math.floor((30 * SOL * 12) / 100) * 9) / 100));
+  assert.equal(big.rank.tier, "bronze", "Thirty SOL wagered in all is still Bronze — the climb is long on purpose");
+  assert.equal(big.asset, "gems", "An entry rank, so it costs the house nothing");
+  assert.equal(big.share, 4);
   const house = cash(HOUSE);
-  const mine = cash(BEN);
+  const before = gems(BEN);
   await rewards.claimReward(BEN, "weekly", NOW);
-  assert.equal(cash(BEN) - mine, big.amount, "The player was paid");
-  assert.equal(cash(HOUSE), house - big.amount, "By the house, exactly once");
-  assert.equal(count("SELECT COUNT(*) AS n FROM cash_ledger WHERE kind = 'cashback'"), 2, "Both sides of it");
+  assert.equal(gems(BEN) - before, big.amount, "The player was paid");
+  assert.equal(cash(HOUSE), house, "And the house parted with nothing real");
 
-  // What the house keeps is still most of what it took.
+  // A Gold player funding the same fees is paid in SOL, and paid more.
+  sqlite.prepare("INSERT INTO players(id, name, balance, created) VALUES('github:gold', 'Goldie', 0, 0)").run();
+  await ensureCashAccount("github:gold");
+  sqlite.prepare("INSERT INTO cash_ledger VALUES('gold-float', ?, 'fixture', ?, 'fixture', 0)").run(cashAccountId("github:gold"), 2_000 * SOL);
+  // Three hundred SOL wagered in all is Gold 1; the last thirty of it last week.
+  played("github:gold", 270 * SOL, lastWeek - WEEK);
+  for (let i = 0; i < 6; i++) played("github:gold", 5 * SOL, lastWeek + i * 3_600_000);
+  const golden = await rewards.rewardFor("github:gold", "weekly", NOW);
+  assert.equal(golden.rank.tier, "gold");
+  assert.equal(golden.asset, "devnet", "From Gold up, it is real SOL");
+  assert.equal(golden.share, 6);
   const fees = Math.floor((30 * SOL * 12) / 100);
-  assert.ok(big.amount < fees / 5, "A cashback is a slice of the fee, never the fee");
+  assert.equal(golden.amount, Math.floor((fees * 6) / 100));
+  const treasury = cash(HOUSE);
+  const wallet = cash("github:gold");
+  await rewards.claimReward("github:gold", "weekly", NOW);
+  assert.equal(cash("github:gold") - wallet, golden.amount, "The player was paid");
+  assert.equal(cash(HOUSE), treasury - golden.amount, "By the house, exactly once");
+  assert.equal(count("SELECT COUNT(*) AS n FROM cash_ledger WHERE kind = 'cashback'"), 2, "Both sides of it");
+  assert.ok(golden.amount < fees / 5, "A cashback is a slice of the fee, never the fee");
 
   // --- What does not count --------------------------------------------------
   // A cancelled match is refunded in full, so it never earns cashback.
+  const plain = await rewards.rewardFor(ANA, "weekly", NOW);
   const cancelled = played(ANA, 5 * SOL, lastWeek + 10_000);
   sqlite.prepare("UPDATE matches SET cancelled = 1 WHERE id = ?").run(cancelled);
-  const after = await rewards.rewardFor(ANA, "weekly", NOW);
-  assert.equal(after.volume, SOL, "The cancelled entry is not in the volume");
+  assert.deepEqual(await rewards.rewardFor(ANA, "weekly", NOW), plain, "A cancelled entry changes nothing");
   // Nor is a week too small to bother with.
   played("github:dust", SOL / 50, lastWeek + 60_000);
   assert.equal(await rewards.rewardFor("github:dust", "weekly", NOW), null, "Dust earns no claim row");
@@ -112,7 +130,7 @@ try {
   for (const week of [0, 1, 2]) played(BEN, 10 * SOL, month + week * WEEK + 3_600_000);
   const monthly = await rewards.rewardFor(BEN, "monthly", NOW);
   assert.ok(monthly, "Three weeks in the month earns it");
-  assert.equal(monthly.share, 4);
+  assert.equal(monthly.share, 4, "A flat share, whatever the rank");
   assert.ok(monthly.amount > 0);
 
   // --- A closed account claims nothing -------------------------------------
@@ -127,18 +145,6 @@ try {
   assert.equal(race.prizeFor(51, race.DEFAULT_PRIZES), null, "The board stops at fifty");
   assert.ok(race.TIERS.every((t) => t.gems > 0), "Every tier below the podium is gems, so the widening is free");
 
-  // --- Seasons --------------------------------------------------------------
-  seasons.forgetSeason();
-  assert.deepEqual(await seasons.currentSeason(NOW), { number: 1, startedAt: 0 }, "Before anything is done, the season is all of time");
-  const before = await playerLevel(BEN);
-  assert.ok(before.xp > 0, "Ben has wagered a great deal");
-  const second = await seasons.startSeason(ADMIN, NOW);
-  assert.equal(second.number, 2);
-  assert.equal(second.startedAt, NOW);
-  assert.equal((await playerLevel(BEN, second.startedAt)).xp, 0, "A new season starts everyone at nothing");
-  assert.equal((await playerLevel(BEN)).xp, before.xp, "While the career rank keeps it all");
-  assert.equal(count("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'season_start'"), 1);
-
   // --- The daily cup ---------------------------------------------------------
   const made = await tournaments.ensureDailyTournaments(NOW);
   assert.ok(made.length >= 3, `the next few days are scheduled, got ${made.length}`);
@@ -152,7 +158,7 @@ try {
   assert.equal(count("SELECT COUNT(*) AS n FROM cash_ledger WHERE kind = 'tournament_funding'"), 0);
 
   console.log(
-    "PASS: rewards (cashback as a share of the fee funded, entry tiers paid in gems at no cost to the house, SOL from the house above them, one claim per period, cancelled and dust excluded, a monthly bonus that asks for weeks rather than size, a closed account refused; race prizes past the podium in gems; seasons that reset the ladder and keep the career; and a daily cup the house pays nothing for).",
+    "PASS: rewards (cashback as a share of the fee funded, entry tiers paid in gems at no cost to the house, SOL from the house above them, one claim per period, cancelled and dust excluded, a monthly bonus that asks for weeks rather than size, a closed account refused; race prizes past the podium in gems; a share that comes from rank rather than from one good week; and a daily cup the house pays nothing for).",
   );
 } finally {
   close();

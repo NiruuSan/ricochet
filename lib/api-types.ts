@@ -103,10 +103,8 @@ export type Profile = {
   balance: number;
   avatar: string | null;
   created: number;
-  /** Rank in the season being played (lib/seasons.ts). */
+  /** Rank from everything wagered; nothing ever resets it (lib/experience.ts). */
   level: PlayerLevel;
-  /** Rank over everything ever wagered; nothing resets it. */
-  careerLevel: PlayerLevel;
 };
 export type PublicPlayerProfile = {
   publicId: string;
@@ -114,10 +112,8 @@ export type PublicPlayerProfile = {
   avatar: string | null;
   created: number;
   isYou: boolean;
-  /** Rank from devnet SOL wagered this season; public. */
+  /** Rank from devnet SOL wagered; public. */
   level: PlayerLevel;
-  /** The same over the player's whole history, which no season resets. */
-  careerLevel: PlayerLevel;
   stats: Record<Asset, { pnl: number; games: number; wins: number }>;
   /** Where the viewer stands with this player; null when nobody is signed in. */
   friendship: Friendship | null;
@@ -373,8 +369,6 @@ export type Snapshot = {
   theme: ThemeId;
   /** Cashback periods waiting to be claimed (lib/rewards.ts). */
   rewardsReady: number;
-  /** The season the ranks around the game belong to (lib/seasons.ts). */
-  season: { number: number; startedAt: number };
 };
 
 export type QuestScope = "daily" | "weekly";

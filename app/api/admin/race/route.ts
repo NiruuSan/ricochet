@@ -3,14 +3,13 @@ import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 import { adminRaces, payWeeklyRace, setRaceExclusion, setRacePrizes } from "@/lib/weekly-race";
-import { currentSeason, startSeason } from "@/lib/seasons";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
   try {
-    return json({ ...(await adminRaces()), season: await currentSeason() });
+    return json(await adminRaces());
   } catch (e) {
     console.error(e);
     return json({ error: "The weekly race is unavailable." }, 503);
@@ -30,7 +29,6 @@ export async function POST(req: Request) {
     if (b.action === "exclude") return json({ ok: await setRaceExclusion(user.userId, { ...b, excluded: true }).then(() => true) });
     if (b.action === "include") return json({ ok: await setRaceExclusion(user.userId, { ...b, excluded: false }).then(() => true) });
     if (b.action === "prizes") return json({ prizes: await setRacePrizes(user.userId, b.prizes) });
-    if (b.action === "season") return json({ season: await startSeason(user.userId) });
     return json({ error: "Unknown action." }, 400);
   } catch (e) {
     if (e instanceof GameError) return json({ error: e.message }, e.status);

@@ -211,7 +211,3 @@
   .chartDates { font-size: 9px; }
   .chartDates > span:nth-child(2) { max-width: 110px; text-align: center; }
 }
-
-/* The rank a season cannot take away. */
-.career { margin-top: 10px; color: #93a1b8; font-size: 12.5px; }
-.career b { color: #d4dded; }

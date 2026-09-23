@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Coins, Gem, HandCoins } from "lucide-react";
+import type { PlayerLevel, RankTier } from "@/lib/api-types";
+import { RankEmblem } from "../rank-badge";
 import { request } from "../api";
 import { amount, units } from "../format";
 import type { PlayerState } from "../arena";
@@ -10,21 +12,29 @@ import styles from "./cashback.module.css";
 // What the player gets back, and the grid it came from. The money side of it is
 // in lib/rewards.ts; this only shows it and asks for the tap.
 
-type Tier = { from: number; share: number; gems: boolean; name: string };
+type Tier = { tier: RankTier; share: number; gems: boolean };
 type Reward = {
   scope: "weekly" | "monthly";
   period: number;
   endedAt: number;
   closesAt: number;
-  volume: number;
-  fees: number;
   amount: number;
   asset: "devnet" | "gems";
-  tier: string;
+  rank: PlayerLevel;
   share: number;
   claimed: boolean;
 };
 type Board = { tiers: Tier[]; rewards: Reward[] };
+
+const TIER_NAMES: Record<RankTier, string> = {
+  iron: "Iron",
+  bronze: "Bronze",
+  silver: "Silver",
+  gold: "Gold",
+  platinum: "Platinum",
+  diamond: "Diamond",
+  bouncer: "Bouncer",
+};
 
 const day = (at: number) => new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 const value = (reward: Pick<Reward, "amount" | "asset">) =>
@@ -64,6 +74,10 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
   };
 
   const waiting = board?.rewards.filter((r) => !r.claimed) ?? [];
+  // The rank the player is on, and the one worth climbing to.
+  const mine = player.data.player?.level.tier;
+  const at = board?.tiers.findIndex((t) => t.tier === mine) ?? -1;
+  const next = at >= 0 ? board?.tiers[at + 1] : undefined;
 
   return (
     <section className={styles.panel}>
@@ -73,7 +87,7 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
         </span>
         <div>
           <h2>Cashback</h2>
-          <p>Part of the house fee you paid, back every week — and again at the end of a month you kept playing.</p>
+          <p>Part of the house fee comes back to you every week, and again at the end of a month you kept playing. The higher your rank, the bigger the share.</p>
         </div>
       </header>
 
@@ -99,11 +113,9 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
           {board.rewards.map((reward) => (
             <div key={reward.scope} className={`${styles.reward} ${reward.claimed ? styles.done : ""}`}>
               <div className={styles.copy}>
-                <b>
-                  {reward.scope === "weekly" ? "Last week" : "Last month"} · {reward.tier}
-                </b>
+                <b>{reward.scope === "weekly" ? "Last week" : "Last month"}</b>
                 <p>
-                  {amount(reward.volume, "devnet")} wagered, {amount(reward.fees, "devnet")} of fees. You get {reward.share}% of it back.
+                  <RankEmblem tier={reward.rank.tier} division={reward.rank.division} size={15} /> {reward.rank.name} · {reward.share}%
                 </p>
                 <small>
                   {day(reward.period)} – {day(reward.endedAt - 1)} · claim before {day(reward.closesAt)}
@@ -123,20 +135,24 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
       )}
 
       {board && (
-        <table className={styles.grid}>
-          <tbody>
-            {board.tiers.map((tier) => (
-              <tr key={tier.name}>
-                <td>{tier.name}</td>
-                <td className={styles.from}>{tier.from ? `${amount(tier.from, "devnet")}+ a week` : "Any play"}</td>
-                <td>
-                  <b>{tier.share}%</b> of your fees
-                </td>
-                <td className={styles.paid}>{tier.gems ? "in gems" : "in SOL"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <ul className={styles.ladder}>
+          {board.tiers.map((tier) => {
+            const here = mine === tier.tier;
+            return (
+              <li key={tier.tier} className={here ? styles.here : ""}>
+                <RankEmblem tier={tier.tier} division={null} size={18} />
+                <b>{tier.share}%</b>
+                <span>{tier.gems ? "in gems" : "in SOL"}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {next && (
+        <p className={styles.footnote}>
+          Reach <b>{TIER_NAMES[next.tier]}</b> and every week comes back at <b>{next.share}%</b>
+          {next.gems ? "" : ", paid in SOL"}.
+        </p>
       )}
       {waiting.length > 0 && <p className={styles.footnote}>A period that closes unclaimed is gone, so take it while it is there.</p>}
     </section>

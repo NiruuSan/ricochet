@@ -12,7 +12,7 @@ import { units } from "../format";
 import styles from "./tournaments.module.css";
 import { prizeLabel } from "./weekly-race";
 
-type AdminRaces = { prizes: RacePrize[]; weeks: AdminRaceWeek[]; season: { number: number; startedAt: number } };
+type AdminRaces = { prizes: RacePrize[]; weeks: AdminRaceWeek[] };
 type PrizeInput = { sol: string; gems: string };
 
 const dayLabel = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
@@ -245,39 +245,6 @@ export function AdminRace() {
     <>
       <PrizeSettings key={JSON.stringify(data.prizes)} prizes={data.prizes} onSaved={() => void load()} />
 
-      {/* Seasons: the rank everyone wears around the game is the current
-          season's, so opening a new one puts every player back at the bottom
-          of the ladder. The career rank on their profile is untouched. */}
-      <section className={styles.panel} style={{ marginTop: 16 }}>
-        <h3>Season {data.season.number}</h3>
-        <p className={styles.muted}>
-          {data.season.startedAt ? `Running since ${dayLabel(data.season.startedAt)}.` : "Counting every match ever played."} Ranks around the game come from what
-          players have wagered since then; their career rank keeps everything.
-        </p>
-        <button
-          className="btn"
-          style={{ marginTop: 12 }}
-          disabled={busy}
-          onClick={() => {
-            void dialog
-              .confirm(`Open season ${data.season.number + 1}? Every player's rank starts again from their next match.`, { title: "Start a new season", confirmLabel: "Open the season" })
-              .then(async (ok) => {
-                if (!ok) return;
-                setBusy(true);
-                try {
-                  await request("/api/admin/race", { action: "season" });
-                  await load();
-                } catch (e) {
-                  setError((e as Error).message);
-                } finally {
-                  setBusy(false);
-                }
-              });
-          }}
-        >
-          <Flag size={15} /> Start season {data.season.number + 1}
-        </button>
-      </section>
       {error && (
         <div className="error" role="alert" style={{ marginTop: 16 }}>
           <span>{error}</span>

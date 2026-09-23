@@ -20,7 +20,6 @@ import { AUTOMATION_DETECTED, avatarUrl, GameError, recordedFindings, reportSign
 import { shotKeyFor } from "./shot-key";
 import { parseTrap, planTrap, presentRun } from "./ghost-trap";
 import { notificationInsert } from "./notifications";
-import { currentSeason } from "./seasons";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { parseSol, requireDevnet } from "./payments/policy";
 import { newRowKey, rowsFor } from "./secret-rows";
@@ -620,7 +619,7 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
   const [t, entries] = await Promise.all([
     db.prepare(`${SUMMARY_SQL} WHERE t.id = ?`).bind(id).first<SummaryRow>(),
     db
-      .prepare(`SELECT e.*, p.name, p.avatar, ${wageredSql("p.id", (await currentSeason()).startedAt)} AS wagered FROM tournament_entries e JOIN players p ON p.id = e.user_id WHERE e.tournament_id = ?`)
+      .prepare(`SELECT e.*, p.name, p.avatar, ${wageredSql("p.id")} AS wagered FROM tournament_entries e JOIN players p ON p.id = e.user_id WHERE e.tournament_id = ?`)
       .bind(id)
       .all<EntryRow & { name: string; avatar: string | null; wagered: number }>(),
   ]);
