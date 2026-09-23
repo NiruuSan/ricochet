@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import type { AdminOverview, Period, VolumePoint, VolumeTotals } from "@/lib/api-types";
 import { fullSol } from "../funded-wallet";
 import styles from "./volume-chart.module.css";
+import admin from "./admin.module.css";
 
 const PERIODS = [["day", "Daily"], ["week", "Weekly"], ["month", "Monthly"]] as const;
 const WINDOWS = { day: "Last 24 hours · hourly volume", week: "Last 7 days · daily volume", month: "Last 30 days · daily volume" };
@@ -20,7 +21,7 @@ const shortNumber = new Intl.NumberFormat("en", { notation: "compact", maximumFr
 
 function pointLabel(point: VolumePoint) {
   const options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" };
-  return `${new Date(point.start).toLocaleString(undefined, options)} – ${new Date(point.end).toLocaleString(undefined, options)}`;
+  return `${new Date(point.start).toLocaleString("en", options)} – ${new Date(point.end).toLocaleString("en", options)}`;
 }
 
 function Chart({ points, label, format, divisor }: { points: VolumePoint[]; label: string; format: (value: number) => string; divisor: number }) {
@@ -65,7 +66,7 @@ function Chart({ points, label, format, divisor }: { points: VolumePoint[]; labe
             <g key={point.start}>
               {(i === 0 || i === points.length - 1 || i % Math.ceil(points.length / 5) === 0) && (
                 <text x={x(i)} y={250} textAnchor="middle" className={styles.axis}>
-                  {new Date(point.start).toLocaleString(undefined, point.end - point.start === 3_600_000
+                  {new Date(point.start).toLocaleString("en", point.end - point.start === 3_600_000
                     ? { hour: "2-digit", minute: "2-digit" } : { month: "short", day: "numeric" })}
                 </text>
               )}
@@ -86,7 +87,7 @@ function Chart({ points, label, format, divisor }: { points: VolumePoint[]; labe
 function VolumeCard({ title, data, period, sol }: { title: string; data?: Partial<Record<Metric, VolumeTotals>>; period: Period; sol?: boolean }) {
   const [metric, setMetric] = useState<Metric>("entries");
   const available = sol ? METRICS : METRICS.filter(([key]) => key !== "deposits" && key !== "withdrawals" && key !== "fees");
-  const format = (value: number, key: Metric = metric) => key === "matches" ? `${value.toLocaleString()} matches` : sol ? `${fullSol(value)} SOL` : `${value.toLocaleString()} gems`;
+  const format = (value: number, key: Metric = metric) => key === "matches" ? `${value.toLocaleString("en")} matches` : sol ? `${fullSol(value)} SOL` : `${value.toLocaleString("en")} gems`;
   const selected = data?.[metric];
   const label = METRICS.find(([key]) => key === metric)![1];
   return (
@@ -109,8 +110,8 @@ function VolumeCard({ title, data, period, sol }: { title: string; data?: Partia
 export function AdminVolume({ overview }: { overview: AdminOverview | null }) {
   const [period, setPeriod] = useState<Period>("day");
   return (
-    <>
-      <div className={styles.heading}>
+    <section className={admin.section}>
+      <div className={admin.sectionHead}>
         <h2>Volume</h2>
         <div className={styles.periods} role="group" aria-label="Volume period">
           {PERIODS.map(([key, label]) => <button type="button" key={key} aria-pressed={period === key} onClick={() => setPeriod(key)}>{label}</button>)}
@@ -118,7 +119,7 @@ export function AdminVolume({ overview }: { overview: AdminOverview | null }) {
       </div>
       <VolumeCard title="Devnet SOL" data={overview?.devnet} period={period} sol />
       <VolumeCard title="Gems" data={overview?.gems} period={period} />
-      <p className="fine" style={{ marginTop: 12 }}>Rolling windows ending at the last update. Times are local. Deposits and withdrawals count once confirmed on-chain.</p>
-    </>
+      <p className={admin.fine}>Rolling windows ending at the last update. Times are local. Deposits and withdrawals count once confirmed on-chain.</p>
+    </section>
   );
 }

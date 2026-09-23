@@ -110,8 +110,7 @@ export function AccountData({ player }: { player: PlayerState }) {
             players&apos; history stays true. <Link href="/privacy">What we keep, and why</Link>.
           </p>
           <button
-            className="btn"
-            style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
+            className="btn btn-danger"
             disabled={!!busy}
             onClick={() => (setError(""), setNotice(""), setTyped(""), setConfirming(true))}
           >
@@ -148,8 +147,7 @@ export function AccountData({ player }: { player: PlayerState }) {
               Keep my account
             </button>
             <button
-              className="btn"
-              style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
+              className="btn btn-danger"
               disabled={!!busy || typed.trim().toLowerCase() !== name.toLowerCase()}
               onClick={() => void remove()}
             >

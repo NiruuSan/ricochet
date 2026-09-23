@@ -9,13 +9,14 @@ import { Ban, Check, Eye, Flag, RotateCcw, Save } from "lucide-react";
 import type { AdminRaceWeek, RacePrize } from "@/lib/api-types";
 import { request } from "../api";
 import { units } from "../format";
-import styles from "./tournaments.module.css";
+import styles from "./admin.module.css";
 import { prizeLabel } from "./weekly-race";
 
 type AdminRaces = { prizes: RacePrize[]; weeks: AdminRaceWeek[] };
 type PrizeInput = { sol: string; gems: string };
 
-const dayLabel = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+const dayLabel = (ms: number) => new Date(ms).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
+const moment = (ms: number) => new Date(ms).toLocaleString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 const toInput = (prizes: RacePrize[]): PrizeInput[] => prizes.map((p) => ({ sol: String(p.sol / 1e9), gems: String(p.gems) }));
 
 function PrizeSettings({ prizes, onSaved }: { prizes: RacePrize[]; onSaved: () => void }) {
@@ -42,37 +43,39 @@ function PrizeSettings({ prizes, onSaved }: { prizes: RacePrize[]; onSaved: () =
   };
 
   return (
-    <Form className={`${styles.panel} ${styles.form}`} onSubmit={save}>
-      <div className={styles.full}>
-        <h2 style={{ fontSize: 20 }}>Weekly race prizes</h2>
-        <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-          Best single score of the week in SOL matches and paid SOL tournaments. SOL is paid from the treasury house balance when you confirm a week.
-        </p>
+    <Form className={styles.panel} onSubmit={save}>
+      <div className={styles.panelHead}>
+        <h3>What the podium pays</h3>
+        <span>SOL leaves the treasury house balance when you confirm a week.</span>
       </div>
       {error && (
-        <p className={`error ${styles.full}`} role="alert">
+        <p className="error" role="alert">
           {error}
         </p>
       )}
       {notice && (
-        <p className={`success ${styles.full}`} role="status">
+        <p className="success" role="status">
           {notice}
         </p>
       )}
-      {values.map((v, i) => (
-        <div key={i} className={`${styles.full} field-row`} style={{ gridTemplateColumns: "90px minmax(0, 1fr) minmax(0, 1fr)", marginTop: 0 }}>
-          <b style={{ paddingBottom: 14 }}>{["1st", "2nd", "3rd"][i]} place</b>
-          <label className="field" style={{ margin: 0 }}>
-            SOL
-            <input className="input" value={v.sol} onChange={(e) => set(i, "sol", e.target.value)} inputMode="decimal" required placeholder="0.5" />
-          </label>
-          <label className="field" style={{ margin: 0 }}>
-            Gems
-            <input className="input" type="number" min={0} max={1_000_000} step={1} value={v.gems} onChange={(e) => set(i, "gems", e.target.value)} required />
-          </label>
-        </div>
-      ))}
-      <div className={styles.full} style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+      <div className={styles.form}>
+        {values.map((v, i) => (
+          <div key={i} className={styles.full}>
+            <div className="field-row" style={{ gridTemplateColumns: "84px minmax(0, 1fr) minmax(0, 1fr)", marginTop: 0 }}>
+              <b style={{ paddingBottom: 14 }}>{["1st", "2nd", "3rd"][i]} place</b>
+              <label className="field" style={{ margin: 0 }}>
+                SOL
+                <input className="input" value={v.sol} onChange={(e) => set(i, "sol", e.target.value)} inputMode="decimal" required placeholder="0.5" />
+              </label>
+              <label className="field" style={{ margin: 0 }}>
+                Gems
+                <input className="input" type="number" min={0} max={1_000_000} step={1} value={v.gems} onChange={(e) => set(i, "gems", e.target.value)} required />
+              </label>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className={styles.formActions}>
         <button className="btn btn-primary" disabled={busy}>
           <Save /> {busy ? "Saving…" : "Save prizes"}
         </button>
@@ -83,18 +86,20 @@ function PrizeSettings({ prizes, onSaved }: { prizes: RacePrize[]; onSaved: () =
 
 function RaceWeek({ week, prizes, busy, onAction }: { week: AdminRaceWeek; prizes: RacePrize[]; busy: boolean; onAction: (body: Record<string, unknown>, question?: string) => void }) {
   const dialog = useActionDialog();
-  const status = week.paid ? `Paid ${new Date(week.paid.at).toLocaleString()}` : week.ended ? "Ended · awaiting your review" : "Live";
+  const state = week.paid
+    ? { label: `Paid ${moment(week.paid.at)}`, tone: styles.ok }
+    : week.ended
+      ? { label: "Ended · awaiting your review", tone: styles.warn }
+      : { label: "Live", tone: styles.calm };
   const top = week.standings.slice(0, 3);
   const total = top.reduce((sum, _, i) => sum + (prizes[i]?.sol ?? 0), 0);
   return (
-    <section className={styles.panel} style={{ marginTop: 16 }}>
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <div>
-          <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Flag size={16} /> Week of {dayLabel(week.weekStart)} – {dayLabel(week.weekEnd - 1)}
-          </h3>
-          <span className={styles.muted}>{status}</span>
-        </div>
+    <section className={styles.panel}>
+      <div className={styles.panelHead}>
+        <h3>
+          <Flag size={15} /> {dayLabel(week.weekStart)} – {dayLabel(week.weekEnd - 1)}
+          <span className={`${styles.chip} ${state.tone}`}>{state.label}</span>
+        </h3>
         {week.ended && !week.paid && top.length > 0 && (
           <button
             className="btn btn-primary"
@@ -112,84 +117,101 @@ function RaceWeek({ week, prizes, busy, onAction }: { week: AdminRaceWeek; prize
       </div>
 
       {week.paid ? (
-        <table className={styles.table}>
-          <tbody>
-            {week.paid.winners.map((w) => (
-              <tr key={w.rank}>
-                <td>#{w.rank}</td>
-                <td>
-                  <Link href={`/players/${encodeURIComponent(w.name)}`}>{w.name}</Link>
-                </td>
-                <td>{w.score.toLocaleString("en")} pts</td>
-                <td className={styles.positive}>{prizeLabel(w)}</td>
+        <div className={styles.scroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Best score</th>
+                <th className={styles.right}>Paid</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {week.paid.winners.map((w) => (
+                <tr key={w.rank}>
+                  <td>#{w.rank}</td>
+                  <td>
+                    <Link href={`/players/${encodeURIComponent(w.name)}`}>{w.name}</Link>
+                  </td>
+                  <td className={styles.numeric}>{w.score.toLocaleString("en")} pts</td>
+                  <td className={`${styles.right} lime`}>{prizeLabel(w)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : week.standings.length ? (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Player</th>
-              <th>Best score</th>
-              <th>Set</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {week.standings.map((s) => (
-              <tr key={s.name}>
-                <td className={s.rank === 1 ? styles.gold : undefined}>#{s.rank}</td>
-                <td>
-                  <Link href={`/players/${encodeURIComponent(s.name)}`}>{s.name}</Link>
-                  {s.rank <= 3 && <div className={styles.muted}>{prizeLabel(prizes[s.rank - 1])}</div>}
-                </td>
-                <td>{s.score.toLocaleString("en")}</td>
-                <td className={styles.muted}>{new Date(s.at).toLocaleString()}</td>
-                <td>
-                  <div className="row-actions" style={{ justifyContent: "flex-end" }}>
-                    {s.watchId && (
-                      <Tooltip content="Replay this run"><Link aria-label="Replay this run" className="btn" href={`/watch/${s.watchId}`}>
-                        <Eye size={15} />
-                      </Link></Tooltip>
-                    )}
-                    <button
-                      className="btn"
-                      style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
-                      disabled={busy}
-                      onClick={async () => {
-                        const reason = await dialog.prompt(`Exclude ${s.name} from the week of ${dayLabel(week.weekStart)}? Give a reason (kept in the audit log).`, { title: "Exclude player from race", confirmLabel: "Exclude player", danger: true });
-                        if (reason !== null) onAction({ action: "exclude", week: week.weekStart, name: s.name, reason });
-                      }}
-                    >
-                      <Ban size={15} /> Exclude
-                    </button>
-                  </div>
-                </td>
+        <div className={styles.scroll}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Best score</th>
+                <th>Set</th>
+                <th className={styles.right}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {week.standings.map((s) => (
+                <tr key={s.name}>
+                  <td className={s.rank === 1 ? "lime" : undefined}>#{s.rank}</td>
+                  <td>
+                    <Link href={`/players/${encodeURIComponent(s.name)}`}>{s.name}</Link>
+                    {s.rank <= 3 && <small style={{ display: "block", color: "#8291a8" }}>{prizeLabel(prizes[s.rank - 1])}</small>}
+                  </td>
+                  <td className={styles.numeric}>{s.score.toLocaleString("en")}</td>
+                  <td style={{ color: "#8291a8" }}>{moment(s.at)}</td>
+                  <td>
+                    <div className={styles.actions}>
+                      {s.watchId && (
+                        <Tooltip content="Replay this run">
+                          <Link aria-label="Replay this run" className="btn" href={`/watch/${s.watchId}`}>
+                            <Eye size={15} />
+                          </Link>
+                        </Tooltip>
+                      )}
+                      <button
+                        className="btn btn-danger"
+                        disabled={busy}
+                        onClick={async () => {
+                          const reason = await dialog.prompt(`Exclude ${s.name} from the week of ${dayLabel(week.weekStart)}? Give a reason (kept in the audit log).`, { title: "Exclude player from race", confirmLabel: "Exclude player", danger: true });
+                          if (reason !== null) onAction({ action: "exclude", week: week.weekStart, name: s.name, reason });
+                        }}
+                      >
+                        <Ban size={15} /> Exclude
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <p className={styles.muted} style={{ marginTop: 14 }}>
-          No real-money scores this week yet.
-        </p>
+        <p className={styles.empty}>No real-money scores this week yet.</p>
       )}
 
       {week.excluded.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <b style={{ fontSize: 13 }}>Excluded</b>
+        <div className={styles.list} style={{ marginTop: 14 }}>
           {week.excluded.map((x) => (
-            <div key={x.name} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 8 }}>
-              <span className={styles.muted}>
-                <b style={{ color: "#f6f8fd" }}>{x.name}</b> · {x.reason}
-              </span>
-              {!week.paid && (
-                <button className="btn" disabled={busy} onClick={() => onAction({ action: "include", week: week.weekStart, name: x.name })}>
-                  <RotateCcw size={15} /> Restore
-                </button>
-              )}
+            <div key={x.name} className={styles.row}>
+              <div className={styles.who}>
+                <Ban size={16} color="#ffb2bf" />
+                <div>
+                  <b>{x.name}</b>
+                  <span>Excluded · {x.reason}</span>
+                </div>
+              </div>
+              <div />
+              <div className={styles.actions}>
+                {!week.paid && (
+                  <button className="btn" disabled={busy} onClick={() => onAction({ action: "include", week: week.weekStart, name: x.name })}>
+                    <RotateCcw size={15} /> Restore
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -240,19 +262,23 @@ export function AdminRace() {
     }
   };
 
-  if (!data) return <p className="muted">{error || "Loading the weekly race…"}</p>;
+  if (!data) return <p className={styles.loading}>{error || "Loading the weekly race…"}</p>;
   return (
-    <>
+    <section className={styles.section}>
       <PrizeSettings key={JSON.stringify(data.prizes)} prizes={data.prizes} onSaved={() => void load()} />
-
       {error && (
-        <div className="error" role="alert" style={{ marginTop: 16 }}>
+        <div className="error" role="alert">
           <span>{error}</span>
         </div>
       )}
-      {data.weeks.map((week) => (
-        <RaceWeek key={week.weekStart} week={week} prizes={data.prizes} busy={busy} onAction={(body, question) => void act(body, question)} />
-      ))}
-    </>
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h2>Weeks</h2>
+        </div>
+        {data.weeks.map((week) => (
+          <RaceWeek key={week.weekStart} week={week} prizes={data.prizes} busy={busy} onAction={(body, question) => void act(body, question)} />
+        ))}
+      </div>
+    </section>
   );
 }

@@ -8,7 +8,7 @@ import { useActionDialog } from "@/components/ui/action-dialog";
 import type { CheatCase, CheatSignalView } from "@/lib/anti-cheat-admin";
 import { QUALITY } from "@/lib/anti-cheat-rules";
 import { units } from "../format";
-import styles from "./tournaments.module.css";
+import styles from "./admin.module.css";
 import review from "./anti-cheat.module.css";
 export const CASE_STATUS: Record<CheatCase["status"], { label: string; color: string }> = {
   suspended: { label: "SUSPENDED · TO REVIEW", color: "#ffb86b" },
@@ -31,8 +31,8 @@ const detailText = (detail: Record<string, unknown>) =>
 export function SignalRow({ signal, name }: { signal: CheatSignalView; name?: string }) {
   return (
     <tr>
-      <td style={{ width: 150 }} className={styles.muted}>
-        {new Date(signal.created).toLocaleString()}
+      <td style={{ width: 170 }} className={styles.muted}>
+        {new Date(signal.created).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}
       </td>
       {name !== undefined && (
         <td>
@@ -74,24 +74,24 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
     );
   };
   return (
-    <section className={styles.panel} style={{ marginTop: 16 }}>
+    <section className={styles.panel}>
       <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 12, alignItems: "flex-start" }}>
         <div>
           <span style={{ color: status.color, fontSize: 11, fontWeight: 800, letterSpacing: 1 }}>{status.label}</span>
           <h2 style={{ marginTop: 6 }}>Case overview</h2>
           <p className={styles.muted} style={{ marginTop: 4 }}>
-            {SOURCE[item.source] ?? item.source} · {new Date(item.created).toLocaleString()}
+            {SOURCE[item.source] ?? item.source} · {new Date(item.created).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}
           </p>
           <p style={{ marginTop: 8, fontSize: 14 }}>{item.reason}</p>
           {item.restricted && item.status === "suspended" && (
             <p className={styles.muted}>Under review: their SOL entries, tournaments, withdrawals and tips are held; practice and gems are not.</p>
           )}
           {item.note && <p className={styles.muted}>Review note: {item.note}</p>}
-          {item.reviewedAt && <p className={styles.muted}>Last reviewed {new Date(item.reviewedAt).toLocaleString()}</p>}
+          {item.reviewedAt && <p className={styles.muted}>Last reviewed {new Date(item.reviewedAt).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}</p>}
         </div>
         {(item.status === "watch" || item.status === "lifted") && (
           <div className="row-actions">
-            <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy} onClick={() => decide("suspend")}>
+            <button className="btn btn-danger" disabled={busy} onClick={() => decide("suspend")}>
               <UserX size={15} /> Suspend
             </button>
           </div>
@@ -101,7 +101,7 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
             <button className="btn" disabled={busy} onClick={() => decide("lift")}>
               <RotateCcw size={15} /> Lift
             </button>
-            <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy} onClick={() => decide("ban")}>
+            <button className="btn btn-danger" disabled={busy} onClick={() => decide("ban")}>
               <Ban size={15} /> Ban & seize
             </button>
           </div>
@@ -110,7 +110,7 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
       {item.appeal && (
         <div className={review.appeal}>
           <small className={styles.muted}>
-            {item.name.toUpperCase()} ANSWERED · {item.appealedAt ? new Date(item.appealedAt).toLocaleString() : ""}
+            {item.name.toUpperCase()} ANSWERED · {item.appealedAt ? new Date(item.appealedAt).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }) : ""}
           </small>
           {/* The player's own words, shown as written and never as instructions. */}
           <p>{item.appeal}</p>

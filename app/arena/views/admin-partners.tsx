@@ -5,8 +5,9 @@ import { PlayerNameInput } from "@/components/ui/player-name-input";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import type { AdminReferral } from "@/lib/api-types";
 import { request } from "../api";
+import { Avatar } from "../avatar";
 import { fullSol } from "../funded-wallet";
-import styles from "./tournaments.module.css";
+import styles from "./admin.module.css";
 
 const REFRESH_MS = 30_000;
 
@@ -61,68 +62,97 @@ export function AdminPartners() {
   };
 
   return (
-    <>
-      <h2 style={{ margin: "30px 0 6px" }}>Referrals & partners</h2>
-      <p className="muted">
-        Every player has a code. A code gives whoever signs up with it 8% house fee instead of 12% — a day from an ordinary code, a week from a partner&apos;s.
-        Winnings never change: the difference is credited back to the player after each match, out of the house fee.
-      </p>
-      <p className="muted">
-        Net site earnings are the all-time fees from referred players, after player rebates and partner commissions.
-      </p>
+    <section className={styles.section}>
       {error && (
-        <div className="error" role="alert" style={{ marginTop: 14 }}>
+        <div className="error" role="alert">
           <span>{error}</span>
         </div>
       )}
       {notice && (
-        <p className="success" role="status" style={{ marginTop: 14 }}>
+        <p className="success" role="status">
           {notice}
         </p>
       )}
+
       <Form
-        className="field-row"
-        style={{ gridTemplateColumns: "minmax(0, 1fr) auto" }}
+        className={styles.panel}
         onSubmit={(event) => {
           event.preventDefault();
           if (name.trim()) void setLevel(name.trim(), 2);
         }}
       >
-        <div className="field">
-          <label htmlFor="partner-name">Player name</label>
-          <PlayerNameInput id="partner-name" scope="admin" value={name} onValueChange={setName} placeholder="Exact player name" />
+        <div className={styles.panelHead}>
+          <h3>Grant a partnership</h3>
+          <span>A code gives whoever signs up with it 8% house fee instead of 12% — a day from an ordinary code, a week from a partner&apos;s.</span>
         </div>
-        <button className="btn btn-primary" disabled={!name.trim() || !!busy}>
-          Grant partnership
-        </button>
+        <div className={styles.form}>
+          <div className="field">
+            <label htmlFor="partner-name">Player name</label>
+            <PlayerNameInput id="partner-name" scope="admin" value={name} onValueChange={setName} placeholder="Exact player name" />
+          </div>
+          <div className={styles.formActions}>
+            <button className="btn btn-primary" disabled={!name.trim() || !!busy}>
+              Grant partnership
+            </button>
+          </div>
+        </div>
       </Form>
-      {!list ? (
-        <p className="muted" style={{ marginTop: 16 }}>Loading…</p>
-      ) : !list.length ? (
-        <p className={styles.empty} style={{ marginTop: 16 }}>Nobody has referred a player yet.</p>
-      ) : (
-        <div style={{ marginTop: 16 }}>
-          {list.map((row) => (
-            <div key={row.name} className={`${styles.adminRow} ${styles.partnerRow}`}>
-              <div>
-                <b>
-                  {row.name} {row.level >= 2 && <span className="tag lime">PARTNER</span>}
-                </b>
-                <span className={styles.muted}>
-                  Code {row.code ?? "—"} · {row.joined} {row.joined === 1 ? "player" : "players"} brought in
-                  {(row.level >= 2 || row.earned > 0) && ` · ${fullSol(row.earned)} SOL partner earnings${row.pending > 0 ? ` · ${fullSol(row.pending)} SOL waiting to be claimed` : ""}`}
-                </span>
-                <span className={styles.partnerRevenue}>
-                  {fullSol(row.siteEarned)} SOL net site earnings
-                </span>
-              </div>
-              <button className="btn" disabled={busy === row.name} onClick={() => void setLevel(row.name, row.level >= 2 ? 1 : 2)}>
-                {busy === row.name ? "Saving…" : row.level >= 2 ? "End partnership" : "Make partner"}
-              </button>
-            </div>
-          ))}
+
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <div>
+            <h2>Codes in use</h2>
+            <p>Net site earnings are the all-time fees from referred players, after player rebates and partner commissions.</p>
+          </div>
         </div>
-      )}
-    </>
+        {!list ? (
+          <p className={styles.loading}>Loading partners…</p>
+        ) : !list.length ? (
+          <p className={styles.empty}>Nobody has referred a player yet.</p>
+        ) : (
+          <div className={styles.list}>
+            {list.map((row) => (
+              <div key={row.name} className={styles.row}>
+                <div className={styles.who}>
+                  <Avatar name={row.name} src={null} size={34} />
+                  <div>
+                    <b>
+                      {row.name}
+                      {row.level >= 2 && <span className={`${styles.chip} ${styles.ok}`}>Partner</span>}
+                    </b>
+                    <span>Code {row.code ?? "—"}</span>
+                  </div>
+                </div>
+                <div className={styles.cells}>
+                  <div className={styles.cell}>
+                    <span>Brought in</span>
+                    <b>
+                      {row.joined} {row.joined === 1 ? "player" : "players"}
+                    </b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Their earnings</span>
+                    <b>{row.level >= 2 || row.earned > 0 ? `${fullSol(row.earned)} SOL` : "—"}</b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Unclaimed</span>
+                    <b>{row.pending > 0 ? `${fullSol(row.pending)} SOL` : "—"}</b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Net to the house</span>
+                    <b className="lime">{fullSol(row.siteEarned)} SOL</b>
+                  </div>
+                </div>
+                <div className={styles.actions}>
+                  <button className={`btn ${row.level >= 2 ? "btn-danger" : ""}`} disabled={busy === row.name} onClick={() => void setLevel(row.name, row.level >= 2 ? 1 : 2)}>
+                    {busy === row.name ? "Saving…" : row.level >= 2 ? "End partnership" : "Make partner"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

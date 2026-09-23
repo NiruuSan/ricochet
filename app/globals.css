@@ -357,6 +357,15 @@ h3 {
   width: 100%;
   margin-top: 20px;
 }
+/* Anything that takes something away: deleting, banning, cancelling, seizing. */
+.btn-danger {
+  border-color: #6d2c38;
+  background: #2a151b;
+  color: #ffb2bf;
+}
+.btn-danger:hover {
+  background: #3b1d25;
+}
 .fine {
   font-size: 12px;
   line-height: 1.6;

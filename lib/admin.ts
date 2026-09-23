@@ -22,12 +22,21 @@ export const adminAudit = (adminUid: string, action: string, target: string, rea
 /** Player counts and rolling volumes for the administrator dashboard. */
 export async function adminOverview(now = Date.now()): Promise<AdminOverview> {
   const db = database();
-  const [players, online, devEntries, devMatches, deposits, withdrawals, devFees, gemEntries, gemMatches, gemFees] = await Promise.all([
+  const [players, online, queues, devEntries, devMatches, deposits, withdrawals, devFees, gemEntries, gemMatches, gemFees] = await Promise.all([
     db
       .prepare("SELECT COUNT(*) AS registered, COALESCE(SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END), 0) AS online FROM players")
       .bind(now - ONLINE_MS)
       .first<{ registered: number; online: number }>(),
     db.prepare("SELECT name, avatar FROM players WHERE last_seen >= ? ORDER BY last_seen DESC LIMIT 24").bind(now - ONLINE_MS).all<{ name: string; avatar: string | null }>(),
+    // What is waiting to be dealt with, for the badges on the admin rail.
+    db
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM matches WHERE settled = 0) AS games,
+                (SELECT COUNT(*) FROM player_suspensions WHERE status = 'suspended') AS cases,
+                (SELECT COUNT(*) FROM reports WHERE status = 'open') AS reports,
+                (SELECT COUNT(*) FROM bug_reports WHERE status = 'open') AS bugs`,
+      )
+      .first<{ games: number; cases: number; reports: number; bugs: number }>(),
     // Devnet SOL staked into matches by players.
     volumeHistory(db, now, "cash_ledger", "-amount", "kind = 'match_entry'"),
     volumeHistory(db, now, "matches", "1", "asset = 'devnet'"),
@@ -47,6 +56,12 @@ export async function adminOverview(now = Date.now()): Promise<AdminOverview> {
       online: onlineCount,
       offline: registered - onlineCount,
       onlineNames: online.results.map((p) => ({ name: p.name, avatar: avatarUrl(p.avatar) })),
+    },
+    queues: {
+      games: Number(queues?.games ?? 0),
+      cases: Number(queues?.cases ?? 0),
+      reports: Number(queues?.reports ?? 0),
+      bugs: Number(queues?.bugs ?? 0),
     },
     devnet: { entries: devEntries, matches: devMatches, deposits, withdrawals, fees: devFees },
     gems: { entries: gemEntries, matches: gemMatches, fees: gemFees },

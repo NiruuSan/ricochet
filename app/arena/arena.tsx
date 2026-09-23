@@ -262,8 +262,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
               Keep playing
             </button>
             <button
-              className="btn"
-              style={{ borderColor: "#ff8091", color: "#ffb2bf" }}
+              className="btn btn-danger"
               onClick={() => {
                 setConfirmForfeit(false);
                 void session.forfeit();

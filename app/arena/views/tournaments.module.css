@@ -341,30 +341,6 @@
   background: #242d3d;
   color: #cfd8e6;
 }
-.adminRow {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: #141c28;
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-.adminRow b {
-  display: block;
-}
-.adminRow.partnerRow {
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-.partnerRevenue {
-  display: block;
-  margin-top: 6px;
-  color: #c6f564;
-  font-weight: 700;
-}
-
 @keyframes pulse {
   50% {
     opacity: 0.35;
@@ -424,21 +400,6 @@
   }
   .form {
     grid-template-columns: 1fr;
-  }
-  /* Two columns of figures, with the name and the actions on their own full-width lines. */
-  .adminRow {
-    grid-template-columns: 1fr 1fr;
-    gap: 12px 14px;
-  }
-  .adminRow > div:first-child,
-  .adminRow > :global(.row-actions) {
-    grid-column: 1 / -1;
-  }
-  .adminRow :global(.row-actions) {
-    gap: 8px;
-  }
-  .adminRow :global(.row-actions) :global(.btn) {
-    padding: 10px 13px;
   }
 }
 

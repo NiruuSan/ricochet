@@ -9,7 +9,8 @@ import { PAYOUT_SHARES, TOURNAMENT_FEE_PERCENT, type AdminTournament, type Asset
 import { request } from "../api";
 import { amount } from "../format";
 import { entryLabel, ordinal, PAYOUT_LABELS, STATUS_LABELS, timing } from "../tournament-format";
-import styles from "./tournaments.module.css";
+import cup from "./tournaments.module.css";
+import styles from "./admin.module.css";
 
 const HOUR = 3_600_000;
 
@@ -26,6 +27,9 @@ const toUnits = (value: string, asset: Asset) => {
   if (!Number.isFinite(n) || n <= 0) return 0;
   return asset === "devnet" ? Math.round(n * 1e9) : Math.floor(n);
 };
+
+/** What a tournament is doing right now, in the colour it deserves. */
+const TONE: Record<string, string> = { live: styles.ok, registration: styles.calm, settled: styles.chip, cancelled: styles.bad };
 
 function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean; onCreated: () => void }) {
   const [name, setName] = useState("");
@@ -75,97 +79,106 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
 
   const unit = asset === "devnet" ? "SOL" : "gems";
   return (
-    <Form className={`${styles.panel} ${styles.form}`} onSubmit={submit}>
-      <h2 className={styles.full} style={{ fontSize: 20 }}>
-        New tournament
-      </h2>
-      {error && (
-        <p className={`error ${styles.full}`} role="alert">
-          {error}
-        </p>
-      )}
-      {notice && (
-        <p className={`success ${styles.full}`} role="status">
-          {notice}
-        </p>
-      )}
-      <label className={`field ${styles.full}`}>
-        Name
-        <input className="input" value={name} onChange={(e) => setName(e.target.value)} minLength={3} maxLength={60} required placeholder="Friday Night Cup" />
-      </label>
-      <div className="field">
-        Currency
-        <div className={styles.segmented}>
-          <button type="button" aria-pressed={asset === "devnet"} disabled={!solConfigured} onClick={() => setAsset("devnet")}>
-            Devnet SOL
-          </button>
-          <button type="button" aria-pressed={asset === "gems"} onClick={() => setAsset("gems")}>
-            Gems
-          </button>
-        </div>
+    <Form className={styles.panel} onSubmit={submit}>
+      <div className={styles.panelHead}>
+        <h3>New tournament</h3>
+        <span>Anyone may enter; the pool is whatever the entries add up to, less the house share.</span>
       </div>
-      <div className="field">
-        Entry
-        <div className={styles.segmented}>
-          <button type="button" aria-pressed={entry === "paid"} onClick={() => setEntry("paid")}>
-            Paid · players fund the pool
-          </button>
-          <button type="button" aria-pressed={entry === "free"} onClick={() => setEntry("free")}>
-            Free · {asset === "devnet" ? "treasury" : "house"} funds the prize
-          </button>
-        </div>
-      </div>
-      {entry === "paid" ? (
-        <label className="field">
-          Entry fee · {unit}
-          <input className="input" value={fee} onChange={(e) => setFee(e.target.value)} inputMode="decimal" required placeholder={asset === "devnet" ? "0.1" : "100"} />
+      <div className={styles.form}>
+        {error && (
+          <p className={`error ${styles.full}`} role="alert">
+            {error}
+          </p>
+        )}
+        {notice && (
+          <p className={`success ${styles.full}`} role="status">
+            {notice}
+          </p>
+        )}
+        <label className={`field ${styles.full}`}>
+          Name
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} minLength={3} maxLength={60} required placeholder="Friday Night Cup" />
         </label>
-      ) : (
-        <label className="field">
-          Cash prize · {unit}
-          <input className="input" value={prize} onChange={(e) => setPrize(e.target.value)} inputMode="decimal" required placeholder={asset === "devnet" ? "1.5" : "5000"} />
-        </label>
-      )}
-      <label className="field">
-        Places
-        <input className="input" type="number" min={2} max={1000} step={1} value={places} onChange={(e) => setPlaces(e.target.value)} required />
-      </label>
-      <div className={`field ${styles.full}`}>
-        Prize split
-        <div className={styles.segmented}>
-          {(Object.keys(PAYOUT_SHARES) as PayoutPreset[]).map((key) => (
-            <button type="button" key={key} aria-pressed={payout === key} onClick={() => setPayout(key)}>
-              {PAYOUT_LABELS[key]}
+        <div className="field">
+          Currency
+          <div className={cup.segmented}>
+            <button type="button" aria-pressed={asset === "devnet"} disabled={!solConfigured} onClick={() => setAsset("devnet")}>
+              Devnet SOL
             </button>
-          ))}
+            <button type="button" aria-pressed={asset === "gems"} onClick={() => setAsset("gems")}>
+              Gems
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="field"><label htmlFor="tournament-starts">Starts</label><DateTimeField id="tournament-starts" label="Starts" value={startsAt} onChange={setStartsAt} required /></div>
-      <div className="field"><label htmlFor="tournament-ends">Ends</label><DateTimeField id="tournament-ends" label="Ends" value={endsAt} onChange={setEndsAt} required /></div>
-      <div className={styles.preview}>
-        <div>
-          <span className={styles.muted}>{entry === "paid" ? `Prize pool when all ${seats || 0} places are taken` : "Prize reserved now"}</span>
-          <div style={{ fontSize: 26, fontWeight: 900, color: "#c6f564" }}>{amount(pool, asset)}</div>
-          <span className={styles.muted}>
-            {entry === "paid"
-              ? asset === "devnet"
-                ? "Entries minus the 12% house share."
-                : "Every entry goes into the pool."
-              : asset === "devnet"
-                ? "Taken from the treasury house balance when you create it; returned if cancelled."
-                : "Paid by the house when the tournament ends."}
-          </span>
+        <div className="field">
+          Entry
+          <div className={cup.segmented}>
+            <button type="button" aria-pressed={entry === "paid"} onClick={() => setEntry("paid")}>
+              Paid · players fund the pool
+            </button>
+            <button type="button" aria-pressed={entry === "free"} onClick={() => setEntry("free")}>
+              Free · {asset === "devnet" ? "treasury" : "house"} funds the prize
+            </button>
+          </div>
         </div>
-        <div className={styles.shares}>
-          {shares.map((share, i) => (
-            <span key={i}>
-              {ordinal(i + 1)} {share}% · {amount(Math.floor((pool * share) / 100), asset)}
+        {entry === "paid" ? (
+          <label className="field">
+            Entry fee · {unit}
+            <input className="input" value={fee} onChange={(e) => setFee(e.target.value)} inputMode="decimal" required placeholder={asset === "devnet" ? "0.1" : "100"} />
+          </label>
+        ) : (
+          <label className="field">
+            Cash prize · {unit}
+            <input className="input" value={prize} onChange={(e) => setPrize(e.target.value)} inputMode="decimal" required placeholder={asset === "devnet" ? "1.5" : "5000"} />
+          </label>
+        )}
+        <label className="field">
+          Places
+          <input className="input" type="number" min={2} max={1000} step={1} value={places} onChange={(e) => setPlaces(e.target.value)} required />
+        </label>
+        <div className={`field ${styles.full}`}>
+          Prize split
+          <div className={cup.segmented}>
+            {(Object.keys(PAYOUT_SHARES) as PayoutPreset[]).map((key) => (
+              <button type="button" key={key} aria-pressed={payout === key} onClick={() => setPayout(key)}>
+                {PAYOUT_LABELS[key]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="field">
+          <label htmlFor="tournament-starts">Starts</label>
+          <DateTimeField id="tournament-starts" label="Starts" value={startsAt} onChange={setStartsAt} required />
+        </div>
+        <div className="field">
+          <label htmlFor="tournament-ends">Ends</label>
+          <DateTimeField id="tournament-ends" label="Ends" value={endsAt} onChange={setEndsAt} required />
+        </div>
+        <div className={`${cup.preview} ${styles.full}`}>
+          <div>
+            <span className={cup.muted}>{entry === "paid" ? `Prize pool when all ${seats || 0} places are taken` : "Prize reserved now"}</span>
+            <div style={{ fontSize: 26, fontWeight: 900, color: "#c6f564" }}>{amount(pool, asset)}</div>
+            <span className={cup.muted}>
+              {entry === "paid"
+                ? asset === "devnet"
+                  ? "Entries minus the 12% house share."
+                  : "Every entry goes into the pool."
+                : asset === "devnet"
+                  ? "Taken from the treasury house balance when you create it; returned if cancelled."
+                  : "Paid by the house when the tournament ends."}
             </span>
-          ))}
+          </div>
+          <div className={cup.shares}>
+            {shares.map((share, i) => (
+              <span key={i}>
+                {ordinal(i + 1)} {share}% · {amount(Math.floor((pool * share) / 100), asset)}
+              </span>
+            ))}
+          </div>
+          <button className="btn btn-primary" disabled={busy}>
+            <Plus /> {busy ? "Creating…" : "Create tournament"}
+          </button>
         </div>
-        <button className="btn btn-primary" disabled={busy}>
-          <Plus /> {busy ? "Creating…" : "Create tournament"}
-        </button>
       </div>
     </Form>
   );
@@ -221,66 +234,85 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
   };
 
   return (
-    <>
+    <section className={styles.section}>
       <CreateTournament solConfigured={solConfigured} onCreated={() => void load()} />
-      <h2 style={{ margin: "30px 0 14px" }}>Tournaments</h2>
-      {error && (
-        <div className="error" role="alert">
-          <span>{error}</span>
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h2>
+            Scheduled and finished {list && <small>· {list.length}</small>}
+          </h2>
         </div>
-      )}
-      {!list ? (
-        <p className="muted">Loading…</p>
-      ) : !list.length ? (
-        <p className={styles.empty}>No tournaments yet. Create the first one above.</p>
-      ) : (
-        list.map((t) => (
-          <div key={t.id} className={styles.adminRow}>
-            <div>
-              <b>{t.name}</b>
-              <span className={styles.muted}>
-                {STATUS_LABELS[t.status]} · {timing(t, now)} · {t.asset === "devnet" ? "Devnet SOL" : "Gems"}
-              </span>
-            </div>
-            <div>
-              <b>
-                {t.entrants}/{t.places}
-              </b>
-              <span className={styles.muted}>
-                {t.played} played · {t.finished} done
-              </span>
-            </div>
-            <div>
-              <b>{amount(t.pot, t.asset)}</b>
-              <span className={styles.muted}>{PAYOUT_LABELS[t.payout]}</span>
-            </div>
-            <div>
-              <b>{entryLabel(t)}</b>
-              <span className={styles.muted}>entry</span>
-            </div>
-            <div className="row-actions">
-              <Link className="btn" href={`/tournaments/${t.id}`}>
-                View
-              </Link>
-              {t.status === "live" && (
-                <button className="btn" disabled={busy === t.id} onClick={() => void act("close", t)}>
-                  End now
-                </button>
-              )}
-              {(t.status === "registration" || t.status === "live") && (
-                <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy === t.id} onClick={() => void act("cancel", t)}>
-                  Cancel
-                </button>
-              )}
-              {(t.status === "settled" || t.status === "cancelled") && (
-                <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy === t.id} onClick={() => void act("delete", t)}>
-                  <Trash2 size={15} /> {busy === t.id ? "Deleting…" : "Delete"}
-                </button>
-              )}
-            </div>
+        {error && (
+          <div className="error" role="alert">
+            <span>{error}</span>
           </div>
-        ))
-      )}
-    </>
+        )}
+        {!list ? (
+          <p className={styles.loading}>Loading tournaments…</p>
+        ) : !list.length ? (
+          <p className={styles.empty}>No tournaments yet. Create the first one above.</p>
+        ) : (
+          <div className={styles.list}>
+            {list.map((t) => (
+              <div key={t.id} className={styles.row}>
+                <div className={styles.who}>
+                  <div>
+                    <b>
+                      {t.name}
+                      <span className={`${styles.chip} ${TONE[t.status] ?? styles.chip}`}>{STATUS_LABELS[t.status]}</span>
+                    </b>
+                    <span>
+                      {timing(t, now)} · {t.asset === "devnet" ? "Devnet SOL" : "Gems"}
+                    </span>
+                  </div>
+                </div>
+                <div className={styles.cells}>
+                  <div className={styles.cell}>
+                    <span>Entrants</span>
+                    <b>
+                      {t.entrants}/{t.places}
+                    </b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Played</span>
+                    <b>
+                      {t.played} · {t.finished} done
+                    </b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Entry</span>
+                    <b>{entryLabel(t)}</b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Pot · {PAYOUT_LABELS[t.payout]}</span>
+                    <b className="lime">{amount(t.pot, t.asset)}</b>
+                  </div>
+                </div>
+                <div className={styles.actions}>
+                  <Link className="btn" href={`/tournaments/${t.id}`}>
+                    View
+                  </Link>
+                  {t.status === "live" && (
+                    <button className="btn" disabled={busy === t.id} onClick={() => void act("close", t)}>
+                      End now
+                    </button>
+                  )}
+                  {(t.status === "registration" || t.status === "live") && (
+                    <button className="btn btn-danger" disabled={busy === t.id} onClick={() => void act("cancel", t)}>
+                      Cancel
+                    </button>
+                  )}
+                  {(t.status === "settled" || t.status === "cancelled") && (
+                    <button className="btn btn-danger" disabled={busy === t.id} onClick={() => void act("delete", t)}>
+                      <Trash2 size={15} /> {busy === t.id ? "Deleting…" : "Delete"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

@@ -1,9 +1,7 @@
-.heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 35px 0 20px; }
-.heading h2 { margin: 0; }
 .periods { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; background: var(--background); }
 .periods button { padding: 9px 16px; border-radius: 8px; color: var(--muted-foreground); font-size: 13px; font-weight: 700; cursor: pointer; }
 .periods button[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); }
-.card { padding: 24px; margin-top: 18px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); min-width: 0; }
+.card { padding: 20px; margin-top: 12px; border: 1px solid var(--border); border-radius: 18px; background: var(--card); min-width: 0; }
 .card h3 { margin: 0 0 18px; font-size: 17px; }
 .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
 .metrics button { text-align: left; padding: 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; min-width: 0; }

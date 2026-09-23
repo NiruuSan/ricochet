@@ -1,0 +1,550 @@
+/* The admin area: one language for ten tools.
+ *
+ * Every tab used to bring its own headings, spacings and inline colours, so the
+ * house looked like ten rooms built by ten people. Everything here is shared:
+ * the rail that says where you are, the header that names the section, and the
+ * three shapes a tab is allowed to use — a panel, a list of records, a table.
+ */
+
+.page {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 26px 0 70px;
+}
+
+/* Header ------------------------------------------------------------------ */
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid #1e2836;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c6f564;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+}
+.head h1 {
+  margin: 10px 0 0;
+  font-size: clamp(28px, 3.4vw, 40px);
+  letter-spacing: -1.4px;
+  line-height: 1.05;
+}
+.head p {
+  margin-top: 8px;
+  max-width: 76ch;
+  color: #93a1b8;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid #253045;
+  border-radius: 999px;
+  background: #121a26;
+  color: #93a1b8;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.live::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c6f564;
+  animation: adminPulse 1.6s ease-in-out infinite;
+}
+@keyframes adminPulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Rail -------------------------------------------------------------------- */
+.shell {
+  display: grid;
+  grid-template-columns: 226px minmax(0, 1fr);
+  gap: 34px;
+  margin-top: 26px;
+  align-items: start;
+}
+.rail {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 22px;
+}
+.railGroup {
+  display: grid;
+  gap: 3px;
+}
+.railGroup > span {
+  padding: 0 12px 6px;
+  color: #6c7a8f;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+.railItem {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: none;
+  color: #a8b4c8;
+  font-size: 14px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.railItem svg {
+  flex-shrink: 0;
+  color: #7f8da3;
+}
+.railItem:hover {
+  background: #161f2c;
+  color: #e8edf6;
+}
+.railItem[aria-current="true"] {
+  background: #1a2433;
+  border-color: #2c3a4f;
+  color: #f6f8fd;
+}
+.railItem[aria-current="true"] svg {
+  color: #c6f564;
+}
+.count {
+  margin-left: auto;
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #c6f564;
+  color: #16200a;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.countQuiet {
+  background: #263145;
+  color: #9fb0c6;
+}
+
+/* Sections ---------------------------------------------------------------- */
+.section {
+  margin-top: 30px;
+}
+.section:first-child {
+  margin-top: 0;
+}
+.sectionHead {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-bottom: 14px;
+}
+.sectionHead h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+.sectionHead h2 small {
+  color: #7f8da3;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.sectionHead > div {
+  flex: 1 1 460px;
+  min-width: 0;
+}
+.sectionHead p {
+  margin-top: 5px;
+  max-width: 82ch;
+  color: #8e9cb2;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.panel {
+  padding: 20px;
+  border: 1px solid #222c3c;
+  border-radius: 16px;
+  background: #121a26;
+}
+.panel + .panel {
+  margin-top: 14px;
+}
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.panelHead h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+}
+.panelHead span {
+  color: #8e9cb2;
+  font-size: 12.5px;
+}
+
+/* Numbers ----------------------------------------------------------------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+.stat {
+  padding: 15px 17px;
+  border: 1px solid #222c3c;
+  border-radius: 14px;
+  background: #121a26;
+}
+.stat > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #8e9cb2;
+  font-size: 12px;
+}
+.stat > b {
+  display: block;
+  margin-top: 7px;
+  font-size: 25px;
+  letter-spacing: -0.8px;
+}
+.stat > small {
+  display: block;
+  margin-top: 5px;
+  color: #7f8da3;
+  font-size: 11.5px;
+}
+/* A metric card that leads with its label, as the case review does. */
+.stat > small:first-child {
+  margin: 0 0 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.stat > span:not(:first-child) {
+  display: block;
+  margin-top: 7px;
+  color: #8291a8;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+.muted {
+  color: #8e9cb2;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+/* Records ----------------------------------------------------------------- */
+.list {
+  display: grid;
+  gap: 8px;
+}
+.row {
+  display: grid;
+  /* Fixed shares rather than auto: two rows of the same list must line up even
+     when one of them has three buttons and the other has none. */
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1.9fr) minmax(250px, 0.85fr);
+  align-items: center;
+  gap: 12px 20px;
+  padding: 14px 16px;
+  border: 1px solid #1d2634;
+  border-radius: 13px;
+  background: #121a26;
+  font-size: 14px;
+}
+.row:hover {
+  border-color: #2a374b;
+}
+.done {
+  opacity: 0.62;
+}
+/* Who the record is about: a name, then everything that qualifies it. */
+.who {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.who > div {
+  min-width: 0;
+}
+.who b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14.5px;
+}
+.who small,
+.who > div > span {
+  display: block;
+  margin-top: 3px;
+  color: #8291a8;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.who a {
+  color: inherit;
+}
+/* The facts about it, as many as fit on the line. */
+.cells {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  gap: 10px 18px;
+  min-width: 0;
+}
+.cell span {
+  display: block;
+  color: #7f8da3;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+.cell b {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+  font-weight: 750;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.actions :global(.btn) {
+  padding: 9px 13px;
+  font-size: 13px;
+}
+.note {
+  grid-column: 1 / -1;
+  margin-top: 2px;
+  padding-top: 11px;
+  border-top: 1px solid #1d2634;
+  color: #93a1b8;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+.noteDone {
+  color: #c6f564;
+}
+
+/* Tables ------------------------------------------------------------------ */
+.scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 6px;
+  font-size: 13.5px;
+}
+.table th {
+  padding: 0 14px 6px;
+  color: #7f8da3;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  text-align: left;
+  white-space: nowrap;
+}
+.table td {
+  padding: 13px 14px;
+  background: #121a26;
+  border-top: 1px solid #1d2634;
+  border-bottom: 1px solid #1d2634;
+  vertical-align: middle;
+}
+.table td:first-child {
+  border-left: 1px solid #1d2634;
+  border-radius: 12px 0 0 12px;
+}
+.table td:last-child {
+  border-right: 1px solid #1d2634;
+  border-radius: 0 12px 12px 0;
+}
+.table a {
+  color: #e8edf6;
+}
+.right {
+  text-align: right;
+}
+.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small parts -------------------------------------------------------------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #243042;
+  color: #a8b8ce;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ok {
+  background: #c6f5641a;
+  color: #c6f564;
+}
+.warn {
+  background: #ffb86b1a;
+  color: #ffb86b;
+}
+.bad {
+  background: #ff80911f;
+  color: #ffb2bf;
+}
+.calm {
+  background: #7fb2ff1a;
+  color: #9ec5ff;
+}
+.empty {
+  padding: 30px 20px;
+  border: 1px dashed #263145;
+  border-radius: 14px;
+  color: #8e9cb2;
+  font-size: 13.5px;
+  text-align: center;
+}
+.fine {
+  margin-top: 10px;
+  color: #7f8da3;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+.loading {
+  padding: 26px 0;
+  color: #8e9cb2;
+  font-size: 13.5px;
+}
+
+/* Forms ------------------------------------------------------------------- */
+.form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 18px;
+}
+.form :global(.field) {
+  margin: 10px 0;
+}
+.full {
+  grid-column: 1 / -1;
+}
+.formActions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+.search {
+  display: flex;
+  max-width: 460px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid #2a374b;
+  border-radius: 11px;
+  background: #0d141f;
+  color: #7f8da3;
+}
+.search :global(.input) {
+  margin: 0;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  font-size: 14px;
+}
+.search :global(.input):focus {
+  outline: none;
+}
+
+/* Phones ------------------------------------------------------------------ */
+@media (max-width: 1000px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .rail {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .railGroup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  /* The group names are a desktop nicety; the chips speak for themselves. */
+  .railGroup > span {
+    display: none;
+  }
+  .railItem {
+    width: auto;
+    padding: 8px 12px;
+    font-size: 13px;
+    border-color: #222c3c;
+    border-radius: 999px;
+    background: #121a26;
+    white-space: nowrap;
+  }
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .actions {
+    justify-content: flex-start;
+  }
+  .form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .head {
+    align-items: flex-start;
+  }
+}

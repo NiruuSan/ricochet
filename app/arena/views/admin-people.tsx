@@ -6,9 +6,10 @@ import { useActionDialog } from "@/components/ui/action-dialog";
 import { PlayerNameInput } from "@/components/ui/player-name-input";
 import type { AdminPlayer } from "@/lib/admin-players";
 import { request } from "../api";
+import { Avatar } from "../avatar";
 import { fullSol } from "../funded-wallet";
 import { timeAgo } from "../format";
-import styles from "./tournaments.module.css";
+import styles from "./admin.module.css";
 
 const REFRESH_MS = 30_000;
 
@@ -88,64 +89,77 @@ Balances, wallets and the ledger are untouched. Write the reason; it is recorded
   const shown = (list ?? []).filter((p) => !search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
-    <>
-      <h2 style={{ margin: "30px 0 6px" }}>Players</h2>
-      <p className="muted">
-        Every profile on the site, newest first. Deleting an account is a development tool: it removes the player and everything attached to them, including the
-        matches they played, which are their opponents&apos; history too. It will be taken out before launch.
-      </p>
+    <section className={styles.section}>
       {error && (
-        <div className="error" role="alert" style={{ marginTop: 14 }}>
+        <div className="error" role="alert">
           <span>{error}</span>
         </div>
       )}
       {notice && (
-        <p className="success" role="status" style={{ marginTop: 14 }}>
+        <p className="success" role="status">
           {notice}
         </p>
       )}
-      <div className="field" style={{ marginBottom: 0, display: "flex", alignItems: "center", gap: 10 }}>
-        <Search size={17} />
-        <PlayerNameInput value={search} onValueChange={setSearch} names={(list ?? []).map((player) => player.name)} placeholder="Search by player name" aria-label="Search players" style={{ marginTop: 0 }} />
+      <div className={styles.search}>
+        <Search size={16} />
+        <PlayerNameInput value={search} onValueChange={setSearch} names={(list ?? []).map((player) => player.name)} placeholder="Search by player name" aria-label="Search players" />
       </div>
       {!list ? (
-        <p className="muted" style={{ marginTop: 16 }}>Loading…</p>
+        <p className={styles.loading}>Loading players…</p>
       ) : !shown.length ? (
-        <p className={styles.empty} style={{ marginTop: 16 }}>{search ? "No player by that name." : "Nobody has signed up yet."}</p>
+        <p className={styles.empty}>{search ? "No player by that name." : "Nobody has signed up yet."}</p>
       ) : (
-        <div style={{ marginTop: 16 }}>
-          <p className="fine" style={{ marginBottom: 10 }}>
-            {shown.length} of {list.length} {list.length === 1 ? "player" : "players"}
+        <>
+          <p className={styles.fine}>
+            {shown.length} of {list.length} {list.length === 1 ? "player" : "players"} · deleting is a development tool and removes their opponents&apos; history too.
           </p>
-          {shown.map((player) => (
-            <div key={player.name} className={styles.adminRow}>
-              <div>
-                <b>
-                  {player.deleted ? player.name : <Link href={`/players/${encodeURIComponent(player.name)}`}>{player.name}</Link>}
-                  {player.suspended ? (
-                    <span className="tag" style={{ color: "#ffb2bf", marginLeft: 8 }}>
-                      <ShieldAlert size={12} style={{ verticalAlign: -2 }} /> SUSPENDED
+          <div className={styles.list}>
+            {shown.map((player) => (
+              <div key={player.name} className={`${styles.row} ${player.deleted ? styles.done : ""}`}>
+                <div className={styles.who}>
+                  <Avatar name={player.name} src={null} size={34} />
+                  <div>
+                    <b>
+                      {player.deleted ? player.name : <Link href={`/players/${encodeURIComponent(player.name)}`}>{player.name}</Link>}
+                      {!!player.suspended && (
+                        <span className={`${styles.chip} ${styles.bad}`}>
+                          <ShieldAlert size={11} /> Suspended
+                        </span>
+                      )}
+                      {!!player.deleted && <span className={styles.chip}>Closed</span>}
+                    </b>
+                    <span>
+                      Joined {timeAgo(player.created)} · seen {timeAgo(player.lastSeen)}
                     </span>
-                  ) : null}
-                  {player.deleted ? <span className={styles.muted} style={{ marginLeft: 8 }}>closed</span> : null}
-                </b>
-                <span className={styles.muted}>
-                  Joined {timeAgo(player.created)} · seen {timeAgo(player.lastSeen)} · {player.games} {player.games === 1 ? "run" : "runs"} ·{" "}
-                  {player.gems.toLocaleString("en")} gems · {fullSol(player.sol)} SOL
-                </span>
+                  </div>
+                </div>
+                <div className={styles.cells}>
+                  <div className={styles.cell}>
+                    <span>Runs</span>
+                    <b>{player.games.toLocaleString("en")}</b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Gems</span>
+                    <b>{player.gems.toLocaleString("en")}</b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Devnet SOL</span>
+                    <b>{fullSol(player.sol)}</b>
+                  </div>
+                </div>
+                <div className={styles.actions}>
+                  <button className="btn" disabled={busy === player.name} onClick={() => void reset(player)}>
+                    <RotateCcw size={15} /> Reset stats
+                  </button>
+                  <button className="btn btn-danger" disabled={busy === player.name} onClick={() => void remove(player)}>
+                    <Trash2 size={15} /> {busy === player.name ? "Working…" : "Delete"}
+                  </button>
+                </div>
               </div>
-              <div className="row-actions">
-                <button className="btn" disabled={busy === player.name} onClick={() => void reset(player)}>
-                  <RotateCcw size={15} /> Reset stats
-                </button>
-                <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy === player.name} onClick={() => void remove(player)}>
-                  <Trash2 size={15} /> {busy === player.name ? "Working…" : "Delete"}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
-    </>
+    </section>
   );
 }

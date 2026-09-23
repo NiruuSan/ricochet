@@ -4,14 +4,11 @@ import Link from "next/link";
 import type { BugReport, BugReportPage } from "@/lib/bug-report-types";
 import { request } from "../api";
 import styles from "../bug-reports.module.css";
+import admin from "./admin.module.css";
 
 export function AdminBugReports() {
   const [offset, setOffset] = useState(0);
-  return <>
-    <h2 style={{ margin: "30px 0 6px" }}>Bug reports</h2>
-    <p className="muted">Problems reported by players, newest first. Resolved reports remain in this inbox.</p>
-    <ReportPage key={offset} offset={offset} onPage={setOffset} />
-  </>;
+  return <section className={admin.section}><ReportPage key={offset} offset={offset} onPage={setOffset} /></section>;
 }
 
 function ReportPage({ offset, onPage }: { offset: number; onPage: (offset: number) => void }) {
@@ -45,16 +42,16 @@ function ReportPage({ offset, onPage }: { offset: number; onPage: (offset: numbe
   return <>
     {error && <div className="error" role="alert"><span>{error}</span><button className="btn" onClick={() => setRevision((value) => value + 1)}>Retry</button></div>}
     {notice && <p className="success" role="status">{notice}</p>}
-    {!data ? !error && <p className="muted">Loading bug reports…</p> : <>
-      <p className={styles.meta}>{data.total} {data.total === 1 ? "report" : "reports"}</p>
-      {!data.reports.length && <p className="muted" style={{ marginTop: 20 }}>{offset ? "No reports on this page." : "No bugs reported yet."}</p>}
+    {!data ? !error && <p className={admin.loading}>Loading bug reports…</p> : <>
+      <p className={admin.fine}>{data.total} {data.total === 1 ? "report" : "reports"}</p>
+      {!data.reports.length && <p className={admin.empty}>{offset ? "No reports on this page." : "No bugs reported yet."}</p>}
       {data.reports.map((report) => <article key={report.id} className={styles.report}>
         <div className={styles.heading}>
           <div><h3>{report.title}</h3><p className={styles.meta}>
             {report.reporter ? <Link href={`/players/${encodeURIComponent(report.reporter)}`}>{report.reporter}</Link> : "Deleted player"}
-            {" · "}<time dateTime={new Date(report.created).toISOString()}>{new Date(report.created).toLocaleString()}</time>
+            {" · "}<time dateTime={new Date(report.created).toISOString()}>{new Date(report.created).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}</time>
           </p></div>
-          <span className={`tag ${report.status === "open" ? "lime" : ""}`}>{report.status === "open" ? "OPEN" : "RESOLVED"}</span>
+          <span className={`${admin.chip} ${report.status === "open" ? admin.warn : admin.ok}`}>{report.status === "open" ? "Open" : "Resolved"}</span>
         </div>
         <p className={styles.description}>{report.description}</p>
         {report.page && <p className={styles.meta}>Page: {report.page}</p>}

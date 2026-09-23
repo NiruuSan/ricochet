@@ -6,7 +6,7 @@ import { useActionDialog } from "@/components/ui/action-dialog";
 import type { ReportRow } from "@/lib/api-types";
 import { request } from "../api";
 import { timeAgo } from "../format";
-import styles from "./tournaments.module.css";
+import styles from "./admin.module.css";
 
 const REFRESH_MS = 30_000;
 const LABELS: Record<string, string> = {
@@ -64,60 +64,69 @@ export function AdminReports() {
   const open = (list ?? []).filter((r) => r.status === "open");
 
   return (
-    <>
-      <h2 style={{ margin: "30px 0 6px" }}>Reports</h2>
-      <p className="muted">
-        What players have said about each other. Blocking is theirs to do and needs nothing from you; this is the queue for everything else. Suspensions are still
-        made from the Anti-cheat tab.
-      </p>
+    <section className={styles.section}>
       {error && (
-        <div className="error" role="alert" style={{ marginTop: 14 }}>
+        <div className="error" role="alert">
           <span>{error}</span>
         </div>
       )}
       {notice && (
-        <p className="success" role="status" style={{ marginTop: 14 }}>
+        <p className="success" role="status">
           {notice}
         </p>
       )}
       {!list ? (
-        <p className="muted" style={{ marginTop: 16 }}>Loading…</p>
+        <p className={styles.loading}>Loading reports…</p>
       ) : !list.length ? (
-        <p className={styles.empty} style={{ marginTop: 16 }}>Nobody has reported anybody.</p>
+        <p className={styles.empty}>Nobody has reported anybody.</p>
       ) : (
-        <div style={{ marginTop: 16 }}>
-          <p className="fine" style={{ marginBottom: 10 }}>
-            {open.length} open · {list.length} in all
+        <>
+          <p className={styles.fine}>
+            {open.length} open · {list.length} in all. Blocking is the players&apos; own to do and needs nothing from you.
           </p>
-          {list.map((report) => (
-            <div key={report.id} className={styles.adminRow} style={{ opacity: report.status === "open" ? 1 : 0.65 }}>
-              <div>
-                <b>
-                  <Flag size={13} style={{ verticalAlign: -1, color: report.status === "open" ? "#ffb86b" : "#8e9cb1" }} />{" "}
-                  {report.target ? <Link href={`/players/${encodeURIComponent(report.target)}`}>{report.target}</Link> : "A closed account"}
-                  {report.against > 1 && <span className={styles.muted} style={{ marginLeft: 8 }}>{report.against} reports in all</span>}
-                </b>
-                <span className={styles.muted}>
-                  {LABELS[report.kind] ?? report.kind} · from {report.reporter ?? "a closed account"} · {timeAgo(report.created)}
-                </span>
-                <p className="fine" style={{ marginTop: 6, maxWidth: 620, whiteSpace: "pre-line" }}>
-                  {report.detail}
-                </p>
+          <div className={styles.list}>
+            {list.map((report) => (
+              <div key={report.id} className={`${styles.row} ${report.status === "open" ? "" : styles.done}`}>
+                <div className={styles.who}>
+                  <Flag size={17} color={report.status === "open" ? "#ffb86b" : "#8e9cb1"} />
+                  <div>
+                    <b>
+                      {report.target ? <Link href={`/players/${encodeURIComponent(report.target)}`}>{report.target}</Link> : "A closed account"}
+                      {report.against > 1 && <span className={`${styles.chip} ${styles.warn}`}>{report.against} reports</span>}
+                    </b>
+                    <span>{timeAgo(report.created)}</span>
+                  </div>
+                </div>
+                <div className={styles.cells}>
+                  <div className={styles.cell}>
+                    <span>Reason given</span>
+                    <b>{LABELS[report.kind] ?? report.kind}</b>
+                  </div>
+                  <div className={styles.cell}>
+                    <span>Reported by</span>
+                    <b>{report.reporter ?? "A closed account"}</b>
+                  </div>
+                </div>
+                <div className={styles.actions}>
+                  {report.status === "open" ? (
+                    <button className="btn" disabled={busy === report.id} onClick={() => void resolve(report)}>
+                      {busy === report.id ? "Closing…" : "Close report"}
+                    </button>
+                  ) : (
+                    <span className={styles.chip}>Closed</span>
+                  )}
+                </div>
+                <p className={styles.note}>{report.detail}</p>
                 {report.note && (
-                  <p className="fine" style={{ marginTop: 6, color: "#c6f564" }}>
+                  <p className={`${styles.note} ${styles.noteDone}`}>
                     Closed {report.reviewedAt ? timeAgo(report.reviewedAt) : ""} · {report.note}
                   </p>
                 )}
               </div>
-              {report.status === "open" && (
-                <button className="btn" disabled={busy === report.id} onClick={() => void resolve(report)}>
-                  {busy === report.id ? "Closing…" : "Close"}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
-    </>
+    </section>
   );
 }

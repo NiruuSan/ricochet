@@ -117,7 +117,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
         <h3>Two-factor authentication {status.enabled ? "is on" : "is off"}</h3>
         {status.withdrawalHoldUntil !== null && (
           <p className="error" role="status" style={{ marginTop: 10 }}>
-            After a security reset, withdrawals are paused until {new Date(status.withdrawalHoldUntil).toLocaleString()}. Setting up two-factor authentication again does not shorten this pause.
+            After a security reset, withdrawals are paused until {new Date(status.withdrawalHoldUntil).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}. Setting up two-factor authentication again does not shorten this pause.
           </p>
         )}
         <p>
@@ -127,7 +127,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
         </p>
         {locked && (
           <p className="error" role="alert" style={{ marginTop: 10 }}>
-            <LockKeyhole size={14} style={{ verticalAlign: -2 }} /> Too many wrong codes. Verification is paused until {new Date(status.lockedUntil!).toLocaleTimeString()}.
+            <LockKeyhole size={14} style={{ verticalAlign: -2 }} /> Too many wrong codes. Verification is paused until {new Date(status.lockedUntil!).toLocaleTimeString("en")}.
           </p>
         )}
         {error && !mode && (
@@ -146,7 +146,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
               <button className="btn" disabled={busy} onClick={() => (setError(""), setCode(""), setMode("regenerate"))}>
                 <KeyRound /> New recovery codes
               </button>
-              <button className="btn" style={{ borderColor: "#ff8091", color: "#ffb2bf" }} disabled={busy} onClick={() => (setError(""), setCode(""), setMode("disable"))}>
+              <button className="btn btn-danger" disabled={busy} onClick={() => (setError(""), setCode(""), setMode("disable"))}>
                 Turn off
               </button>
             </>
