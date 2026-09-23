@@ -91,7 +91,7 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
         </div>
         <div className="center">
           <small>YOUR SCORE</small>
-          <b className="lime">{(flying ? liveScore : game.score).toLocaleString()}</b>
+          <b className="lime">{(flying ? liveScore : game.score).toLocaleString("en")}</b>
         </div>
         <div>
           <small>BALLS</small>

@@ -132,7 +132,7 @@ export function WatchView({ id }: { id: string }) {
             </div>
             <div className="center">
               <small>SCORE</small>
-              <b className="lime">{(flying ? liveScore : game.score).toLocaleString()}</b>
+              <b className="lime">{(flying ? liveScore : game.score).toLocaleString("en")}</b>
             </div>
             <div>
               <small>BALLS</small>

@@ -26,7 +26,7 @@ function countdown(ms: number) {
   return d ? `${d}d ${h}h ${String(m).padStart(2, "0")}m` : `${h}h ${String(m).padStart(2, "0")}m`;
 }
 
-const weekLabel = (start: number) => new Date(start).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" });
+const weekLabel = (start: number) => new Date(start).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
 
 export const prizeLabel = (p: RacePrize | undefined) =>
   p ? [p.sol ? `${units(p.sol, "devnet")} SOL` : "", p.gems ? `${units(p.gems, "gems")} gems` : ""].filter(Boolean).join(" + ") || "No prize" : "No prize";
@@ -221,7 +221,7 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
                         </Link>
                       </td>
                       <td className={race.score}>{s.score.toLocaleString("en")}</td>
-                      <td className={race.whenColumn}>{new Date(s.at).toLocaleDateString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })}</td>
+                      <td className={race.whenColumn}>{new Date(s.at).toLocaleDateString("en", { weekday: "short", hour: "2-digit", minute: "2-digit" })}</td>
                       <td className={styles.arrowColumn}>
                         {s.watchId && (
                           <Tooltip content="Replay this run"><Link href={`/watch/${s.watchId}`} aria-label={`Replay ${s.name}'s best run`}>

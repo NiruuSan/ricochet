@@ -27,7 +27,7 @@ export function timing(t: TournamentSummary, now: number) {
   if (t.status === "registration") return `Starts in ${duration(t.startsAt - now)}`;
   if (t.status === "live") return `Ends in ${duration(t.endsAt - now)}`;
   if (t.status === "closing") return "Results any second";
-  return new Date(t.endsAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return new Date(t.endsAt).toLocaleDateString("en", { month: "short", day: "numeric" });
 }
 
 export const entryLabel = (t: TournamentSummary) => (t.entryFee ? amount(t.entryFee, t.asset) : "Free");

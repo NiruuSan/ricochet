@@ -53,7 +53,7 @@ function PnlCard({ performance, asset }: { performance: ProfilePerformance; asse
     </div>
     <div className={`${styles.pnlValue} ${value < 0 ? styles.negative : ""}`}>{signed(value, asset)} <span>{currency(asset)}</span></div>
     <div className={styles.chartMeta}>
-      <span>{selected ? new Date(selected.at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : RANGES.find(([key]) => key === range)![2]}</span>
+      <span>{selected ? new Date(selected.at).toLocaleString("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : RANGES.find(([key]) => key === range)![2]}</span>
       <span className={styles.watermark}><img src="/brand/bounce-white.svg" alt="Bounce" width={65} height={16} /></span>
     </div>
     <div className={styles.chartWrap}>
@@ -73,7 +73,7 @@ function PnlCard({ performance, asset }: { performance: ProfilePerformance; asse
       {/* A round marker in HTML, since the stretched SVG would squash a circle. */}
       {hover !== null && selected && <span className={styles.marker} style={{ left: `${x(hover) / 5}%`, top: `${y(selected.value) / 1.75}%` }} aria-hidden />}
     </div>
-    <div className={styles.chartDates}><span>{new Date(points[0].at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span><span>{high === 0 && low === 0 ? "No settled PNL in this period" : "Settled PNL"}</span><span>Now</span></div>
+    <div className={styles.chartDates}><span>{new Date(points[0].at).toLocaleDateString("en", { month: "short", day: "numeric" })}</span><span>{high === 0 && low === 0 ? "No settled PNL in this period" : "Settled PNL"}</span><span>Now</span></div>
     <span className={styles.srOnly} aria-live="polite">{selected && `${signed(selected.value, asset)} ${currency(asset)}`}</span>
   </section>;
 }
@@ -164,7 +164,7 @@ function MatchRows({ performance, asset }: { performance: ProfilePerformance; as
           <td><div className={styles.matchIdentity}>
             {match.opponent ? <Avatar name={match.opponent} src={match.opponentAvatar} size={40} /> : <span className={styles.matchIcon}>{match.tournament ? <Medal size={22} /> : <Zap size={22} />}</span>}
             <div><div className={styles.matchName}>{match.tournament ? <Link href={`/tournaments/${match.id}`}>{match.tournament.name}</Link> : match.opponent ? <>vs <Link href={`/players/${encodeURIComponent(match.opponent)}`}>{match.opponent}</Link></> : "Open challenge"}</div>
-              <span className={styles.matchSub}>{match.tournament ? "Tournament" : `#${shortId(match.id)}`} <span>·</span> {new Date(match.created).toLocaleDateString(undefined, { month: "short", day: "numeric" })}{match.watchId && <> <span>·</span> <Link className={styles.watchLink} href={`/watch/${match.watchId}`}><Eye size={12} /> Watch</Link></>}</span></div>
+              <span className={styles.matchSub}>{match.tournament ? "Tournament" : `#${shortId(match.id)}`} <span>·</span> {new Date(match.created).toLocaleDateString("en", { month: "short", day: "numeric" })}{match.watchId && <> <span>·</span> <Link className={styles.watchLink} href={`/watch/${match.watchId}`}><Eye size={12} /> Watch</Link></>}</span></div>
           </div></td>
           <td data-label="Entry"><span>{match.stake ? <>{number(match.stake, asset)} <small>{currency(asset)}</small></> : "Free"}</span></td>
           <td data-label="Result"><span className={`${styles.status} ${won(match) ? styles.won : lost(match) ? styles.lost : ""}`}>{status(match)}</span></td>
@@ -219,7 +219,7 @@ export function ProfileDashboard({
         <div className={styles.eyebrow}><UserRound size={15} />{own ? "YOUR PLAYER PROFILE" : "PLAYER PROFILE"}</div>
         <div className={styles.identity}>
           <div className={styles.avatar}><Avatar name={profile.name} src={own ? player.data.player?.avatar : profile.avatar} size={88} /></div>
-          <div className={styles.nameBlock}><h1>{profile.name}</h1><p>In the arena since {new Date(profile.created).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</p></div>
+          <div className={styles.nameBlock}><h1>{profile.name}</h1><p>In the arena since {new Date(profile.created).toLocaleDateString("en", { month: "short", year: "numeric" })}</p></div>
         </div>
         <p className={styles.heroDescription}>{own ? "Your best runs, closest matches, and next milestone." : "The runs, results, and ranks behind the player."}</p>
         <div className={styles.profileActions}>

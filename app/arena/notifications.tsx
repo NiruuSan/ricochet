@@ -14,7 +14,7 @@ const ordinal = (n: number) => `${n}${[, "st", "nd", "rd"][(n % 100 >> 3) ^ 1 &&
 
 function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" | "tournament" | "security"; title: string; detail: string } {
   if (n.kind === "security_reset") {
-    return { tone: "security", title: "Your two-factor authentication was reset", detail: `An administrator reset your authenticator. Withdrawals are paused until ${new Date(n.data.holdUntil).toLocaleString()}. Set up two-factor again in your wallet. If you did not request this, contact support.` };
+    return { tone: "security", title: "Your two-factor authentication was reset", detail: `An administrator reset your authenticator. Withdrawals are paused until ${new Date(n.data.holdUntil).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}. Set up two-factor again in your wallet. If you did not request this, contact support.` };
   }
   if (n.kind === "security_alert") {
     const { event, amount, to } = n.data;

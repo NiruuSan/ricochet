@@ -20,7 +20,7 @@ export const shortId = (id: string) => id.slice(0, 8).toUpperCase();
 
 export const initials = (name: string) => name.slice(0, 2).toUpperCase();
 
-export const shortDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+export const shortDate = (ms: number) => new Date(ms).toLocaleDateString("en", { month: "short", day: "numeric" });
 
 /** How long ago something happened, in words. */
 export function timeAgo(ms: number, now = Date.now()) {

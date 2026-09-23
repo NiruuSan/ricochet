@@ -125,8 +125,8 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
           </div>
           <h1 className={styles.heroTitle}>{t.name}</h1>
           <p className={styles.muted}>
-            {new Date(t.startsAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })} →{" "}
-            {new Date(t.endsAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+            {new Date(t.startsAt).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })} →{" "}
+            {new Date(t.endsAt).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}
           </p>
           <div className={styles.stats}>
             <div className={`${styles.stat} ${styles.statPot}`}>
