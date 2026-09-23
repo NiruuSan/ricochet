@@ -10,12 +10,14 @@ import {
   QUALITY,
   qualityPercentile,
   qualityThreshold,
+  RESTRICTED_MESSAGE,
   STATS,
   SUSPENDED_MESSAGE,
   TREND,
   type AimTrail,
   type Finding,
 } from "./anti-cheat-rules";
+import { MAX_APPEAL } from "./api-types";
 import { MAX_ANGLE, MIN_ANGLE, simulate, type Game } from "./engine";
 import { GameError } from "./matches";
 import { PaymentError } from "./payments/errors";
@@ -54,19 +56,65 @@ export async function setAntiCheatEnabled(adminUid: string, enabled: boolean, no
   ]);
 }
 
-/** SQL: whether `player` (an SQL expression for a player ID) may not play or move money. */
+/**
+ * How far a sanction reaches.
+ *
+ * Technical proof and an administrator's decision close the account: nothing is
+ * played, nothing moves. A statistical case is a suspicion, not a finding, and
+ * the player is very often exactly what they look like — somebody good. Taking
+ * their game away for days while a person gets round to the replays is a
+ * punishment handed out before the verdict, so a statistical case holds the
+ * money side only: no entries or prizes in SOL, no withdrawal, no tip, while
+ * practice, gems and the daily board stay open. Money is what a cheat is after,
+ * and none of it can leave while the case is open.
+ */
+/** SQL: whether `player` (an SQL expression for a player ID) may not touch real money. */
 export const suspendedSql = (player: string) => `EXISTS (SELECT 1 FROM player_suspensions WHERE user_id = ${player} AND status IN ('suspended', 'banned'))`;
+/** SQL: whether `player` may not play at all. A case under review is narrower than this. */
+export const lockedOutSql = (player: string) =>
+  `EXISTS (SELECT 1 FROM player_suspensions WHERE user_id = ${player} AND status IN ('suspended', 'banned') AND restricted = 0)`;
 
 export async function isSuspended(uid: string) {
   return !!(await database().prepare(`SELECT ${suspendedSql("?")} AS s`).bind(uid).first<{ s: number }>())?.s;
 }
 
-export async function assertCanPlay(uid: string) {
-  if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
+/** Whether every board is closed to this player, free ones included. */
+export async function isLockedOut(uid: string) {
+  return !!(await database().prepare(`SELECT ${lockedOutSql("?")} AS s`).bind(uid).first<{ s: number }>())?.s;
+}
+
+/** Free play and gems are open under review; anything with money in it is not. */
+export async function assertCanPlay(uid: string, asset: "gems" | "devnet" = "devnet") {
+  if (asset === "devnet" ? await isSuspended(uid) : await isLockedOut(uid)) throw new GameError(await suspensionMessage(uid), 403);
+}
+
+/** The message a blocked player gets, in the words of their own case. */
+export async function suspensionMessage(uid: string) {
+  return (await isLockedOut(uid)) ? SUSPENDED_MESSAGE : RESTRICTED_MESSAGE;
 }
 
 export async function assertCanMoveMoney(uid: string) {
-  if (await isSuspended(uid)) throw new PaymentError(SUSPENDED_MESSAGE);
+  if (await isSuspended(uid)) throw new PaymentError(await suspensionMessage(uid));
+}
+
+/**
+ * The player's side of it. Every sanction here is decided by a program, and a
+ * program cannot be argued with: this is the one place where the person under
+ * review can say something, and it lands in front of the administrator with the
+ * evidence. One per case — a second one would be a queue of the same words, not
+ * new information — and a fresh case clears it.
+ */
+export async function submitAppeal(uid: string, textInput: unknown, now = Date.now()) {
+  const text = typeof textInput === "string" ? textInput.trim().slice(0, MAX_APPEAL) : "";
+  if (text.length < 10) throw new GameError("Tell us what happened, in a sentence or two.", 400);
+  const row = await database()
+    .prepare("SELECT status, appeal FROM player_suspensions WHERE user_id = ?")
+    .bind(uid)
+    .first<{ status: string; appeal: string | null }>();
+  if (!row || row.status === "lifted") throw new GameError("There is nothing to appeal on your account.", 409);
+  if (row.appeal) throw new GameError("Your appeal is already with the review team.", 409);
+  await database().prepare("UPDATE player_suspensions SET appeal = ?, appealed_at = ? WHERE user_id = ? AND appeal IS NULL").bind(text, now, uid).run();
+  return { appeal: text, appealedAt: now };
 }
 
 export function signalInsert(db: Database, uid: string, runKey: string | null, finding: Finding, now: number) {
@@ -84,15 +132,18 @@ const reasonFor = (findings: Finding[]) =>
 /** Suspends a player (unless already suspended or banned), records why, and removes them from this week's race. */
 function suspensionOps(db: Database, uid: string, source: "proof" | "stats" | "admin", reason: string, evidence: unknown, now: number): Statement[] {
   const startedNow = "EXISTS (SELECT 1 FROM player_suspensions WHERE user_id = ? AND status = 'suspended' AND created = ?)";
+  // Statistics open a review and hold the money; proof and an administrator
+  // close the account. A new case also clears the appeal of the last one.
+  const restricted = source === "stats" ? 1 : 0;
   return [
     db
       .prepare(
-        `INSERT INTO player_suspensions(user_id, status, source, reason, evidence, created) VALUES(?, 'suspended', ?, ?, ?, ?)
+        `INSERT INTO player_suspensions(user_id, status, source, reason, evidence, created, restricted) VALUES(?, 'suspended', ?, ?, ?, ?, ?)
          ON CONFLICT(user_id) DO UPDATE SET status = 'suspended', source = excluded.source, reason = excluded.reason, evidence = excluded.evidence,
-           created = excluded.created, reviewed_by = NULL, reviewed_at = NULL, note = NULL
+           created = excluded.created, restricted = excluded.restricted, reviewed_by = NULL, reviewed_at = NULL, note = NULL, appeal = NULL, appealed_at = NULL
          WHERE player_suspensions.status = 'lifted'`,
       )
-      .bind(uid, source, reason, JSON.stringify(evidence), now),
+      .bind(uid, source, reason, JSON.stringify(evidence), now, restricted),
     // Only when this batch started the suspension: an existing one is not repeated.
     db
       .prepare(
@@ -102,7 +153,7 @@ function suspensionOps(db: Database, uid: string, source: "proof" | "stats" | "a
       .bind(weekStart(now), uid, `Suspended: ${reason}`.slice(0, 200), SYSTEM, now, weekStart(now), uid, now),
     db
       .prepare(`INSERT OR IGNORE INTO notifications(id, user_id, kind, data, created) SELECT ?, ?, 'account_suspended', ?, ? WHERE ${startedNow}`)
-      .bind(`suspension:${uid}:${now}`, uid, JSON.stringify({ reason }), now, uid, now),
+      .bind(`suspension:${uid}:${now}`, uid, JSON.stringify({ reason, restricted: !!restricted }), now, uid, now),
   ];
 }
 

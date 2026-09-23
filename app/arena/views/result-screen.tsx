@@ -8,6 +8,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import { drawBoard } from "../board-canvas";
 import { CURRENCY, signedAmount, units, amount } from "../format";
+import { themeStyle, themeById } from "../theme";
 import { playSound } from "../sound";
 import styles from "./screens.module.css";
 
@@ -26,6 +27,8 @@ type Props = {
   onClose: () => void;
   /** Called once when a match result becomes final, so balances can refresh. */
   onSettled?: () => void;
+  /** The player's skin, worn by the screen and by the final boards on it. */
+  theme?: string | null;
 };
 
 function useCountUp(value: number, duration = 900) {
@@ -44,11 +47,11 @@ function useCountUp(value: number, duration = 900) {
   return shown;
 }
 
-export function FinalBoard({ game, label }: { game: Game; label: string }) {
+export function FinalBoard({ game, label, theme }: { game: Game; label: string; theme?: string | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    if (ref.current) drawBoard(ref.current, null, { ...game, over: true }, 90);
-  }, [game]);
+    if (ref.current) drawBoard(ref.current, null, { ...game, over: true }, 90, themeById(theme));
+  }, [game, theme]);
   return (
     <div className={styles.boardCard}>
       <canvas ref={ref} width={472} height={612} aria-label={`${label}: final board`} />
@@ -123,7 +126,7 @@ function PracticeStat({ label, value, main = false }: { label: string; value: nu
 }
 
 /** Practice has no opponent: the player's own run, without a versus layout. */
-function PracticeDetails({ you }: { you: RecapSide }) {
+function PracticeDetails({ you, theme }: { you: RecapSide; theme?: string | null }) {
   return (
     <section className={styles.details}>
       <header className={styles.practiceHeader}>
@@ -146,7 +149,7 @@ function PracticeDetails({ you }: { you: RecapSide }) {
         <p className={styles.eyebrow}>FINAL BOARD</p>
         <div className={styles.boards}>
           <div className={styles.boardSolo}>
-            <FinalBoard game={you.board} label="Your board" />
+            <FinalBoard game={you.board} label="Your board" theme={theme} />
           </div>
         </div>
       </div>
@@ -154,7 +157,7 @@ function PracticeDetails({ you }: { you: RecapSide }) {
   );
 }
 
-export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettled }: Props) {
+export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettled, theme }: Props) {
   const { recap, error } = useRecap(target, onSettled);
   // One rematch per result screen, so a double tap does not open two matches.
   const [rematched, setRematched] = useState(false);
@@ -184,7 +187,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
 
   if (!you || (!practice && !recap)) {
     return (
-      <div className={`${styles.result} ${styles.pending}`} role="dialog" aria-modal="true" aria-label="Run complete">
+      <div className={`${styles.result} ${styles.pending}`} style={themeStyle(theme)} role="dialog" aria-modal="true" aria-label="Run complete">
         <section className={styles.outcome}>
           <p className={styles.eyebrow}>OUTCOME</p>
           <h1 className={styles.title}>
@@ -233,7 +236,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
   const net = recap?.net ?? 0;
 
   return (
-    <div className={`${styles.result} ${styles[tone]}`} role="dialog" aria-modal="true" aria-label={title.join(" ")}>
+    <div className={`${styles.result} ${styles[tone]}`} style={themeStyle(theme)} role="dialog" aria-modal="true" aria-label={title.join(" ")}>
       <section className={styles.outcome} key={`${tone}-${status}`}>
         <p className={styles.eyebrow}>{practice ? "PRACTICE" : "OUTCOME"}</p>
         <h1 className={styles.title}>
@@ -296,7 +299,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
       </section>
 
       {practice ? (
-        <PracticeDetails you={you} />
+        <PracticeDetails you={you} theme={theme} />
       ) : (
         <section className={styles.details}>
           <header className={styles.versus}>
@@ -337,9 +340,9 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
           <div className={styles.boardsSection}>
             <p className={styles.eyebrow}>FINAL BOARDS</p>
             <div className={styles.boards}>
-              <FinalBoard game={you.board} label="Your board" />
+              <FinalBoard game={you.board} label="Your board" theme={theme} />
               {them ? (
-                <FinalBoard game={them.board} label={`${them.name}'s board`} />
+                <FinalBoard game={them.board} label={`${them.name}'s board`} theme={theme} />
               ) : (
                 <div className={`${styles.boardCard} ${styles.boardHidden}`}>
                   {opponent ? `${opponent.name}'s board is revealed when they finish.` : "Waiting for a challenger to take the seat."}

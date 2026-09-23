@@ -1,5 +1,5 @@
 import { database } from "@/db/raw";
-import { isSuspended } from "./anti-cheat";
+import { isLockedOut } from "./anti-cheat";
 import { SUSPENDED_MESSAGE } from "./anti-cheat-rules";
 import { MESSAGE_MAX, type FriendList, type FriendMessage } from "./api-types";
 import { avatarUrl, GameError } from "./matches";
@@ -46,7 +46,7 @@ const linkFor = (uid: string, them: string) => {
 /** Asks someone to be friends. Answering a request they already sent accepts it. */
 export async function requestFriend(uid: string, nameInput: unknown, now = Date.now()) {
   const them = await other(uid, nameInput);
-  if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
+  if (await isLockedOut(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
   await assertNotBlocked(uid, them.id);
   const existing = await linkFor(uid, them.id);
   if (existing?.status === "accepted") throw new GameError(`You and ${them.name} are already friends.`, 409);
@@ -173,7 +173,7 @@ export async function sendMessage(uid: string, nameInput: unknown, bodyInput: un
   const them = await other(uid, nameInput);
   const body = String(bodyInput ?? "").trim().slice(0, MESSAGE_MAX);
   if (!body) throw new GameError("Write something first.");
-  if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
+  if (await isLockedOut(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
   await assertNotBlocked(uid, them.id);
   const link = await linkFor(uid, them.id);
   if (link?.status !== "accepted") throw new GameError(`You can only message friends. Add ${them.name} first.`, 403);

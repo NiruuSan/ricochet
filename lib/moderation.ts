@@ -1,6 +1,6 @@
 import { database } from "@/db/raw";
 import { adminAudit, adminNote } from "./admin";
-import { isSuspended } from "./anti-cheat";
+import { isLockedOut } from "./anti-cheat";
 import { SUSPENDED_MESSAGE } from "./anti-cheat-rules";
 import type { BlockedPlayer, ReportKind, ReportRow } from "./api-types";
 import { BLOCKED_MESSAGE, blockedBetween } from "./blocks";
@@ -78,7 +78,7 @@ export async function blockedList(uid: string): Promise<BlockedPlayer[]> {
  */
 export async function reportPlayer(uid: string, nameInput: unknown, kindInput: unknown, detailInput: unknown, now = Date.now()) {
   const them = await other(uid, nameInput);
-  if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
+  if (await isLockedOut(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
   const kind = String(kindInput ?? "") as ReportKind;
   if (!REPORT_KINDS.includes(kind)) throw new GameError("Choose what this report is about.");
   const detail = String(detailInput ?? "").trim().slice(0, DETAIL_MAX);

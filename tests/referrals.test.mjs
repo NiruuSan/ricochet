@@ -21,7 +21,11 @@ const BETA = "github:beta";
 const GAMMA = "github:gamma";
 const DELTA = "github:delta";
 const SOL = 1_000_000_000;
-const NOW = Date.UTC(2026, 8, 21, 12);
+// The moment the players below sign up. Settlement reads the real clock, and a
+// signup opens a fee window measured from the moment it happened, so this has
+// to track the clock: pinned to a date, the windows close as the calendar moves
+// past it and the suite quietly starts testing the wrong path.
+const NOW = Date.now() - 3 * 60 * 60_000;
 const DAY = 86_400_000;
 
 const balance = (uid) => Number(sqlite.prepare("SELECT balance FROM cash_accounts WHERE id = ?").get(cashAccountId(uid))?.balance ?? 0);

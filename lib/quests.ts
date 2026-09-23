@@ -1,6 +1,6 @@
 import { database } from "@/db/raw";
 import type { Quest, QuestBoard, QuestScope } from "./api-types";
-import { isSuspended } from "./anti-cheat";
+import { isLockedOut } from "./anti-cheat";
 import { dayOf } from "./daily";
 import { GameError } from "./matches";
 import { WEEK, weekStart } from "./weekly-race";
@@ -241,7 +241,7 @@ export async function claimQuest(uid: string, scopeInput: unknown, questInput: u
   const period = periodOf(scope, now);
   const definition = questsFor(scope, period).find((quest) => quest.id === questInput);
   if (!definition) throw new GameError("That quest is not running.", 404);
-  if (await isSuspended(uid)) throw new GameError("Your account is suspended. Contact support if you think this is a mistake.", 403);
+  if (await isLockedOut(uid)) throw new GameError("Your account is suspended. Contact support if you think this is a mistake.", 403);
   const db = database();
   const taken = await db
     .prepare("SELECT COUNT(*) AS n FROM quest_claims WHERE user_id = ? AND scope = ? AND period = ? AND quest = ?")

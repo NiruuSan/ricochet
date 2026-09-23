@@ -10,6 +10,7 @@ import { Avatar } from "../avatar";
 import { amount } from "../format";
 import { ordinal } from "../tournament-format";
 import { FinalBoard } from "./result-screen";
+import { themeStyle } from "../theme";
 import screens from "./screens.module.css";
 import styles from "./tournaments.module.css";
 
@@ -21,10 +22,12 @@ type Props = {
   ready: boolean;
   board: Game;
   onClose: () => void;
+  /** The player's skin (lib/themes.ts). */
+  theme?: string | null;
 };
 
 /** Full-screen end of a tournament run: the score, where it ranks, and the standings so far. */
-export function TournamentResult({ tournamentId, ready, board, onClose }: Props) {
+export function TournamentResult({ tournamentId, ready, board, onClose, theme }: Props) {
   const [t, setT] = useState<TournamentDetail | null>(null);
 
   useEffect(() => {
@@ -63,7 +66,7 @@ export function TournamentResult({ tournamentId, ready, board, onClose }: Props)
   const title = settled ? (you?.rank === 1 ? ["YOU", "WON"] : ["FINAL", "RANK"]) : ["RUN", "COMPLETE"];
 
   return (
-    <div className={`${screens.result} ${screens[tone]}`} role="dialog" aria-modal="true" aria-label="Tournament run complete">
+    <div className={`${screens.result} ${screens[tone]}`} style={themeStyle(theme)} role="dialog" aria-modal="true" aria-label="Tournament run complete">
       <section className={screens.outcome}>
         <p className={screens.eyebrow}>{t ? t.name.toUpperCase() : "TOURNAMENT"}</p>
         <h1 className={screens.title}>
@@ -129,7 +132,7 @@ export function TournamentResult({ tournamentId, ready, board, onClose }: Props)
         <div className={screens.boardsSection}>
           <p className={screens.eyebrow}>YOUR FINAL BOARD</p>
           <div className={screens.boards}>
-            <FinalBoard game={board} label="Your board" />
+            <FinalBoard game={board} label="Your board" theme={theme} />
           </div>
         </div>
       </section>

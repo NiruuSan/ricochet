@@ -1,6 +1,6 @@
 import { database } from "@/db/raw";
 import type { DailyGems } from "./api-types";
-import { isSuspended } from "./anti-cheat";
+import { isLockedOut } from "./anti-cheat";
 import { GameError } from "./matches";
 
 // Free gems, once a day. A player who runs out of gems has nothing left to play
@@ -31,7 +31,7 @@ const streakRow = (uid: string, day: number) =>
 /** The player's daily gems: what they can claim, or what today already paid. */
 export async function dailyGems(uid: string, now = Date.now()): Promise<DailyGems> {
   const day = dayOf(now);
-  const [last, suspended] = await Promise.all([streakRow(uid, day), isSuspended(uid)]);
+  const [last, suspended] = await Promise.all([streakRow(uid, day), isLockedOut(uid)]);
   const nextAt = (day + 1) * DAY_MS;
   if (last?.day === day) return { ready: false, streak: last.streak, amount: last.amount, nextAt };
   // Yesterday's claim carries the streak on; anything older starts again.
@@ -48,7 +48,7 @@ export async function claimDailyGems(uid: string, now = Date.now()): Promise<Dai
   const day = dayOf(now);
   const state = await dailyGems(uid, now);
   if (!state.ready) {
-    if (await isSuspended(uid)) throw new GameError("Your account is suspended. Contact support if you think this is a mistake.", 403);
+    if (await isLockedOut(uid)) throw new GameError("Your account is suspended. Contact support if you think this is a mistake.", 403);
     throw new GameError("You have already claimed today's gems. Come back tomorrow.", 409);
   }
   const [claimed] = await db.batch([

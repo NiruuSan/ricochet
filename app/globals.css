@@ -85,6 +85,13 @@ canvas:focus-visible {
   outline: 2px solid #c6f564;
   outline-offset: 5px;
 }
+/* The board's frame hides what overflows it, so the ring goes just inside the
+   canvas instead of five pixels outside, where only its top edge would show.
+   It wears the theme's accent, like everything else on the board. */
+.game-canvas:focus-visible {
+  outline: 2px solid var(--t-accent, #c6f564);
+  outline-offset: -4px;
+}
 button svg,
 a svg {
   width: 19px;
@@ -120,6 +127,10 @@ h3 {
 }
 .lime {
   color: #c6f564;
+}
+.board-head .lime,
+.board-shell .lime {
+  color: var(--t-accent, #c6f564);
 }
 .tag {
   font-size: 12px;
@@ -395,30 +406,32 @@ h3 {
   color: #9dabc2;
 }
 .board-shell {
-  background: #111826;
-  border: 1px solid #394253;
+  background: var(--t-surface, #111826);
+  border: 1px solid color-mix(in srgb, var(--t-frame, #394253) 45%, #2a3446);
   border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 15px 45px #0004;
 }
 .board-head {
+  font-family: var(--t-font, inherit);
   height: 78px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 17px 25px;
-  border-bottom: 1px solid #2a3549;
+  border-bottom: 1px solid color-mix(in srgb, var(--t-ink, #2a3549) 14%, transparent);
 }
 .board-head small {
   display: block;
   font-size: 11px;
   letter-spacing: 1.4px;
-  color: #9baac2;
+  color: color-mix(in srgb, var(--t-ink, #9baac2) 62%, transparent);
   font-weight: 750;
   margin-bottom: 5px;
 }
 .board-head b {
   font-size: 23px;
+  color: var(--t-ink, inherit);
 }
 .ball-counter {
   display: flex;
@@ -428,9 +441,9 @@ h3 {
 .ball-dot {
   width: 12px;
   height: 12px;
-  background: #c6f564;
+  background: var(--t-accent, #c6f564);
   border-radius: 50%;
-  box-shadow: 0 0 15px #c6f56644;
+  box-shadow: 0 0 15px color-mix(in srgb, var(--t-accent, #c6f564) 27%, transparent);
 }
 .board-wrap {
   position: relative;
@@ -441,7 +454,8 @@ h3 {
   height: auto;
   display: block;
   touch-action: none;
-  background: #0d1421;
+  /* Only ever seen for the instant before the first paint. */
+  background: var(--t-sky, #0d1421);
   cursor: crosshair;
 }
 .board-overlay {
@@ -475,6 +489,236 @@ h3 {
  * opacity and transform over 1.5s, above the canvas but never in the way of the
  * next shot.
  */
+/* A case open on the player's account: what is held, and their way to answer. */
+.suspension {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 16px 18px;
+  border: 1px solid #ff809140;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #2416200f, #1a1220), #141a26;
+}
+.suspension-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.suspension-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  border: 1px solid #ff809140;
+  background: #ff80911a;
+  color: #ff8091;
+}
+.suspension-head b {
+  font-size: 15px;
+}
+.suspension-head p {
+  margin-top: 4px;
+  color: #bcc7dc;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.suspension-form {
+  width: 100%;
+}
+.suspension-form label {
+  display: block;
+  margin-bottom: 7px;
+  color: #93a1b8;
+  font-size: 12.5px;
+}
+.suspension-form textarea {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #2f3b4f;
+  border-radius: 12px;
+  background: #0f1724;
+  color: #e7edf7;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.suspension-form textarea:focus-visible {
+  outline: 2px solid #c6f56455;
+  border-color: #c6f56488;
+}
+.suspension-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 9px;
+}
+.suspension-actions small {
+  color: #7f8d9f;
+  font-size: 11.5px;
+}
+.suspension-sent {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #c6f564;
+  font-size: 13px;
+}
+.suspension-error {
+  display: block;
+  margin-top: 8px;
+  color: #ff8091;
+  font-size: 12.5px;
+}
+@media (max-width: 560px) {
+  .suspension {
+    padding: 14px;
+  }
+  .suspension-icon {
+    display: none;
+  }
+  .suspension-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* The first-run guide: a card over the empty top of the board, never over the
+   bricks that matter, and never in the way of a pointer aiming through it. */
+.coach {
+  padding: 12px 12px 0;
+}
+.coach-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border: 1px solid #3a4a66;
+  border-radius: 14px;
+  background: #121b29f2;
+  animation: coachIn 0.35s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes coachIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-card {
+    animation: none;
+  }
+}
+.coach-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  border: 1px solid #c6f5643a;
+  background: #c6f56414;
+  color: #c6f564;
+}
+.coach-copy {
+  flex: 1;
+  min-width: 0;
+}
+.coach-copy b {
+  font-size: 14px;
+  letter-spacing: -0.2px;
+}
+.coach-copy p {
+  margin-top: 3px;
+  color: #a5b0c5;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.coach-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 7px;
+  color: #c6f564;
+  font-size: 12px;
+  font-weight: 700;
+}
+.coach-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.coach-count {
+  color: #7f8d9f;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.coach-hint {
+  color: #c6f564;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  text-align: right;
+}
+.coach-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: #7f8d9f;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+.coach-skip:hover {
+  color: #d4dded;
+}
+.coach-done {
+  padding: 7px 14px;
+  font-size: 13px;
+}
+@media (max-width: 560px) {
+  /* Narrow: the copy takes the width it needs and the counter, the prompt and
+     the way out share one line under it. */
+  .coach-card {
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    padding: 11px 12px;
+  }
+  .coach-icon {
+    display: none;
+  }
+  .coach-copy {
+    flex-basis: 100%;
+  }
+  .coach-copy p {
+    font-size: 12px;
+  }
+  .coach-side {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+  }
+  .coach-hint {
+    text-align: left;
+  }
+  .coach-skip,
+  .coach-done {
+    margin-left: auto;
+  }
+}
 .board-clear {
   position: absolute;
   inset: 0;
@@ -491,13 +735,13 @@ h3 {
 .board-clear-wash {
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle at 50% 46%, #c6f56440 0%, #c6f56414 38%, #c6f56400 68%);
+  background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--t-accent, #c6f564) 25%, transparent) 0%, color-mix(in srgb, var(--t-accent, #c6f564) 8%, transparent) 38%, transparent 68%);
   animation: clearWash 1.5s ease-out forwards;
 }
 .board-clear-ring {
   width: 110px;
   height: 110px;
-  border: 2px solid #c6f564;
+  border: 2px solid var(--t-accent, #c6f564);
   border-radius: 50%;
   animation: clearRing 1.25s cubic-bezier(0.16, 0.9, 0.3, 1) forwards;
 }
@@ -519,14 +763,14 @@ h3 {
   font-size: clamp(20px, 6vw, 27px);
   font-weight: 800;
   letter-spacing: -0.6px;
-  text-shadow: 0 0 30px #c6f56480;
+  text-shadow: 0 0 30px color-mix(in srgb, var(--t-accent, #c6f564) 50%, transparent);
 }
 .board-clear-chip {
   padding: 7px 13px;
-  border: 1px solid #c6f5643a;
+  border: 1px solid color-mix(in srgb, var(--t-accent, #c6f564) 23%, transparent);
   border-radius: 999px;
   background: #0c1422d9;
-  color: #c6f564;
+  color: var(--t-accent, #c6f564);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 1.2px;
@@ -541,8 +785,8 @@ h3 {
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: #c6f564;
-  box-shadow: 0 0 14px #c6f56499;
+  background: var(--t-accent, #c6f564);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--t-accent, #c6f564) 60%, transparent);
   animation: clearBall 1.15s cubic-bezier(0.2, 0.9, 0.3, 1) forwards;
 }
 .board-clear-balls i:nth-child(2) {
@@ -618,14 +862,14 @@ h3 {
   justify-content: space-between;
   align-items: center;
   padding: 15px 21px;
-  background: #182131;
-  border-top: 1px solid #34415a;
+  background: color-mix(in srgb, var(--t-surface, #182131) 88%, var(--t-ink, #ffffff) 12%);
+  border-top: 1px solid color-mix(in srgb, var(--t-ink, #34415a) 16%, transparent);
   gap: 10px;
   min-height: 54px;
 }
 .board-bottom span {
   font-size: 12px;
-  color: #bcc7dc;
+  color: color-mix(in srgb, var(--t-ink, #bcc7dc) 78%, transparent);
 }
 /* Sound and speed sit together, to the right of the line of status text. */
 .board-tools {
@@ -637,7 +881,7 @@ h3 {
 .icon-btn {
   border: 0;
   background: transparent;
-  color: #bdc8dd;
+  color: color-mix(in srgb, var(--t-ink, #bdc8dd) 80%, transparent);
   padding: 3px;
   display: flex;
   align-items: center;
@@ -761,6 +1005,22 @@ h3 {
 .links {
   display: flex;
   gap: 20px;
+}
+/* On a touch screen a line of 12px text is a small thing to hit: the footer
+   links keep their look and grow a thumb's worth of room around them. */
+@media (hover: none) and (pointer: coarse) {
+  .foot .links a,
+  .foot > a,
+  /* The "see everything" link at the head of a section is a control, not prose. */
+  a.lime {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+  }
+  .links {
+    gap: 18px;
+    flex-wrap: wrap;
+  }
 }
 .error {
   background: #ff647315;
@@ -1330,7 +1590,12 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
   }
   body.playing .topbar,
   body.playing .navigation,
-  body.playing .foot {
+  body.playing .foot,
+  /* Everything around the board goes while it is played full screen, the notice
+     about an open case included: the board is drawn at whatever height is left,
+     so anything left above it is taken out of the board. It is waiting on every
+     other screen. */
+  body.playing .suspension {
     display: none;
   }
   body.playing .shell {
@@ -1353,6 +1618,11 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
     justify-content: center;
     padding: calc(10px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
+  /* The first-run guide sits inside the frame, so it counts as chrome for as
+     long as it is on screen (app/arena/coach.tsx measures it). */
+  body.playing.coaching .game-screen {
+    --board-chrome: calc(224px + var(--coach-height, 130px));
+  }
   body.playing .board-shell {
     width: min(100%, calc((100dvh - var(--board-chrome) - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * 0.771));
     margin: 0 auto;
@@ -1366,6 +1636,9 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
 @media (max-width: 720px) {
   body.playing .game-screen {
     --board-chrome: 178px;
+  }
+  body.playing.coaching .game-screen {
+    --board-chrome: calc(178px + var(--coach-height, 130px));
   }
   body.playing .board-shell {
     border-radius: 16px;

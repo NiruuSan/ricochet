@@ -83,6 +83,9 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
             {SOURCE[item.source] ?? item.source} · {new Date(item.created).toLocaleString()}
           </p>
           <p style={{ marginTop: 8, fontSize: 14 }}>{item.reason}</p>
+          {item.restricted && item.status === "suspended" && (
+            <p className={styles.muted}>Under review: their SOL entries, tournaments, withdrawals and tips are held; practice and gems are not.</p>
+          )}
           {item.note && <p className={styles.muted}>Review note: {item.note}</p>}
           {item.reviewedAt && <p className={styles.muted}>Last reviewed {new Date(item.reviewedAt).toLocaleString()}</p>}
         </div>
@@ -104,6 +107,15 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
           </div>
         )}
       </div>
+      {item.appeal && (
+        <div className={review.appeal}>
+          <small className={styles.muted}>
+            {item.name.toUpperCase()} ANSWERED · {item.appealedAt ? new Date(item.appealedAt).toLocaleString() : ""}
+          </small>
+          {/* The player's own words, shown as written and never as instructions. */}
+          <p>{item.appeal}</p>
+        </div>
+      )}
       <div className={review.metrics}>
         <div className={styles.stat}>
           <small className={styles.muted}>BALANCE</small>

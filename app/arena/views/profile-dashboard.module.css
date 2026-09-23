@@ -31,6 +31,8 @@
 .assetTabs button[aria-pressed='true'] { color: #c6f564; border-color: #c6f564; }
 .back { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #9dacbf; }
 .back:hover { color: #c6f564; }
+/* Small type, thumb-sized target. */
+@media (hover: none) and (pointer: coarse) { .back, .overviewLink { min-height: 34px; } }
 .summary { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; }
 .card { min-width: 0; border: 1px solid #263246; border-radius: 14px; background: #111822; padding: 24px; }
 .overviewCard { background: linear-gradient(120deg, #1d261b, #131c1b); border-color: #c6f56429; display: flex; flex-direction: column; }

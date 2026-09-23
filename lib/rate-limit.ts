@@ -10,6 +10,8 @@ export const LIMITS = {
   walletWrite: 30,
   treasuryWrite: 60,
   profileWrite: 20,
+  /** Buying or changing a skin: a handful of taps, never a stream. */
+  themeWrite: 20,
   bugReportWrite: 5,
   bugAttachmentWrite: 20,
   tournamentWrite: 30,

@@ -19,7 +19,15 @@ import styles from "./tournaments.module.css";
 function CaseSummary({ item }: { item: CheatCase }) {
   const status = CASE_STATUS[item.status];
   return <Link href={`/admin/anti-cheat/${encodeURIComponent(item.name)}`} className={review.caseCard} aria-label={`Review ${item.name}`}>
-    <div className={review.cardTop}><span style={{ color: status.color }}>{status.label}</span><ArrowUpRight size={17} /></div>
+    <div className={review.cardTop}>
+      <span style={{ color: status.color }}>
+        {status.label}
+        {item.restricted && item.status === "suspended" && " · MONEY ONLY"}
+      </span>
+      <ArrowUpRight size={17} />
+    </div>
+    {/* A case whose player has answered is the one to read first. */}
+    {item.appeal && <span className={review.answered}>ANSWERED</span>}
     <h3>{item.name}</h3>
     <p className={review.reason}>{item.reason}</p>
     <div className={review.cardMetrics}><span>Shot quality <b>{item.stats.meanQuality === null ? "—" : `${Math.round(item.stats.meanQuality * 100)}%`}</b></span><span>Ghost hits <b>{item.stats.traps.trapped}/{item.stats.traps.rounds}</b></span></div>
@@ -157,8 +165,10 @@ export function AdminAntiCheat() {
           </p>
         )}
         <p className="muted" style={{ marginTop: 6, fontSize: 13 }}>
-          Technical proof (automation browser, scripted input, skipped animations) suspends a player at once and hands their unsettled matches to their opponents. Statistical signals
-          (superhuman precision or rhythm on SOL shots) suspend for your review. Suspended players cannot play, withdraw or tip until you lift or ban.
+          Technical proof (automation browser, scripted input, skipped animations) suspends a player at once, hands their unsettled matches to their opponents and closes their
+          account until you lift or ban. Statistics (superhuman precision, rhythm, or an average the ghost traps agree with) open a review instead: SOL entries, tournaments,
+          withdrawals and tips are held, while practice and gems stay open — a suspicion should not take the game away from somebody who is simply good. Players can answer their
+          case; the ones who have are marked ANSWERED.
         </p>
         <Form
           className={`field-row ${review.suspendForm}`}

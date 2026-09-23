@@ -91,6 +91,9 @@ export type Finding = { kind: string; level: "proof" | "stat" | "watch"; detail:
 
 export const OUTDATED_CLIENT = "Bounce was updated. Reload the page to keep playing.";
 export const SUSPENDED_MESSAGE = "Your account is suspended while suspicious activity is reviewed. Contact support if you think this is a mistake.";
+/** A case that rests on statistics: the money is held, the game is not (lib/anti-cheat.ts). */
+export const RESTRICTED_MESSAGE =
+  "Your account is under review. Practice and gems stay open, but SOL entries, tournaments, withdrawals and tips are paused until it is settled. Send your side of it from the arena.";
 
 /** Client animation: the drawn tick rate (lib/engine.ts), up to 3× speed. */
 const CLIENT_TICK_MS = 1000 / CLIENT_TICKS_PER_SECOND;

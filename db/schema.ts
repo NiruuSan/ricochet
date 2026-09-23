@@ -23,6 +23,9 @@ export const players = sqliteTable(
     // 1: anyone's code, a day of reduced fees for whoever signs up with it.
     // 2: a partnership, granted by an administrator (lib/referrals.ts).
     referralLevel: integer("referral_level").notNull().default(1),
+    // The skin the player wears on the board (lib/themes.ts). Null is the one
+    // everybody starts with, so nothing has to be written for a new player.
+    theme: text("theme"),
   },
   (t) => [
     check("balance_nonnegative", sql`${t.balance} >= 0`),
@@ -585,7 +588,28 @@ export const playerSuspensions = sqliteTable("player_suspensions", {
   reviewedBy: text("reviewed_by"),
   reviewedAt: integer("reviewed_at"),
   note: text("note"),
+  // 1 while the case rests on statistics alone: the player keeps free play and
+  // gems, and only the money side is held (lib/anti-cheat.ts).
+  restricted: integer("restricted").notNull().default(0),
+  // The player's own account of it, once, for the administrator reviewing.
+  appeal: text("appeal"),
+  appealedAt: integer("appealed_at"),
 });
+
+// Themes a player has bought. The row is the receipt and the lock: its key is
+// the player and the theme, so a double tap buys one (lib/theme-store.ts).
+export const themePurchases = sqliteTable(
+  "theme_purchases",
+  {
+    userId: text("user_id").notNull(),
+    theme: text("theme").notNull(),
+    // gems | devnet, and what it cost in that currency's units.
+    asset: text("asset").notNull(),
+    price: integer("price").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.theme] })],
+);
 
 // Every anti-cheat observation, including those below a sanction threshold.
 export const cheatSignals = sqliteTable(

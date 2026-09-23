@@ -25,7 +25,13 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
     return { tone: "security", title: "Your recovery codes were replaced", detail: "The previous codes no longer work. If this was not you, sign out everywhere and contact support." };
   }
   if (n.kind === "account_suspended") {
-    return { tone: "security", title: "Your account is suspended", detail: `${n.data.reason}. Play, withdrawals and tips are paused while this is reviewed. Contact support if you think this is a mistake.` };
+    return n.data.restricted
+      ? {
+          tone: "security",
+          title: "Your account is under review",
+          detail: `${n.data.reason}. Practice and gems stay open; SOL entries, tournaments, withdrawals and tips are paused. You can answer from the arena.`,
+        }
+      : { tone: "security", title: "Your account is suspended", detail: `${n.data.reason}. Play, withdrawals and tips are paused while this is reviewed. You can answer from the arena.` };
   }
   if (n.kind === "race_result") {
     const { rank, score, sol, gems } = n.data;

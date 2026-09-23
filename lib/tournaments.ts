@@ -2,8 +2,8 @@ import { wageredSql } from "./experience";
 import { experienceFromWagered, levelFor } from "./levels";
 import { database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, validAngle, type Game } from "./engine";
-import { inspectShot, SUSPENDED_MESSAGE } from "./anti-cheat-rules";
-import { analyzeShot, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
+import { inspectShot } from "./anti-cheat-rules";
+import { analyzeShot, isSuspended, signalInsert, suspendedSql, suspensionMessage } from "./anti-cheat";
 import {
   PAYOUT_SHARES,
   TOURNAMENT_FEE_PERCENT,
@@ -194,7 +194,7 @@ export async function registerForTournament(uid: string, idInput: unknown, now =
   if (tournamentStatus(t, now) !== "registration") throw new GameError("Registration for this tournament is closed.", 409);
   const db = database();
   if (!(await db.prepare("SELECT 1 FROM players WHERE id = ? AND deleted IS NULL").bind(uid).first())) throw new GameError("Create your player profile first.", 403);
-  if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
+  if (await isSuspended(uid)) throw new GameError(await suspensionMessage(uid), 403);
   if (await db.prepare("SELECT 1 FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").bind(t.id, uid).first()) {
     throw new GameError("You are already registered.", 409);
   }
@@ -271,7 +271,7 @@ export async function startTournamentRun(uid: string, idInput: unknown, now = Da
   const db = database();
   const load = () => db.prepare("SELECT * FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").bind(t.id, uid).first<EntryRow>();
   const [first, suspended] = await Promise.all([load(), isSuspended(uid)]);
-  if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
+  if (suspended) throw new GameError(await suspensionMessage(uid), 403);
   let entry = first;
   if (!entry) throw new GameError("You are not registered for this tournament.", 403);
   if (entry.done) throw new GameError("You have already played your run in this tournament.", 409);
@@ -308,7 +308,7 @@ export async function playTournamentShot(
   ]);
   if (!permitted) throw new GameError("Too many requests. Wait a minute before trying again.", 429);
   if (!row || !row.state) throw new GameError("Game not found.", 404);
-  if (row.suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
+  if (row.suspended) throw new GameError(await suspensionMessage(uid), 403);
   const runKey = `t-${row.id}`;
   if (tournamentStatus({ status: row.t_status, starts_at: row.starts_at, ends_at: row.ends_at }, now) !== "live") {
     throw new GameError("This tournament has ended. Your score so far counts.", 409);

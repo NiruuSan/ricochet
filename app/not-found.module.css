@@ -77,6 +77,13 @@
 .links a:hover {
   color: #c6f564;
 }
+@media (hover: none) and (pointer: coarse) {
+  .links a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 34px;
+  }
+}
 .art {
   min-width: 0;
 }

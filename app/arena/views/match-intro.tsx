@@ -3,6 +3,7 @@ import { Gem, Zap } from "lucide-react";
 import type { Asset } from "@/lib/api-types";
 import { Avatar } from "../avatar";
 import { CURRENCY, units } from "../format";
+import { themeById, themeStyle } from "../theme";
 import styles from "./screens.module.css";
 
 export type IntroStage = "searching" | "ready" | "go" | "leaving";
@@ -27,15 +28,21 @@ type Props = {
   opponent?: { name: string; avatar: string | null } | null;
   /** A tournament run: the number is the prize pool instead of a stake. */
   tournament?: string;
+  /** The player's skin (lib/themes.ts): the drifting bricks wear its colours too. */
+  theme?: string | null;
 };
 
 /** Full-screen matchmaking moment between choosing a stake and the first shot. */
-export function MatchIntro({ asset, stake, stage, opponent, tournament }: Props) {
+export function MatchIntro({ asset, stake, stage, opponent, tournament, theme }: Props) {
+  // The bricks drifting behind take their colours from the theme, in the order
+  // they were written, so the arrangement never moves between renders.
+  const palette = themeById(theme).board.bricks;
+  const bricks = BRICKS.map((brick, i) => ({ ...brick, color: palette[i % palette.length][0] }));
   const ready = stage !== "searching";
   // On GO the stake and status clear out, so the word has the screen to itself.
   const go = stage === "go" || stage === "leaving";
   return (
-    <div className={`${styles.intro} ${stage === "leaving" ? styles.introLeaving : ""}`} role="status" aria-live="polite">
+    <div className={`${styles.intro} ${stage === "leaving" ? styles.introLeaving : ""}`} style={themeStyle(theme)} role="status" aria-live="polite">
       <div className={styles.rings} aria-hidden>
         <span />
         <span />
@@ -43,7 +50,7 @@ export function MatchIntro({ asset, stake, stage, opponent, tournament }: Props)
       </div>
       <div className={styles.orbit} aria-hidden />
       <div className={styles.bricks} aria-hidden>
-        {BRICKS.map((b, i) => (
+        {bricks.map((b, i) => (
           <span key={i} style={{ left: b.left, top: b.top, background: b.color, animationDelay: b.delay }} />
         ))}
       </div>

@@ -6,6 +6,7 @@ import { FastForward, Play, Volume2, VolumeX } from "lucide-react";
 import { H, MAX_ANGLE, MIN_ANGLE, W, type Game } from "@/lib/engine";
 import type { GameSession } from "./use-game-session";
 import { isMuted, setMuted, subscribe } from "./sound";
+import { Coach } from "./coach";
 
 /** How long the board-cleared celebration plays, keyframes included. */
 const CLEAR_MS = 1600;
@@ -63,6 +64,7 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
   const cleared = useClearCelebration(game, mini);
   return (
     <div className="board-shell">
+      {!mini && <Coach session={session} />}
       <div className="board-head">
         <div>
           <small>ROUND</small>

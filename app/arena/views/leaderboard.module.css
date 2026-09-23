@@ -44,6 +44,7 @@
 .search button { display: flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 5px; font-size: 11px; min-height: 36px; }
 .search button:hover { color: var(--primary); }
 .search .profileSearch { border-left: 1px solid #2c384a; min-height: 24px; padding-left: 10px; }
+@media (hover: none) and (pointer: coarse) { .search .profileSearch { min-height: 34px; } }
 .search button svg { width: 14px; height: 14px; }
 .tableWrap { border: 1px solid #263246; border-radius: 12px; overflow: hidden; }
 .table { border-collapse: collapse; width: 100%; text-align: left; font-size: 13px; }

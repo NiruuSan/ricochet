@@ -12,6 +12,7 @@ import { Lobby, type LobbyChoice } from "./lobby";
 import { MatchIntro, type IntroStage } from "./match-intro";
 import { ResultScreen, type ResultTarget } from "./result-screen";
 import { TournamentResult } from "./tournament-result";
+import { themeStyle } from "../theme";
 import styles from "./screens.module.css";
 
 type Props = {
@@ -193,7 +194,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           onOpenMatch={setRecapMatchId}
         />
       ) : (
-        <section className={`${styles.game} game-screen`}>
+        <section className={`${styles.game} game-screen`} style={themeStyle(data.theme)}>
           <div className={styles.hud}>
             <span className={styles.hudChip}>
               {run?.tournamentId
@@ -236,9 +237,9 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           <Board session={session} />
         </section>
       )}
-      {intro && <MatchIntro asset={intro.asset} stake={intro.stake} stage={intro.stage} opponent={intro.opponent} tournament={intro.tournament} />}
+      {intro && <MatchIntro asset={intro.asset} stake={intro.stake} stage={intro.stage} opponent={intro.opponent} tournament={intro.tournament} theme={data.theme} />}
       {run?.tournamentId && started && game.over && !intro && (
-        <TournamentResult tournamentId={run.tournamentId} ready={!syncing} board={game} onClose={closeResult} />
+        <TournamentResult tournamentId={run.tournamentId} ready={!syncing} board={game} onClose={closeResult} theme={data.theme} />
       )}
       {resultTarget && (
         <ResultScreen
@@ -248,6 +249,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           onRematch={(asset, stake, opponent) => challenge(asset, stake, opponent)}
           onClose={closeResult}
           onSettled={onSettled}
+          theme={data.theme}
         />
       )}
     </>

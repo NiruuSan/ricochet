@@ -1,13 +1,16 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Asset, Run } from "@/lib/api-types";
-import { CLIENT_TICKS_PER_SECOND, GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, seedRows, step, W, type Flight, type Game } from "@/lib/engine";
+import { brickRect, CLIENT_TICKS_PER_SECOND, GROUND, H, initial, launch, MAX_ANGLE, MIN_ANGLE, RULESET, seedRows, step, W, type Flight, type Game } from "@/lib/engine";
 import { MAX_AIM_SAMPLES, type AimTrail } from "@/lib/anti-cheat-rules";
 import { clientFlags, signProof, type UnsignedProof } from "./shot-signing";
 import { cleanRun } from "@/lib/ghost-bricks";
 import { gameAction } from "./api";
 import { drawBoard } from "./board-canvas";
 import { playSound, resetCombo } from "./sound";
+import { clearEffects, emitBounce, emitBreak, emitClear, hasEffects } from "./board-effects";
+import { brickColours } from "./board-canvas";
+import { themeById, type Theme } from "@/lib/themes";
 
 const SHOWCASE_SEED = 42076;
 const TICK_MS = 1000 / CLIENT_TICKS_PER_SECOND;
@@ -20,6 +23,8 @@ type Options = {
   /** Called after the server saved a change that affects balances or match lists. */
   onSaved: () => void;
   onError: (message: string) => void;
+  /** The skin the board wears; it changes nothing the engine computes. */
+  theme?: Theme | string | null;
 };
 
 /**
@@ -62,7 +67,8 @@ function finishAim(trail: AimTrail, aimMs: number, angle: number): AimTrail {
   return Array.from({ length: MAX_AIM_SAMPLES }, (_, i) => full[Math.round(i * step)]);
 }
 
-export function useGameSession({ onSaved, onError }: Options) {
+export function useGameSession({ onSaved, onError, theme: themeInput }: Options) {
+  const theme = typeof themeInput === "object" && themeInput ? themeInput : themeById(typeof themeInput === "string" ? themeInput : null);
   const [game, setGameState] = useState<Game>(() => initial(SHOWCASE_SEED));
   const [run, setRunState] = useState<Run | null>(null);
   const [started, setStartedState] = useState(false);
@@ -105,8 +111,21 @@ export function useGameSession({ onSaved, onError }: Options) {
   /** How the player aimed since the board was ready, replayed to spectators. */
   const aimTrailRef = useRef<AimTrail>([]);
 
-  const draw = useCallback(() => {
-    if (canvasRef.current) drawBoard(canvasRef.current, flightRef.current, gameRef.current, angleRef.current);
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
+  /** A frame booked to let the last petals fall after the balls have stopped. */
+  const glowRef = useRef(0);
+  const draw = useCallback(function paint() {
+    if (!canvasRef.current) return;
+    drawBoard(canvasRef.current, flightRef.current, gameRef.current, angleRef.current, themeRef.current);
+    // The shot ends before its sparks do: while any are still alive and nothing
+    // else is animating, keep painting them until they burn out.
+    if (!flightRef.current && hasEffects() && !glowRef.current) {
+      glowRef.current = requestAnimationFrame(() => {
+        glowRef.current = 0;
+        if (!disposedRef.current && !flightRef.current) paint();
+      });
+    }
   }, []);
 
   const setGame = useCallback(
@@ -166,6 +185,7 @@ export function useGameSession({ onSaved, onError }: Options) {
     return () => {
       disposedRef.current = true;
       cancelAnimationFrame(frameRef.current);
+      cancelAnimationFrame(glowRef.current);
     };
   }, []);
 
@@ -302,6 +322,7 @@ export function useGameSession({ onSaved, onError }: Options) {
       // The round has a last word: the game ending, the board cleared, or the
       // plain thud of the last ball coming home.
       playSound(f.game.over ? "over" : f.game.bonus ? "clear" : "land");
+      if (f.game.bonus) emitClear(themeRef.current);
       if (hiddenRows) {
         landed = true;
         if (confirmed) {
@@ -327,11 +348,15 @@ export function useGameSession({ onSaved, onError }: Options) {
 
     let previous = 0;
     let pending = 0;
-    // What the last frame left behind, so this one can hear what changed: points
-    // are hits, missing bricks are breaks, and a ball that stopped has landed.
+    // What the last frame left behind, so this one can hear and show what
+    // changed: points are hits, missing bricks are breaks, and a ball that
+    // stopped has landed.
     let heardScore = f.game.score;
     let heardBricks = f.game.bricks.length;
     let heardLandings = 0;
+    const key = (b: { col: number; row: number }) => `${b.col}:${b.row}`;
+    let standing = new Map(f.game.bricks.map((b) => [key(b), b]));
+    let heading = f.balls.map((ball) => [Math.sign(ball.vx), Math.sign(ball.vy)] as [number, number]);
     const tick = (ts: number) => {
       // Stop if unmounted, or if this flight was abandoned (reset or restored board).
       if (disposedRef.current || flightRef.current !== f) return;
@@ -348,6 +373,24 @@ export function useGameSession({ onSaved, onError }: Options) {
       heardScore = f.game.score;
       heardBricks = f.game.bricks.length;
       heardLandings += landings;
+      // Where the bricks that went used to stand, and where a ball turned.
+      if (breaks > 0) {
+        const left = new Set(f.game.bricks.map(key));
+        for (const [id, brick] of standing) {
+          if (left.has(id)) continue;
+          const rect = brickRect(brick);
+          emitBreak(themeRef.current, rect.x + rect.w / 2, rect.y + rect.h / 2, brickColours(themeRef.current, brick.col, f.game.round)[0]);
+        }
+        standing = new Map(f.game.bricks.map((b) => [key(b), b]));
+      }
+      if (themeRef.current.effects.bounce !== "none") {
+        heading = f.balls.map((ball, i) => {
+          const now: [number, number] = [Math.sign(ball.vx), Math.sign(ball.vy)];
+          const was = heading[i];
+          if (was && !ball.done && ball.delay <= 0 && (now[0] !== was[0] || now[1] !== was[1])) emitBounce(themeRef.current, ball.x, ball.y);
+          return now;
+        });
+      }
       if (hits > 0) playSound("hit", hits);
       if (breaks > 0) playSound("break", breaks);
       // The last ball lands with the round; its thud would tread on the fanfare.
@@ -370,6 +413,7 @@ export function useGameSession({ onSaved, onError }: Options) {
 
   const startPractice = useCallback(() => {
     if (busyRef.current) return;
+    clearEffects();
     flightRef.current = null;
     setRun(null);
     setPracticeClears(0);
@@ -444,6 +488,7 @@ export function useGameSession({ onSaved, onError }: Options) {
   /** Leaves a finished run or abandons practice, back to the showcase board. Pending saves still complete. */
   const reset = useCallback(() => {
     cancelAnimationFrame(frameRef.current);
+    clearEffects();
     flightRef.current = null;
     busyRef.current = false;
     setFlying(false);

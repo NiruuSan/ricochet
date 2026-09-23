@@ -1,0 +1,143 @@
+/* The skin shop: one board per card, painted in the theme it sells. */
+.balances {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin-top: 18px;
+  color: #93a1b8;
+  font-size: 13px;
+}
+.balances span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.balances svg {
+  color: #c6f564;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #2b3546;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #161e2b, #111925);
+  overflow: hidden;
+}
+/* The one being worn says so with the theme's own accent. */
+.worn {
+  border-color: var(--t-accent, #c6f564);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--t-accent, #c6f564) 25%, transparent);
+}
+.preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-bottom: 1px solid #2b3546;
+  /* The board is taller than a card wants; the top of it is the interesting part. */
+  aspect-ratio: 472 / 420;
+  object-fit: cover;
+  object-position: top;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px 18px;
+}
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.head h2 {
+  font-size: 18px;
+  letter-spacing: -0.3px;
+  font-family: var(--t-display, inherit);
+}
+.price {
+  color: #d4dded;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--t-accent, #c6f564) 35%, transparent);
+  background: color-mix(in srgb, var(--t-accent, #c6f564) 12%, transparent);
+  color: var(--t-accent, #c6f564);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.ownedBadge {
+  border-color: #3a4a66;
+  background: #1b2434;
+  color: #9dacbf;
+}
+.tagline {
+  color: #93a1b8;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.traits li {
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #2f3b4f;
+  background: #0f1724;
+  color: #a5b0c5;
+  font-size: 11px;
+}
+.body :global(.btn) {
+  margin-top: 4px;
+  justify-content: center;
+}
+.footnote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 26px;
+  color: #7f8d9f;
+  font-size: 12.5px;
+}
+.footnote svg {
+  color: #c6f564;
+  flex-shrink: 0;
+}
+.empty {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  text-align: center;
+  padding: 40px 0;
+  color: #93a1b8;
+}
+.empty svg {
+  color: #c6f564;
+}
+@media (max-width: 620px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+}

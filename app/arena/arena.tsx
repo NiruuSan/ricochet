@@ -3,16 +3,18 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Bug, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Radio, Target, Trophy, UserRound, Users, Wallet, X } from "lucide-react";
+import { ArrowUpRight, Bug, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Palette, Radio, Target, Trophy, UserRound, Users, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Menu } from "@/components/ui/menu";
 import { signOutToLogin } from "../auth-actions";
 import { Avatar, GemIcon } from "./avatar";
 import { units } from "./format";
 import { Notifications } from "./notifications";
+import { SuspensionNotice } from "./suspension-notice";
 import { useGameSession } from "./use-game-session";
 import type { View } from "./views";
 import { usePlayerData } from "./use-player-data";
+import { themeById } from "./theme";
 // Each page only downloads the view it shows; the others load when you navigate to them.
 const AdminView = dynamic(() => import("./views/admin-view").then((m) => m.AdminView));
 const BugReportDialog = dynamic(() => import("./bug-report-dialog").then((m) => m.BugReportDialog));
@@ -26,6 +28,7 @@ const ProfileView = dynamic(() => import("./views/profile-view").then((m) => m.P
 const PrivacyView = dynamic(() => import("./views/privacy-view").then((m) => m.PrivacyView));
 const FriendsView = dynamic(() => import("./views/friends-view").then((m) => m.FriendsView));
 const QuestsView = dynamic(() => import("./views/quests-view").then((m) => m.QuestsView));
+const ThemesView = dynamic(() => import("./views/themes-view").then((m) => m.ThemesView));
 const PublicProfileView = dynamic(() => import("./views/public-profile-view").then((m) => m.PublicProfileView));
 const RulesView = dynamic(() => import("./views/rules-view").then((m) => m.RulesView));
 const TournamentDetailView = dynamic(() => import("./views/tournament-detail-view").then((m) => m.TournamentDetailView));
@@ -51,7 +54,9 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
   const player = usePlayerData();
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
-  const session = useGameSession({ onSaved, onError: setError });
+  // The skin the player wears follows them onto the board and its screens.
+  const theme = themeById(data.theme);
+  const session = useGameSession({ onSaved, onError: setError, theme });
   const [confirmForfeit, setConfirmForfeit] = useState(false);
   const [reportBug, setReportBug] = useState(false);
   const router = useRouter();
@@ -178,6 +183,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
                   { label: "Your profile", href: "/profile", icon: <UserRound /> },
                   { label: friendAlerts ? `Friends · ${friendAlerts}` : "Friends", href: "/friends", icon: <Users /> },
                   { label: questsReady ? `Quests · ${questsReady}` : "Quests", href: "/quests", icon: <Target /> },
+                  { label: "Themes", href: "/themes", icon: <Palette /> },
                   { label: "Wallet", href: "/wallet", icon: <Wallet /> },
                   { label: "Report a bug", onSelect: () => setReportBug(true), icon: <Bug /> },
                   { label: "Sign out", onSelect: () => void signOutToLogin(), icon: <LogOut />, danger: true, separated: true },
@@ -192,13 +198,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         </div>
       </header>
       <main className="shell">
-        {data.suspension && (
-          <div className="error" role="alert">
-            <span>
-              <b>Your account is suspended.</b> {data.suspension.reason}. Play, withdrawals and tips are paused while this is reviewed. Contact support if you think this is a mistake.
-            </span>
-          </div>
-        )}
+        {data.suspension && <SuspensionNotice player={player} />}
         {error && (
           <div className="error" role="alert">
             <span>{error}</span>
@@ -233,6 +233,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         {view === "privacy" && <PrivacyView />}
         {view === "friends" && <FriendsView player={player} />}
         {view === "quests" && <QuestsView player={player} />}
+        {view === "themes" && <ThemesView player={player} />}
         {view === "admin" && (adminCaseName ? <AdminCaseView key={adminCaseName} name={adminCaseName} player={player} /> : <AdminView player={player} />)}
         <footer className="foot">
           <span>© {new Date().getFullYear()} Bounce · A good angle changes everything.</span>

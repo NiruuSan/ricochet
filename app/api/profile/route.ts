@@ -1,5 +1,6 @@
 import { currentUser, stepUpRequired } from "@/lib/auth-user";
 import { deleteAccount, exportAccount } from "@/lib/account";
+import { submitAppeal } from "@/lib/anti-cheat";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { avatarUrl, GameError } from "@/lib/matches";
 import { removeAvatar, renamePlayer, setAvatar } from "@/lib/profile";
@@ -27,6 +28,9 @@ export async function POST(req: Request) {
         return json({ avatar: null });
       case "export":
         return json(await exportAccount(user.userId));
+      // A suspended player cannot play, but they can always answer.
+      case "appeal":
+        return json(await submitAppeal(user.userId, b.text));
       case "delete": {
         // Closing an account cannot be undone, so the provider has to vouch for
         // whoever is asking, exactly like a change to two-factor authentication.

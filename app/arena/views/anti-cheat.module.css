@@ -58,3 +58,34 @@
 @media (max-width: 760px) {
   .pairRow { grid-template-columns: 1fr; gap: 14px; }
 }
+
+/* The player's answer, in their words, beside the evidence. */
+.appeal {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid #2f3b4f;
+  border-left: 3px solid #c6f564;
+  border-radius: 12px;
+  background: #0f1724;
+}
+.appeal p {
+  margin-top: 6px;
+  color: #d4dded;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A case the player has answered, on its card in the list. */
+.answered {
+  align-self: flex-start;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid #c6f5643a;
+  background: #c6f56414;
+  color: #c6f564;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}

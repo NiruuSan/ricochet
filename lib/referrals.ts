@@ -1,8 +1,7 @@
 import { database, type Database, type Statement } from "@/db/raw";
 import { REFERRAL_FEES, type AdminReferral, type Asset } from "./api-types";
 import { adminAudit, adminNote } from "./admin";
-import { isSuspended } from "./anti-cheat";
-import { SUSPENDED_MESSAGE } from "./anti-cheat-rules";
+import { isSuspended, suspensionMessage } from "./anti-cheat";
 import { GameError } from "./matches";
 import { notificationInsert } from "./notifications";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
@@ -223,7 +222,7 @@ export async function claimPartnerEarnings(uid: string, now = Date.now()) {
   const amount = Number(pot?.balance ?? 0);
   if (amount <= 0) throw new GameError("There is nothing to claim yet.", 409);
   // A held account does not get to move money, its own included.
-  if (await isSuspended(uid)) throw new GameError(SUSPENDED_MESSAGE, 403);
+  if (await isSuspended(uid)) throw new GameError(await suspensionMessage(uid), 403);
   await ensureCashAccount(uid);
   const id = crypto.randomUUID();
   const line = (ledgerId: string, accountId: string, value: number) =>

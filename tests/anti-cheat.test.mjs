@@ -23,6 +23,7 @@ const matches = await import("../lib/matches.ts");
 const race = await import("../lib/weekly-race.ts");
 const { cashAccountId, ensureCashAccount, HOUSE } = await import("../lib/payments/accounts.ts");
 const tips = await import("../lib/payments/tips.ts");
+const daily = await import("../lib/daily.ts");
 const service = await import("../lib/payments/service.ts");
 const { shotKeyFor, signReport } = await import("../lib/shot-key.ts");
 
@@ -318,6 +319,35 @@ try {
   assert.equal(suspension("ac-fay").status, "suspended");
   sqlite.prepare("DELETE FROM player_suspensions WHERE user_id = 'ac-fay'").run();
 
+  // --- What a statistical case actually costs the player ---------------------
+  // A suspicion is not a verdict: the money is held, the game is not. The 'cat'
+  // case above was opened by the statistics, so it is the one to ask.
+  assert.equal(sqlite.prepare("SELECT restricted FROM player_suspensions WHERE user_id = ?").get(ids.cat).restricted, 1);
+  assert.equal(await antiCheat.isSuspended(ids.cat), true, "Money stays shut");
+  assert.equal(await antiCheat.isLockedOut(ids.cat), false, "The board does not");
+  const catGems = await matches.startMatch(ids.cat, 100, "gems");
+  assert.ok(catGems.id, "A gems match is still open to a player under review");
+  const catShot = await matches.playShot(ids.cat, catGems.id, catGems.revision, "shot", 70, true, signed(catGems, 70));
+  assert.equal(catShot.revision, 1, "And they can play it");
+  await assert.rejects(() => matches.startMatch(ids.cat, SOL / 10, "devnet"), (e) => e.status === 403 && /under review/.test(e.message), "SOL is not");
+  const annPublic = sqlite.prepare("SELECT public_id FROM players WHERE id = ?").get(ids.ann).public_id;
+  await assert.rejects(() => tips.sendTip(ids.cat, crypto.randomUUID(), annPublic, "0.1"), /under review/, "Nor is moving money");
+  assert.equal((await daily.dailyGems(ids.cat)).ready, true, "The free gems are still theirs");
+  assert.ok((await daily.claimDailyGems(ids.cat)).amount > 0, "And they can take them");
+  // Proof, by contrast, closes everything.
+  assert.equal(sqlite.prepare("SELECT restricted FROM player_suspensions WHERE user_id = ?").get(ids.bot).restricted, 0);
+  assert.equal(await antiCheat.isLockedOut(ids.bot), true);
+  await assert.rejects(() => matches.startMatch(ids.bot, 100, "gems"), (e) => e.status === 403, "A proven bot has no board at all");
+
+  // The player's answer: once, kept with the case, and in front of the administrator.
+  await assert.rejects(() => antiCheat.submitAppeal(ids.cat, "nope"), (e) => e.status === 400, "An appeal has to say something");
+  const appeal = await antiCheat.submitAppeal(ids.cat, "  I play by hand on a phone, mostly flat angles.  ");
+  assert.equal(appeal.appeal, "I play by hand on a phone, mostly flat angles.", "Kept as written, trimmed");
+  await assert.rejects(() => antiCheat.submitAppeal(ids.cat, "the same thing again, at length"), (e) => e.status === 409, "One per case");
+  await assert.rejects(() => antiCheat.submitAppeal(ids.ann, "I have no case open at all"), (e) => e.status === 409);
+  assert.equal((await admin.antiCheatCase("cat")).appeal, "I play by hand on a phone, mostly flat angles.");
+  assert.ok((await admin.antiCheatCase("cat")).restricted, "The review knows how far the case reaches");
+
   // --- The switch: with sanctions off, checks still run and are recorded -----
   assert.equal(await antiCheat.antiCheatEnabled(), true, "On by default");
   await antiCheat.setAntiCheatEnabled("admin-user", false);
@@ -387,7 +417,7 @@ try {
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM admin_audit WHERE action LIKE 'anti_cheat_%' AND action <> 'anti_cheat_toggle'").get().n, 4);
 
   console.log(
-    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, angle variety, an average that only suspends at solver level or with the ghost traps agreeing, statistics that start again after a review, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
+    "PASS: anti-cheat (sanctions switch (checks recorded while off), report parsing, signed reports (rewritten or reused signatures), synthetic aim events, replaced page functions on the watchlist, shot quality with population thresholds, angle variety, an average that only suspends at solver level or with the ghost traps agreeing, statistics that start again after a review, a statistical case that holds the money and leaves free play open, the player’s one appeal, results trend, aim trail shape, aim trails, automation browser, scripted input, impossible timing strikes, jitter-safe timing, precision and rhythm statistics, shot analysis after the response, instant loss to the opponent with the normal fee, open seats closed for the house, disqualified tournament runs without rank, race exclusion, suspension notice, play/tip/withdrawal locks in code and database, statistical review without seizure, admin overview without IDs, lift, ban with seizure, manual suspension).",
   );
 } finally {
   close();

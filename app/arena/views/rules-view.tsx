@@ -1,8 +1,12 @@
+"use client";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, RotateCcw } from "lucide-react";
 import { FAQ } from "../content";
+import { replayCoach } from "../coach";
 
 export function RulesView({ rules }: { rules: boolean }) {
+  const router = useRouter();
   return (
     <section className="subpage" style={{ maxWidth: 850 }}>
       <div className="tag lime" style={{ marginBottom: 12 }}>
@@ -18,9 +22,21 @@ export function RulesView({ rules }: { rules: boolean }) {
           </details>
         ))}
       </div>
-      <Link href="/" className="btn btn-primary">
-        Got it. Let’s play. <ArrowRight />
-      </Link>
+      <div className="row-actions" style={{ marginTop: 4 }}>
+        <Link href="/" className="btn btn-primary">
+          Got it. Let’s play. <ArrowRight />
+        </Link>
+        {/* The guide is shown once and then stays out of the way; this asks for it back. */}
+        <button
+          className="btn"
+          onClick={() => {
+            replayCoach();
+            router.push("/");
+          }}
+        >
+          <RotateCcw size={15} /> Show me on a board
+        </button>
+      </div>
     </section>
   );
 }

@@ -30,6 +30,11 @@ export const winnerPayout = (stake: number, asset: Asset) => asset === "gems" ? 
 export const winnerFee = (stake: number, asset: Asset) => stake * 2 - winnerPayout(stake, asset); // 12% of both entries
 
 /** What each side funds of the house fee, and what a referred player funds instead. */
+/** The longest account a suspended player can give of their own case. */
+import type { ThemeId } from "./themes";
+
+export const MAX_APPEAL = 1_000;
+
 export const REFERRAL_FEES = { standard: 12, discounted: 8 } as const;
 
 /**
@@ -228,7 +233,7 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
   | { kind: "security_reset"; data: { holdUntil: number } }
   | { kind: "security_alert"; data: SecurityAlertNotification }
   | { kind: "race_result"; data: RaceNotification }
-  | { kind: "account_suspended"; data: { reason: string } }
+  | { kind: "account_suspended"; data: { reason: string; restricted?: boolean } }
   | { kind: "challenge"; data: ChallengeNotification }
   | { kind: "referral_joined"; data: { name: string; level: number } }
   | { kind: "referral_partner"; data: { level: number } }
@@ -327,14 +332,20 @@ export type Snapshot = {
   unreadNotifications: number;
   /** The player's tournament entries in this currency, newest first. */
   tournaments: TournamentHistoryItem[];
-  /** Set while the account is suspended or banned by the anti-cheat. */
-  suspension: { reason: string } | null;
+  /**
+   * Set while the account is suspended or banned by the anti-cheat.
+   * `restricted`: the case rests on statistics, so free play and gems are still
+   * open and only the money is held. `appealed`: the player has had their say.
+   */
+  suspension: { reason: string; restricted: boolean; appealed: boolean } | null;
   /** The free daily gems: what today pays, and whether it is still to claim. */
   daily: DailyGems;
   /** While this is in the future, this player funds a reduced house fee. */
   discountUntil: number | null;
   /** Finished quests waiting to be claimed (lib/quests.ts). */
   questsReady: number;
+  /** The skin this player wears on the board (lib/themes.ts). */
+  theme: ThemeId;
 };
 
 export type QuestScope = "daily" | "weekly";

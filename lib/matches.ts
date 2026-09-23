@@ -2,10 +2,10 @@ import { adminId, database, type Statement } from "@/db/raw";
 import { wageredSql } from "./experience";
 import { experienceFromWagered, levelFor } from "./levels";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
-import { inspectShot, reportMessage, SUSPENDED_MESSAGE, type AimTrail, type Finding, type ShotProof } from "./anti-cheat-rules";
+import { inspectShot, reportMessage, type AimTrail, type Finding, type ShotProof } from "./anti-cheat-rules";
 import { shotKeyFor, validSignature } from "./shot-key";
 import { parseTrap, planTrap, presentRun } from "./ghost-trap";
-import { analyzeShot, ANTI_CHEAT_ON_SQL, isSuspended, signalInsert, suspendedSql } from "./anti-cheat";
+import { analyzeShot, ANTI_CHEAT_ON_SQL, assertCanPlay, lockedOutSql, signalInsert, suspendedSql, suspensionMessage } from "./anti-cheat";
 import type { ChallengeNotification, Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
 import { referralCredits } from "./referrals";
@@ -17,6 +17,7 @@ import { BLOCKED_MESSAGE, blockedBetween } from "./blocks";
 import { friendAlerts } from "./friends";
 import { listNotifications, notificationInsert } from "./notifications";
 import { newRowKey, rowsFor } from "./secret-rows";
+import { themeById } from "./themes";
 import { shotInsert } from "./spectate-shots";
 import { tournamentHistory } from "./tournament-history";
 
@@ -337,12 +338,15 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     db
       .prepare(
         `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
+           theme,
            (SELECT reason FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS suspension,
+           (SELECT restricted FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS restricted,
+           (SELECT appealed_at FROM player_suspensions s WHERE s.user_id = players.id AND s.status IN ('suspended', 'banned')) AS appealed_at,
            (SELECT discount_until FROM referrals r WHERE r.user_id = players.id) AS discount_until
          FROM players WHERE id = ? AND deleted IS NULL`,
       )
       .bind(uid)
-      .first<Profile & { suspension: string | null; wagered: number; discount_until: number | null }>(),
+      .first<Profile & { suspension: string | null; restricted: number | null; appealed_at: number | null; wagered: number; discount_until: number | null; theme: string | null }>(),
     db
       .prepare(
         `SELECT m.id, m.stake, m.fee, m.settled, m.created,
@@ -380,7 +384,8 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     cashBalance: cash?.balance ?? 0,
     launch: launchStatus(settings()),
     player: player && { publicId: player.publicId, name: player.name, balance: player.balance, avatar: avatarUrl(player.avatar), created: player.created, level: levelFor(experienceFromWagered(player.wagered)) },
-    suspension: player?.suspension ? { reason: player.suspension } : null,
+    suspension: player?.suspension ? { reason: player.suspension, restricted: !!player.restricted, appealed: !!player.appealed_at } : null,
+    theme: themeById(player?.theme).id,
     daily,
     discountUntil: player?.discount_until && player.discount_until > Date.now() ? player.discount_until : null,
     questsReady: quests,
@@ -493,8 +498,7 @@ async function assertCanEnter(uid: string, stakeInput: unknown, assetInput: unkn
     requireDevnet(settings());
     await ensureCashAccount(uid);
   }
-  const [active, suspended] = await Promise.all([activeRun(uid), isSuspended(uid)]);
-  if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
+  const [active] = await Promise.all([activeRun(uid), assertCanPlay(uid, asset)]);
 
   const stake = Number(stakeInput);
   // A friendly game between friends is the one entry outside the barème.
@@ -656,7 +660,9 @@ export async function playShot(
   const [record, permitted] = await Promise.all([
     db
       .prepare(
-        `SELECT ${PUBLIC_RUN}, m.row_key, ${suspendedSql("r.user_id")} AS suspended, ${SHOT_HISTORY_SQL("'m-' || r.id")}
+        `SELECT ${PUBLIC_RUN}, m.row_key,
+           CASE WHEN m.asset = 'devnet' THEN ${suspendedSql("r.user_id")} ELSE ${lockedOutSql("r.user_id")} END AS suspended,
+           ${SHOT_HISTORY_SQL("'m-' || r.id")}
          FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.id = ? AND r.user_id = ?`,
       )
       .bind(String(runIdInput), uid)
@@ -667,7 +673,7 @@ export async function playShot(
   if (!record) throw new GameError("Game not found.", 404);
   // The row key and the anti-cheat history stay on the server.
   const { row_key: rowKey, suspended, previous_at, previous_ticks, timing_strikes, anti_cheat_on, trap: trapJson, ...row } = record;
-  if (suspended) throw new GameError(SUSPENDED_MESSAGE, 403);
+  if (suspended) throw new GameError(await suspensionMessage(uid), 403);
   if (row.done || row.revision !== revision) throw new GameError("This game changed in another tab. Reload to resume.", 409);
 
   const run = parseRun({ ...row, trap: null });

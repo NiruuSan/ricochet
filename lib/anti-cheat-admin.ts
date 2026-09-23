@@ -20,6 +20,11 @@ export type CheatCase = {
   created: number;
   reviewedAt: number | null;
   note: string | null;
+  /** True while the case only holds the money: the player still has free play and gems. */
+  restricted: boolean;
+  /** What the player says about it, in their words, and when they sent it. */
+  appeal: string | null;
+  appealedAt: number | null;
   signals: CheatSignalView[];
   stats: {
     analyzedShots: number;
@@ -72,7 +77,19 @@ const median = (values: number[]) => {
   return sorted[Math.floor(sorted.length / 2)];
 };
 
-type CaseRow = { user_id: string; name: string; status: CheatCase["status"]; source: string; reason: string; created: number; reviewed_at: number | null; note: string | null };
+type CaseRow = {
+  user_id: string;
+  name: string;
+  status: CheatCase["status"];
+  source: string;
+  reason: string;
+  created: number;
+  reviewed_at: number | null;
+  note: string | null;
+  restricted?: number | null;
+  appeal?: string | null;
+  appealed_at?: number | null;
+};
 
 async function caseFor(row: CaseRow, now: number, threshold: number): Promise<CheatCase> {
   const db = database();
@@ -123,6 +140,9 @@ async function caseFor(row: CaseRow, now: number, threshold: number): Promise<Ch
     created: row.created,
     reviewedAt: row.reviewed_at,
     note: row.note,
+    restricted: !!row.restricted,
+    appeal: row.appeal ?? null,
+    appealedAt: row.appealed_at ?? null,
     signals: signals.results.map(signalView),
     stats: {
       analyzedShots: shots.length,
@@ -152,11 +172,11 @@ export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOver
   const [cases, recent, watched, population, enabled, collusion] = await Promise.all([
     db
       .prepare(
-        `SELECT s.user_id, p.name, s.status, s.source, s.reason, s.created, s.reviewed_at, s.note
+        `SELECT s.user_id, p.name, s.status, s.source, s.reason, s.created, s.reviewed_at, s.note, s.restricted, s.appeal, s.appealed_at
          FROM player_suspensions s JOIN players p ON p.id = s.user_id
          ORDER BY CASE s.status WHEN 'suspended' THEN 0 WHEN 'banned' THEN 1 ELSE 2 END, s.created DESC LIMIT 50`,
       )
-      .all<{ user_id: string; name: string; status: CheatCase["status"]; source: string; reason: string; created: number; reviewed_at: number | null; note: string | null }>(),
+      .all<CaseRow>(),
     db
       .prepare(
         `SELECT c.kind, c.level, c.detail, c.run_key, c.created, p.name FROM cheat_signals c JOIN players p ON p.id = c.user_id
@@ -165,7 +185,8 @@ export async function antiCheatOverview(now = Date.now()): Promise<AntiCheatOver
       .all<{ kind: string; level: string; detail: string; run_key: string | null; created: number; name: string }>(),
     db
       .prepare(
-        `SELECT c.user_id, p.name, 'watch' AS status, 'watch' AS source, GROUP_CONCAT(DISTINCT c.kind) AS reason, MAX(c.created) AS created, NULL AS reviewed_at, NULL AS note
+        `SELECT c.user_id, p.name, 'watch' AS status, 'watch' AS source, GROUP_CONCAT(DISTINCT c.kind) AS reason, MAX(c.created) AS created, NULL AS reviewed_at, NULL AS note,
+                0 AS restricted, NULL AS appeal, NULL AS appealed_at
          FROM cheat_signals c JOIN players p ON p.id = c.user_id
          WHERE c.level = 'watch' AND c.created >= ?
            AND NOT EXISTS (SELECT 1 FROM player_suspensions s WHERE s.user_id = c.user_id AND s.status IN ('suspended', 'banned'))
@@ -201,13 +222,13 @@ export async function antiCheatCase(name: string, now = Date.now()): Promise<Che
   const player = await findPlayer(name);
   const db = database();
   let row = await db.prepare(
-    `SELECT s.user_id, p.name, s.status, s.source, s.reason, s.created, s.reviewed_at, s.note
+    `SELECT s.user_id, p.name, s.status, s.source, s.reason, s.created, s.reviewed_at, s.note, s.restricted, s.appeal, s.appealed_at
      FROM player_suspensions s JOIN players p ON p.id = s.user_id WHERE s.user_id = ?`,
   ).bind(player.id).first<CaseRow>();
   if (!row) {
     row = await db.prepare(
       `SELECT c.user_id, p.name, 'watch' AS status, 'watch' AS source, GROUP_CONCAT(DISTINCT c.kind) AS reason,
-              MAX(c.created) AS created, NULL AS reviewed_at, NULL AS note
+              MAX(c.created) AS created, NULL AS reviewed_at, NULL AS note, 0 AS restricted, NULL AS appeal, NULL AS appealed_at
        FROM cheat_signals c JOIN players p ON p.id = c.user_id
        WHERE c.user_id = ? AND c.level = 'watch' AND c.created >= ? GROUP BY c.user_id`,
     ).bind(player.id, now - MONTH).first<CaseRow>();
@@ -272,7 +293,8 @@ export async function adminBan(adminUid: string, nameInput: unknown, noteInput: 
   const reference = `seizure:${player.id}:${now}`;
   const ops: Statement[] = [
     db
-      .prepare("UPDATE player_suspensions SET status = 'banned', reviewed_by = ?, reviewed_at = ?, note = ? WHERE user_id = ? AND status = 'suspended'")
+      // A ban is total, whatever the case started as.
+      .prepare("UPDATE player_suspensions SET status = 'banned', restricted = 0, reviewed_by = ?, reviewed_at = ?, note = ? WHERE user_id = ? AND status = 'suspended'")
       .bind(adminUid, now, text, player.id),
   ];
   if (sol > 0) {
