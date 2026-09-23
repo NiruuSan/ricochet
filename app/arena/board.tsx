@@ -1,15 +1,19 @@
 "use client";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Tooltip } from "@/components/ui/tooltip";
 
 import { FastForward, Play, Volume2, VolumeX } from "lucide-react";
 import { H, MAX_ANGLE, MIN_ANGLE, W, type Game } from "@/lib/engine";
+import { themeById } from "@/lib/themes";
 import type { GameSession } from "./use-game-session";
 import { isMuted, setMuted, subscribe } from "./sound";
 import { Coach } from "./coach";
+import { drawBoard } from "./board-canvas";
 
 /** How long the board-cleared celebration plays, keyframes included. */
 const CLEAR_MS = 1600;
+/** The aim the welcome page's board is frozen at. */
+const MINI_ANGLE = 73;
 
 /**
  * The round a clear just happened on, or null while nothing is being
@@ -61,6 +65,21 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
   const { game, started, flying, busy, syncing, awaitingRow, liveScore, speed, attachCanvas } = session;
   const [muted, toggleSound] = useSoundPreference();
   const locked = flying || busy || awaitingRow;
+
+  /**
+   * A decorative board belongs to the site, not to whoever is looking at it:
+   * the welcome page shows the game as it ships, in the theme it ships with,
+   * whatever skin the player happens to be wearing. It paints itself rather
+   * than joining the session's canvas, which carries the player's own.
+   */
+  const showcase = useCallback((node: HTMLCanvasElement | null) => {
+    if (!node) return;
+    const paint = () => drawBoard(node, null, game, MINI_ANGLE, themeById(null));
+    paint();
+    const watch = new ResizeObserver(paint);
+    watch.observe(node);
+    return () => watch.disconnect();
+  }, [game]);
   const cleared = useClearCelebration(game, mini);
   return (
     <div className="board-shell">
@@ -84,7 +103,7 @@ export function Board({ session, mini = false, startLabel, startDisabled, onStar
       </div>
       <div className="board-wrap">
         <canvas
-          ref={attachCanvas}
+          ref={mini ? showcase : attachCanvas}
           className="game-canvas"
           width={W}
           height={H}
