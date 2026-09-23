@@ -12,6 +12,7 @@ import { ArenaDashboard, useArenaOverview } from "./arena-dashboard";
 import { DailyGemsCard } from "./daily-gems";
 import { QuestsCard } from "./quests-view";
 import { CashbackCard } from "./cashback";
+import { Fiat } from "../fiat";
 import dashboard from "./arena-dashboard.module.css";
 
 export type LobbyChoice = "practice" | Asset;
@@ -175,10 +176,12 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
               <div>
                 <span>Your entry</span>
                 <b>{amount(stake, choice)}</b>
+                {choice === "devnet" && <Fiat lamports={stake} />}
               </div>
               <div>
                 <span>Winner receives</span>
                 <b className="lime">{amount(winnerPayout(stake, choice), choice)}</b>
+                {choice === "devnet" && <Fiat lamports={winnerPayout(stake, choice)} />}
               </div>
               {rebate > 0 && (
                 <div>

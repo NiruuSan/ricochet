@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Coins, Gem, HandCoins } from "lucide-react";
 import type { PlayerLevel, RankTier } from "@/lib/api-types";
 import { RankEmblem } from "../rank-badge";
+import { Fiat } from "../fiat";
 import { request } from "../api";
 import { amount, units } from "../format";
 import type { PlayerState } from "../arena";
@@ -124,6 +125,7 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
               <div className={styles.action}>
                 <strong className={reward.asset === "gems" ? styles.gems : undefined}>
                   {reward.asset === "gems" ? <Gem size={15} /> : <Coins size={15} />} {value(reward)}
+                  {reward.asset === "devnet" && <Fiat lamports={reward.amount} />}
                 </strong>
                 <button className="btn btn-primary" disabled={reward.claimed || busy === reward.scope} onClick={() => void claim(reward)}>
                   {reward.claimed ? "Claimed" : busy === reward.scope ? "Claiming…" : "Claim"}

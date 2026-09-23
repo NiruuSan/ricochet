@@ -1683,6 +1683,41 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
 .avatar-link {
   border-radius: 11px;
 }
+/* A second reading of an amount, in the player's own money (app/arena/fiat.tsx). */
+.fiat {
+  color: #7f8d9f;
+  font-size: 0.82em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pill-fiat {
+  margin-left: 6px;
+  font-size: 11px;
+}
+.fiat-picker {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid #2f3b4f;
+  border-radius: 999px;
+  background: #0f1724;
+}
+.fiat-picker button {
+  border: 0;
+  background: transparent;
+  color: #93a1b8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.fiat-picker button[aria-pressed="true"] {
+  background: #c6f564;
+  color: #101a05;
+}
+
 /* The rank beside the avatar: on wide screens only, where there is room. */
 .top-rank {
   flex-shrink: 0;

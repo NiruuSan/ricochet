@@ -12,6 +12,7 @@ import { request, RequestError } from "./api";
 import { CodeInput, TwoFactorPanel, useTwoFactor } from "./two-factor-panel";
 import { ReferralCard } from "./referral-card";
 import { shortDate } from "./format";
+import { Fiat, FiatPicker } from "./fiat";
 import styles from "./wallet.module.css";
 
 type WalletData = {
@@ -220,7 +221,13 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
               <section className={styles.solBalance}>
                 <div className={styles.balanceLabel}><Wallet size={17} />AVAILABLE TO PLAY<span>DEVNET SOL</span></div>
                 <div className={styles.balanceValue}>{fullSol(data.balance)}<span>SOL</span></div>
-                <p>Test-network SOL. No monetary value.</p>
+                <p>
+                  Test-network SOL. No monetary value. <Fiat lamports={data.balance} />
+                </p>
+                <div className={styles.fiatRow}>
+                  <span>Show amounts in</span>
+                  <FiatPicker />
+                </div>
                 <div className={styles.balanceActions}>
                   {data.address ? <a className="btn btn-primary" href="#wallet-deposit"><ArrowDownToLine size={16} />Deposit</a> : <button className="btn btn-primary" disabled><ArrowDownToLine size={16} />Deposit</button>}
                   <button className="btn" disabled={busy || data.balance <= 0} onClick={openWithdrawal}><ArrowUpFromLine size={16} />Withdraw</button>

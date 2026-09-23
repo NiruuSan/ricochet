@@ -9,6 +9,7 @@ import { Avatar } from "../avatar";
 import { drawBoard } from "../board-canvas";
 import { CURRENCY, signedAmount, units, amount } from "../format";
 import { themeStyle, themeById } from "../theme";
+import { Fiat } from "../fiat";
 import { playSound } from "../sound";
 import styles from "./screens.module.css";
 
@@ -258,6 +259,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
                 <strong className={net > 0 ? styles.positive : net < 0 ? styles.negative : undefined}>
                   {signedAmount(net, asset)} {CURRENCY[asset]}
                 </strong>
+                {asset === "devnet" && net !== 0 && <Fiat lamports={Math.abs(net)} />}
                 <em>
                   Entry {amount(recap!.stake, asset)}
                   {recap!.bonusGems > 0 && <b className={styles.gemBonus}> · +{recap!.bonusGems} gems bonus</b>}

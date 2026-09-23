@@ -9,6 +9,7 @@ import { Menu } from "@/components/ui/menu";
 import { signOutToLogin } from "../auth-actions";
 import { Avatar, GemIcon } from "./avatar";
 import { RankBadge } from "./rank-badge";
+import { Fiat } from "./fiat";
 import { units } from "./format";
 import { Notifications } from "./notifications";
 import { SuspensionNotice } from "./suspension-notice";
@@ -168,6 +169,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
                   <span className="pill-part pill-sol">
                     <Wallet />
                     {units(data.cashBalance ?? 0, "devnet")} SOL
+                    <Fiat lamports={data.cashBalance ?? 0} className="pill-fiat" />
                   </span>
                 )}
                 <span className="pill-part">
