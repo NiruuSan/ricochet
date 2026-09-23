@@ -37,7 +37,7 @@ const TIER_NAMES: Record<RankTier, string> = {
   bouncer: "Bouncer",
 };
 
-const day = (at: number) => new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+const day = (at: number) => new Date(at).toLocaleDateString("en", { day: "numeric", month: "short" });
 const value = (reward: Pick<Reward, "amount" | "asset">) =>
   reward.asset === "gems" ? `${units(reward.amount, "gems")} gems` : amount(reward.amount, "devnet");
 
@@ -88,7 +88,7 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
         </span>
         <div>
           <h2>Cashback</h2>
-          <p>Part of the house fee comes back to you every week, and again at the end of a month you kept playing. The higher your rank, the bigger the share.</p>
+          <p>Part of the house fee comes back every week, and again at the end of a month you kept playing. The higher your rank, the bigger the share.</p>
         </div>
       </header>
 
@@ -141,21 +141,25 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
           {board.tiers.map((tier) => {
             const here = mine === tier.tier;
             return (
-              <li key={tier.tier} className={here ? styles.here : ""}>
-                <RankEmblem tier={tier.tier} division={null} size={18} />
+              <li key={tier.tier} className={`${here ? styles.here : ""} ${tier.gems ? styles.inGems : ""}`}>
+                <RankEmblem tier={tier.tier} division={null} size={17} />
+                <span>{TIER_NAMES[tier.tier]}</span>
                 <b>{tier.share}%</b>
-                <span>{tier.gems ? "in gems" : "in SOL"}</span>
+                {here && <em>You</em>}
               </li>
             );
           })}
         </ul>
       )}
-      {next && (
-        <p className={styles.footnote}>
-          Reach <b>{TIER_NAMES[next.tier]}</b> and every week comes back at <b>{next.share}%</b>
-          {next.gems ? "" : ", paid in SOL"}.
-        </p>
-      )}
+      <p className={styles.footnote}>
+        {next ? (
+          <>
+            Reach <b>{TIER_NAMES[next.tier]}</b> and every week comes back at <b>{next.share}%</b>
+            {next.gems ? "" : ", paid in SOL"}.{" "}
+          </>
+        ) : null}
+        Iron to Silver comes back in gems; Gold and above in SOL.
+      </p>
       {waiting.length > 0 && <p className={styles.footnote}>A period that closes unclaimed is gone, so take it while it is there.</p>}
     </section>
   );

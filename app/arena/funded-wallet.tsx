@@ -221,9 +221,10 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
               <section className={styles.solBalance}>
                 <div className={styles.balanceLabel}><Wallet size={17} />AVAILABLE TO PLAY<span>DEVNET SOL</span></div>
                 <div className={styles.balanceValue}>{fullSol(data.balance)}<span>SOL</span></div>
-                <p>
-                  Test-network SOL. No monetary value. <Fiat lamports={data.balance} />
+                <p className={styles.balanceFiat}>
+                  <Fiat lamports={data.balance} />
                 </p>
+                <p>Test-network SOL. No monetary value.</p>
                 <div className={styles.fiatRow}>
                   <span>Show amounts in</span>
                   <FiatPicker />
@@ -384,7 +385,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
                 <Table>
                   <TableHeader><TableRow><TableHead>Tip</TableHead><TableHead>Player</TableHead><TableHead>Amount · SOL</TableHead></TableRow></TableHeader>
                   <TableBody>{data.tips.map((tip) => <TableRow key={tip.id}>
-                    <TableCell>{tip.amount > 0 ? "Received" : "Sent"}<div className="fine">{new Date(tip.created).toLocaleString()}</div></TableCell>
+                    <TableCell>{tip.amount > 0 ? "Received" : "Sent"}<div className="fine">{new Date(tip.created).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}</div></TableCell>
                     <TableCell><Link className="lime" href={`/players/${encodeURIComponent(tip.name)}`}>{tip.name}</Link></TableCell>
                     <TableCell className={tip.amount > 0 ? "lime" : ""}>{tip.amount > 0 ? "+" : ""}{fullSol(tip.amount)}</TableCell>
                   </TableRow>)}</TableBody>

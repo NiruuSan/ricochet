@@ -102,24 +102,40 @@
 .ladder li {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 12px;
+  gap: 8px;
+  padding: 8px 13px;
   border: 1px solid #2f3b4f;
   border-radius: 12px;
   background: #0f1724;
   font-size: 12px;
-  color: #7f8d9f;
+  color: #93a1b8;
 }
 .ladder b {
   color: #d4dded;
-  font-size: 14px;
+  font-size: 14.5px;
+}
+/* The ranks paid in gems wear the gem colour, so the change of currency shows. */
+.inGems b {
+  color: #c9aaff;
 }
 .here {
   border-color: #c6f56466;
   background: #c6f5640f;
 }
+.here span,
 .here b {
   color: #c6f564;
+}
+.here em {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #c6f564;
+  color: #16200a;
+  font-size: 9.5px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
 .empty {
   margin-top: 16px;
