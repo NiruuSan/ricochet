@@ -139,7 +139,7 @@ function drawFlight(ctx: CanvasRenderingContext2D, flight: Flight, theme: Theme)
     ctx.shadowBlur = 0;
   }
   if (flight.landing !== null) {
-    ctx.fillStyle = theme.board.glow;
+    ctx.fillStyle = theme.board.ball;
     ctx.beginPath();
     ctx.arc(flight.landing, GROUND - 5, 5, 0, Math.PI * 2);
     ctx.fill();
@@ -149,9 +149,11 @@ function drawFlight(ctx: CanvasRenderingContext2D, flight: Flight, theme: Theme)
 // The dotted guide is decorative only, so native trigonometry is fine here.
 function drawAim(ctx: CanvasRenderingContext2D, g: Game, angle: number | null, theme: Theme) {
   if (angle !== null) drawGuide(ctx, g, angle, theme);
+  // The ball waiting on the line is the same ball that will fly: same colour,
+  // same size, with the theme's glow behind it when it has one.
   ctx.beginPath();
   ctx.arc(g.x, GROUND - 6, 6, 0, Math.PI * 2);
-  ctx.fillStyle = theme.board.glow;
+  ctx.fillStyle = theme.board.ball;
   ctx.shadowBlur = 18;
   ctx.shadowColor = theme.board.glow;
   ctx.fill();

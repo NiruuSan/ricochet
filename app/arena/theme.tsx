@@ -28,6 +28,7 @@ export function themeStyle(skin: Theme | string | null | undefined): CSSProperti
     "--t-ink": theme.ui.ink,
     "--t-surface": theme.ui.surface,
     "--t-sky": theme.board.sky[0],
+    "--t-ball": theme.board.ball,
     "--t-frame": theme.board.line,
     "--t-font": FONTS[theme.ui.font],
     "--t-display": FONTS[theme.ui.display],
