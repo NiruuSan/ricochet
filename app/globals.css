@@ -1682,6 +1682,15 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
 .avatar-link {
   border-radius: 11px;
 }
+/* The rank beside the avatar: on wide screens only, where there is room. */
+.top-rank {
+  flex-shrink: 0;
+}
+@media (max-width: 900px) {
+  .top-rank {
+    display: none;
+  }
+}
 .avatar-link:focus-visible {
   outline: 2px solid #c6f564;
   outline-offset: 2px;

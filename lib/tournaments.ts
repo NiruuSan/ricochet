@@ -20,6 +20,7 @@ import { AUTOMATION_DETECTED, avatarUrl, GameError, recordedFindings, reportSign
 import { shotKeyFor } from "./shot-key";
 import { parseTrap, planTrap, presentRun } from "./ghost-trap";
 import { notificationInsert } from "./notifications";
+import { currentSeason } from "./seasons";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { parseSol, requireDevnet } from "./payments/policy";
 import { newRowKey, rowsFor } from "./secret-rows";
@@ -619,7 +620,7 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
   const [t, entries] = await Promise.all([
     db.prepare(`${SUMMARY_SQL} WHERE t.id = ?`).bind(id).first<SummaryRow>(),
     db
-      .prepare(`SELECT e.*, p.name, p.avatar, ${wageredSql("p.id")} AS wagered FROM tournament_entries e JOIN players p ON p.id = e.user_id WHERE e.tournament_id = ?`)
+      .prepare(`SELECT e.*, p.name, p.avatar, ${wageredSql("p.id", (await currentSeason()).startedAt)} AS wagered FROM tournament_entries e JOIN players p ON p.id = e.user_id WHERE e.tournament_id = ?`)
       .bind(id)
       .all<EntryRow & { name: string; avatar: string | null; wagered: number }>(),
   ]);
@@ -659,4 +660,63 @@ export async function adminTournaments(now = Date.now()): Promise<AdminTournamen
   await settleDueTournaments(now);
   const rows = await database().prepare(`${SUMMARY_SQL} ORDER BY t.created DESC LIMIT 100`).all<SummaryRow>();
   return rows.results.map((t) => ({ ...summary(t, undefined, now), played: t.played, finished: t.finished_count }));
+}
+
+/**
+ * The daily tournament.
+ *
+ * A dated appointment beats any passive reward for keeping people coming back,
+ * and this one costs the house nothing: the pot is the entries, less the same
+ * 12% the site takes everywhere else. The sweep calls this once a day, so the
+ * next few days are always on the board — a player who looks on Monday can see
+ * Wednesday's and plan for it.
+ */
+export const DAILY = {
+  /** UTC hour it starts, and how long the window stays open. */
+  hour: 19,
+  hours: 3,
+  /** Entry, low enough that a table fills. Text, the way the admin form sends it. */
+  entryFee: "0.05",
+  entryLamports: 50_000_000,
+  places: 100,
+  payout: "top10" as PayoutPreset,
+  /** How many days ahead are kept scheduled. */
+  ahead: 3,
+  name: (at: number) => `Daily Cup · ${new Date(at).toUTCString().slice(0, 11).trim()}`,
+};
+
+const dayAt = (at: number, hour: number) => {
+  const d = new Date(at);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), hour);
+};
+
+/**
+ * Makes sure the next few daily cups exist. Called by the sweep; safe to call
+ * as often as you like, because a day that already has one is left alone.
+ */
+export async function ensureDailyTournaments(now = Date.now()) {
+  if (!settings().SOLANA_NETWORK) return [];
+  const db = database();
+  const made: string[] = [];
+  for (let day = 0; day <= DAILY.ahead; day++) {
+    const startsAt = dayAt(now + day * DAY, DAILY.hour);
+    if (startsAt < now + MINUTE) continue;
+    const endsAt = startsAt + DAILY.hours * 60 * MINUTE;
+    const existing = await db
+      .prepare("SELECT 1 AS yes FROM tournaments WHERE asset = 'devnet' AND starts_at = ? AND status <> 'cancelled'")
+      .bind(startsAt)
+      .first();
+    if (existing) continue;
+    try {
+      const id = await createTournament(
+        { name: DAILY.name(startsAt), asset: "devnet", entry: "paid", entryFee: DAILY.entryFee, payout: DAILY.payout, places: DAILY.places, startsAt, endsAt },
+        now,
+      );
+      made.push(id);
+    } catch {
+      // A cup that cannot be created today (devnet off, a race with another
+      // sweep) is simply not created; the next run tries again.
+    }
+  }
+  return made;
 }

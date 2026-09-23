@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ArrowUpRight, Gem, Wallet } from "lucide-react";
 import { FundedWallet } from "../funded-wallet";
+import { CashbackPanel } from "./cashback";
 import type { PlayerState } from "../arena";
 import styles from "../wallet.module.css";
 
@@ -26,7 +27,10 @@ export function WalletView({ player }: { player: PlayerState }) {
         </div>
       </header>
       {data.player ? (
-        <FundedWallet gems={data.player.balance} />
+        <>
+          <CashbackPanel player={player} />
+          <FundedWallet gems={data.player.balance} />
+        </>
       ) : (
         <div className={styles.empty}>
           <Wallet size={30} />

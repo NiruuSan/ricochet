@@ -11,6 +11,7 @@ import styles from "./screens.module.css";
 import { ArenaDashboard, useArenaOverview } from "./arena-dashboard";
 import { DailyGemsCard } from "./daily-gems";
 import { QuestsCard } from "./quests-view";
+import { CashbackCard } from "./cashback";
 import dashboard from "./arena-dashboard.module.css";
 
 export type LobbyChoice = "practice" | Asset;
@@ -228,6 +229,7 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           gems are an aside either way. */}
       <DailyGemsCard player={player} />
       <QuestsCard player={player} />
+      <CashbackCard player={player} />
 
       {!choice && <ArenaDashboard overview={overview} now={now} signedIn={!!data.player} onOpenMatch={onOpenMatch} />}
     </section>

@@ -24,6 +24,27 @@ export const DEFAULT_PRIZES: RacePrize[] = [
   { sol: 250_000_000, gems: 1_000 },
 ];
 
+/**
+ * Below the podium, the race pays in gems only.
+ *
+ * Three places gave 47 of the 50 players on the board no reason to look at it.
+ * These tiers cost the house nothing — gems are the free currency — and give
+ * everybody in the standings something to hold on to, which is the whole point
+ * of a weekly table.
+ */
+export const TIERS: { from: number; to: number; gems: number }[] = [
+  { from: 4, to: 10, gems: 1_000 },
+  { from: 11, to: 25, gems: 500 },
+  { from: 26, to: STANDINGS, gems: 250 },
+];
+
+/** What a rank wins: the podium's own prize, or its tier's gems. */
+export function prizeFor(rank: number, prizes: RacePrize[]): RacePrize | null {
+  if (rank <= prizes.length) return prizes[rank - 1];
+  const tier = TIERS.find((t) => rank >= t.from && rank <= t.to);
+  return tier ? { sol: 0, gems: tier.gems } : null;
+}
+
 export const weekStart = (at: number) => Math.floor((at - FIRST_MONDAY) / WEEK) * WEEK + FIRST_MONDAY;
 
 type ScoreRow = { user_id: string; name: string; avatar: string | null; score: number; at: number; watch: string | null };
@@ -62,13 +83,14 @@ async function bestScores(week: number, limit: number): Promise<ScoreRow[]> {
   return results;
 }
 
-const entry = (row: ScoreRow, i: number): RaceEntry => ({
+const entry = (row: ScoreRow, i: number, prizes?: RacePrize[]): RaceEntry => ({
   rank: i + 1,
   name: row.name,
   avatar: avatarUrl(row.avatar),
   score: Number(row.score),
   at: Number(row.at),
   watchId: row.watch,
+  ...(prizes ? { reward: prizeFor(i + 1, prizes) } : {}),
 });
 
 export async function racePrizes(): Promise<RacePrize[]> {
@@ -112,16 +134,17 @@ export async function weeklyRace(now = Date.now()): Promise<WeeklyRace> {
     bestScores(week, STANDINGS),
     racePrizes(),
     db.prepare("SELECT winners FROM weekly_races WHERE week_start = ?").bind(previousWeek).first<{ winners: string }>(),
-    bestScores(previousWeek, PLACES),
+    bestScores(previousWeek, STANDINGS),
   ]);
   const previousWinners: RaceWinner[] = paid
     ? (JSON.parse(paid.winners) as RaceWinner[])
-    : previousTop.map((row, i) => ({ ...entry(row, i), ...prizes[i] }));
+    : previousTop.map((row, i) => ({ ...entry(row, i), ...(prizeFor(i + 1, prizes) ?? { sol: 0, gems: 0 }) })).filter((w) => w.sol || w.gems);
   return {
     weekStart: week,
     weekEnd: week + WEEK,
     prizes,
-    standings: standings.map(entry),
+    tiers: TIERS,
+    standings: standings.map((row, i) => entry(row, i, prizes)),
     previous: previousWinners.length ? { weekStart: previousWeek, weekEnd: week, paid: !!paid, winners: previousWinners } : null,
     generated: now,
   };
@@ -152,7 +175,7 @@ export async function adminRaces(now = Date.now(), weeks = 6): Promise<{ prizes:
         weekStart: starts[i],
         weekEnd: starts[i] + WEEK,
         ended: starts[i] + WEEK <= now,
-        standings: top.map(entry),
+        standings: top.map((row, n) => entry(row, n)),
         excluded: excluded.results,
         paid: paid ? { at: paid.paid_at, winners: JSON.parse(paid.winners) as RaceWinner[] } : null,
       }))
@@ -223,9 +246,11 @@ export async function payWeeklyRace(adminUid: string, weekInput: unknown, now = 
   const week = parseWeek(weekInput, now);
   if (week + WEEK > now) throw new GameError("This week's race has not ended yet.", 409);
   await unpaid(week);
-  const [top, prizes] = await Promise.all([bestScores(week, PLACES), racePrizes()]);
-  if (!top.length) throw new GameError("Nobody scored in this week's race.", 409);
-  const winners: RaceWinner[] = top.map((row, i) => ({ ...entry(row, i), ...prizes[i] }));
+  const [board, prizes] = await Promise.all([bestScores(week, STANDINGS), racePrizes()]);
+  if (!board.length) throw new GameError("Nobody scored in this week's race.", 409);
+  // Everyone a prize or a tier reaches, podium first.
+  const top = board.filter((_, i) => prizeFor(i + 1, prizes));
+  const winners: RaceWinner[] = top.map((row, i) => ({ ...entry(row, i), ...prizeFor(i + 1, prizes)! }));
   const totalSol = winners.reduce((sum, w) => sum + w.sol, 0);
   const db = database();
   if (totalSol) await Promise.all([ensureCashAccount(HOUSE), ...top.map((row) => ensureCashAccount(row.user_id))]);

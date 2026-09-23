@@ -97,15 +97,27 @@ export type Leader = { name: string; avatar: string | null; is_you: number; pnl:
 
 export type LaunchStatus = { mode: string; configured: boolean; mainnetEnabled: boolean; message: string };
 
-export type Profile = { publicId: string; name: string; balance: number; avatar: string | null; created: number; level: PlayerLevel };
+export type Profile = {
+  publicId: string;
+  name: string;
+  balance: number;
+  avatar: string | null;
+  created: number;
+  /** Rank in the season being played (lib/seasons.ts). */
+  level: PlayerLevel;
+  /** Rank over everything ever wagered; nothing resets it. */
+  careerLevel: PlayerLevel;
+};
 export type PublicPlayerProfile = {
   publicId: string;
   name: string;
   avatar: string | null;
   created: number;
   isYou: boolean;
-  /** Rank from devnet SOL wagered; public. */
+  /** Rank from devnet SOL wagered this season; public. */
   level: PlayerLevel;
+  /** The same over the player's whole history, which no season resets. */
+  careerLevel: PlayerLevel;
   stats: Record<Asset, { pnl: number; games: number; wins: number }>;
   /** Where the viewer stands with this player; null when nobody is signed in. */
   friendship: Friendship | null;
@@ -204,7 +216,18 @@ export type TournamentNotification = {
 export type RaceNotification = { weekStart: number; rank: number; score: number; sol: number; gems: number };
 
 /** One player's best score of the week. `watchId` links the run when others may watch it. */
-export type RaceEntry = { rank: number; name: string; avatar: string | null; score: number; at: number; watchId: string | null };
+export type RaceEntry = {
+  rank: number;
+  name: string;
+  avatar: string | null;
+  score: number;
+  at: number;
+  watchId: string | null;
+  /** What this place is worth as the board stands, or null outside the tiers. */
+  reward?: RacePrize | null;
+};
+/** Ranks below the podium that win gems: `from`–`to` inclusive. */
+export type RaceTier = { from: number; to: number; gems: number };
 /** A place's prize: SOL in lamports and gems. */
 export type RacePrize = { sol: number; gems: number };
 export type RaceWinner = RaceEntry & RacePrize;
@@ -212,6 +235,8 @@ export type WeeklyRace = {
   weekStart: number;
   weekEnd: number;
   prizes: RacePrize[];
+  /** What the places below the podium win, in gems (lib/weekly-race.ts). */
+  tiers: RaceTier[];
   standings: RaceEntry[];
   /** Last week's top 3: paid, or awaiting the administrator's review. */
   previous: { weekStart: number; weekEnd: number; paid: boolean; winners: RaceWinner[] } | null;
@@ -346,6 +371,10 @@ export type Snapshot = {
   questsReady: number;
   /** The skin this player wears on the board (lib/themes.ts). */
   theme: ThemeId;
+  /** Cashback periods waiting to be claimed (lib/rewards.ts). */
+  rewardsReady: number;
+  /** The season the ranks around the game belong to (lib/seasons.ts). */
+  season: { number: number; startedAt: number };
 };
 
 export type QuestScope = "daily" | "weekly";

@@ -24,9 +24,9 @@ export function RankEmblem({ tier, division, size = 22 }: { tier: RankTier; divi
 }
 
 /** Emblem and rank name, for lists. */
-export function RankBadge({ level }: { level: PlayerLevel }) {
+export function RankBadge({ level, className = "" }: { level: PlayerLevel; className?: string }) {
   return (
-    <Tooltip content={`${level.name} · ${level.xp.toLocaleString("en")} XP`}><span className={`${styles.badge} ${styles[level.tier]}`}>
+    <Tooltip content={`${level.name} · ${level.xp.toLocaleString("en")} XP this season`}><span className={`${styles.badge} ${styles[level.tier]} ${className}`}>
       <RankEmblem tier={level.tier} division={level.division} size={14} />
       {level.name}
     </span></Tooltip>

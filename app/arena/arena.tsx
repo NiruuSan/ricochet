@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { Menu } from "@/components/ui/menu";
 import { signOutToLogin } from "../auth-actions";
 import { Avatar, GemIcon } from "./avatar";
+import { RankBadge } from "./rank-badge";
 import { units } from "./format";
 import { Notifications } from "./notifications";
 import { SuspensionNotice } from "./suspension-notice";
@@ -175,6 +176,9 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
                 </span>
               </Link>
               {/* The account menu: where the profile, the wallet and the way out live. */}
+              {/* The rank is the one mark of standing that has to be played
+                  for, so it travels with the avatar on every page. */}
+              <RankBadge level={data.player.level} className="top-rank" />
               <Menu
                 label="Your account"
                 triggerClassName="avatar-link"

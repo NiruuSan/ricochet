@@ -225,6 +225,13 @@
       "when": 1790154747904,
       "tag": "0031_themes",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1790177313142,
+      "tag": "0032_cashback",
+      "breakpoints": true
     }
   ]
 }

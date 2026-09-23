@@ -30,7 +30,9 @@ try {
   assert.deepEqual(await publicProfile({ id: ALICE }, ALICE), await publicProfile("alice", ALICE), "Your own profile can be loaded by account, without knowing your name");
   assert.deepEqual((await profilePerformance({ id: BOB }, "gems")).history, (await profilePerformance("bob", "gems")).history);
   assert.deepEqual(bob.stats.gems, { pnl: 0, games: 0, wins: 0 });
-  assert.deepEqual(Object.keys(bob).sort(), ["avatar", "created", "friendship", "isYou", "level", "name", "publicId", "stats"]);
+  assert.deepEqual(Object.keys(bob).sort(), ["avatar", "careerLevel", "created", "friendship", "isYou", "level", "name", "publicId", "stats"]);
+  // The rank on show is the season's; the career one is beside it and no season resets it.
+  assert.deepEqual(bob.careerLevel, bob.level, "With no season started, the two are the same rank");
 
   // Where the viewer stands is settled before anything is offered, so a profile
   // never shows an action that would only come back refused.

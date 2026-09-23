@@ -39,3 +39,30 @@
   .whenColumn { display: none; }
   .table th:nth-child(3) { width: 90px; }
 }
+
+/* What the places below the podium are worth. */
+.tiers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+}
+.tiers li {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid #2f3b4f;
+  border-radius: 999px;
+  background: #0f1724;
+  font-size: 12px;
+}
+.tiers span {
+  color: #7f8d9f;
+  font-weight: 800;
+}
+.tiers b {
+  color: #bb8cff;
+}

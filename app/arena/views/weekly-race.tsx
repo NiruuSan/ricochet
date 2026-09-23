@@ -100,7 +100,7 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
             <Flag size={14} /> WEEK OF {weekLabel(data.weekStart).toUpperCase()}
           </div>
           <h2>The weekly race</h2>
-          <p>Your best single score of the week in SOL matches and paid SOL tournaments. The top 3 win prizes when the week closes.</p>
+          <p>Your best single score of the week in SOL matches and paid SOL tournaments. The top 3 win SOL when the week closes, and every place on the board wins gems.</p>
         </div>
         <div className={race.clock}>
           <Clock size={16} />
@@ -127,6 +127,18 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
             </li>
           ))}
         </ol>
+        {/* Below the podium the race pays in gems, so the other 47 places on
+            the board are worth watching too. */}
+        <ul className={race.tiers}>
+          {data.tiers?.map((tier) => (
+            <li key={tier.from}>
+              <span>
+                #{tier.from}–{tier.to}
+              </span>
+              <b>{units(tier.gems, "gems")} gems</b>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {top.length > 0 && (
@@ -204,7 +216,7 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
                               {s.name}
                               {s.name === me && <small className={styles.you}>YOU</small>}
                             </b>
-                            {s.rank <= 3 && <small className={race.prizeNote}>{prizeLabel(data.prizes[s.rank - 1])}</small>}
+                            {s.reward && <small className={race.prizeNote}>{prizeLabel(s.reward)}</small>}
                           </span>
                         </Link>
                       </td>
@@ -245,7 +257,7 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
                 <div className={styles.myRank}>
                   #{mine.rank}
                   <span>
-                    Best score {mine.score.toLocaleString("en")} · {mine.rank <= 3 ? `on course for ${prizeLabel(data.prizes[mine.rank - 1])}` : `${(data.standings[2].score - mine.score + 1).toLocaleString("en")} pts from the podium`}
+                    Best score {mine.score.toLocaleString("en")} · {mine.reward ? `on course for ${prizeLabel(mine.reward)}` : `${(data.standings[2].score - mine.score + 1).toLocaleString("en")} pts from the podium`}
                   </span>
                 </div>
               </>

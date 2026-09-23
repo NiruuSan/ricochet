@@ -596,6 +596,24 @@ export const playerSuspensions = sqliteTable("player_suspensions", {
   appealedAt: integer("appealed_at"),
 });
 
+// Cashback a player has taken, one row per period (lib/rewards.ts). The row is
+// the receipt and the lock, like every other payout on the site.
+export const rewardClaims = sqliteTable(
+  "reward_claims",
+  {
+    userId: text("user_id").notNull(),
+    // weekly | monthly
+    scope: text("scope").notNull(),
+    /** Start of the period, in ms. */
+    period: integer("period").notNull(),
+    // devnet | gems, and the amount in that currency's units.
+    asset: text("asset").notNull(),
+    amount: integer("amount").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.scope, t.period] })],
+);
+
 // Themes a player has bought. The row is the receipt and the lock: its key is
 // the player and the theme, so a double tap buys one (lib/theme-store.ts).
 export const themePurchases = sqliteTable(

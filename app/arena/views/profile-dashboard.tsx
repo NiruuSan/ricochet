@@ -234,7 +234,15 @@ export function ProfileDashboard({
       <div className={styles.rankShowcase}>
         <div className={styles.rankArt} aria-hidden="true"><div className={styles.rankRing} /><RankEmblem tier={profile.level.tier} division={profile.level.division} size={110} /></div>
         <div className={styles.rankCaption}>EVERY RUN. A LITTLE HIGHER.</div>
-        <div className={styles.rankProgress}><RankProgress level={profile.level} own={!!profile.isYou} /></div>
+        <div className={styles.rankProgress}>
+          <RankProgress level={profile.level} own={!!profile.isYou} />
+          {/* A season resets the climb; the career rank is the one that never does. */}
+          {profile.careerLevel && profile.careerLevel.name !== profile.level.name && (
+            <p className={styles.career}>
+              Career rank <b>{profile.careerLevel.name}</b> · {profile.careerLevel.xp.toLocaleString("en")} XP wagered in all
+            </p>
+          )}
+        </div>
       </div>
     </header>}
     <div className={styles.assetBar}>
