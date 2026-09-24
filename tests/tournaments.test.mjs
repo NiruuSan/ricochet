@@ -133,6 +133,15 @@ try {
   );
   const domHistory = await tournamentHistory("u-dom", "devnet", 50, end);
   assert.deepEqual([domHistory[0].rank, domHistory[0].started, domHistory[0].net], [null, false, -100_000_000], "An entrant who never played lost the entry");
+
+  // The board counts a cup like it counts a match: what went in, what came out.
+  const { leaderboard } = await import("../lib/matches.ts");
+  const board = await leaderboard("u-cat", "devnet");
+  const cat = board.find((row) => row.name === "Cat");
+  assert.equal(cat.pnl, Math.floor((pot * 20) / 100) - 100_000_000, "Third place: the prize, less the entry");
+  assert.equal(cat.games, 1, "and the cup counts as a game played");
+  assert.equal(board.find((row) => row.name === "Dom").pnl, -100_000_000, "An entry nobody played is a loss like any other");
+  assert.ok(board.findIndex((row) => row.name === "Ann") < board.findIndex((row) => row.name === "Dom"), "and the winners stand above them");
   assert.equal((await tournamentHistory("u-cat", "gems", 50, end)).length, 0, "History is per currency");
   const liveHistory = await tournamentHistory("u-cat", "devnet", 50, live);
   assert.deepEqual([liveHistory[0].status, liveHistory[0].net], ["settled", Math.floor((pot * 20) / 100) - 100_000_000]);

@@ -312,23 +312,40 @@ export async function touchPlayer(uid: string, now = Date.now()) {
 }
 
 /** Top 50 players by settled match P&L in one currency. `viewer` only marks the viewer's own row; it may be null. */
+/**
+ * Everything a player put in and took out of a settled game, whether it was a
+ * seat across from one rival or a place in a cup. A tournament only counts once
+ * it has paid out or been called off: mid-cup, the entry has left the wallet
+ * and the prize has not arrived, which is not a loss.
+ */
+const CUP_KINDS = "'tournament_entry', 'tournament_prize', 'tournament_refund'";
+/** The gem ledger and the cash ledger name a seat and its payout differently. */
+const GEM_KINDS = `'entry', 'payout', 'refund', ${CUP_KINDS}`;
+const CASH_KINDS = `'match_entry', 'match_payout', 'match_refund', ${CUP_KINDS}`;
+const SETTLED_GAMES = `
+  SELECT id FROM matches WHERE settled = 1 AND asset = ?
+  UNION ALL
+  SELECT id FROM tournaments WHERE status IN ('settled', 'cancelled') AND asset = ?`;
+
 export async function leaderboard(viewer: string | null, asset: Asset): Promise<Leader[]> {
   const sql =
     asset === "gems"
-      ? `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id")} AS wagered
+      ? `WITH games AS (${SETTLED_GAMES})
+         SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT g.id) AS games, ${wageredSql("p.id")} AS wagered
          FROM players p
-         JOIN ledger l ON l.user_id = p.id
-         JOIN matches m ON m.id = l.match_id AND m.settled = 1 AND m.asset = 'gems'
+         JOIN ledger l ON l.user_id = p.id AND l.kind IN (${GEM_KINDS})
+         JOIN games g ON g.id = l.match_id
          WHERE p.deleted IS NULL
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`
-      : `SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT m.id) AS games, ${wageredSql("p.id")} AS wagered
+      : `WITH games AS (${SETTLED_GAMES})
+         SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT g.id) AS games, ${wageredSql("p.id")} AS wagered
          FROM players p
          JOIN cash_accounts a ON a.user_id = p.id AND a.network = 'devnet'
-         JOIN cash_ledger l ON l.account_id = a.id
-         JOIN matches m ON m.id = l.reference AND m.settled = 1 AND m.asset = 'devnet'
-         WHERE l.kind IN ('match_entry', 'match_payout', 'match_refund') AND p.deleted IS NULL
+         JOIN cash_ledger l ON l.account_id = a.id AND l.kind IN (${CASH_KINDS})
+         JOIN games g ON g.id = l.reference
+         WHERE p.deleted IS NULL
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
-  const { results } = await database().prepare(sql).bind(viewer).all<Omit<Leader, "level"> & { wagered: number }>();
+  const { results } = await database().prepare(sql).bind(asset, asset, viewer).all<Omit<Leader, "level"> & { wagered: number }>();
   return results.map(({ wagered, ...l }) => ({ ...l, avatar: avatarUrl(l.avatar), level: levelFor(experienceFromWagered(wagered)) }));
 }
 

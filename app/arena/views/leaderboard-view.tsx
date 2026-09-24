@@ -106,7 +106,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
     {rows?.length ? (
       <section aria-labelledby="leaders-title">
         <div className={styles.leadersHeading}><h2 id="leaders-title">Leading the way</h2><span>All-time net profit · {assetName(asset)}</span></div>
-        <Podium variant="leaderboard" entries={rows.slice(0, 3).map((p, i) => ({ name: p.name, avatar: p.avatar, href: profileHref(p.name), rank: i + 1, meta: `${count(p.games)} settled ${p.games === 1 ? "match" : "matches"}`, valueLabel: "NET PROFIT", value: signedAmount(p.pnl, asset), unit: currency(asset), negative: p.pnl < 0, isYou: p.name === me }))} />
+        <Podium variant="leaderboard" entries={rows.slice(0, 3).map((p, i) => ({ name: p.name, avatar: p.avatar, href: profileHref(p.name), rank: i + 1, meta: `${count(p.games)} settled ${p.games === 1 ? "game" : "games"}`, valueLabel: "NET PROFIT", value: signedAmount(p.pnl, asset), unit: currency(asset), negative: p.pnl < 0, isYou: p.name === me }))} />
       </section>
     ) : !rows && !error ? <div className={styles.podiumSkeleton} role="status" aria-label="Loading leaderboard"><div /><div /><div /><span className={styles.srOnly}>Loading leaderboard…</span></div> : null}
 
@@ -120,7 +120,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
     <div className={styles.contentGrid}>
       <section className={styles.standings} id="standings" aria-labelledby="standings-title">
         <div className={styles.standingsHeading}>
-          <div><h2 id="standings-title">The full standings <span>{rows ? count(rows.length) : "—"}</span></h2><p>Ranked by net profit from settled 1v1 matches.</p></div>
+          <div><h2 id="standings-title">The full standings <span>{rows ? count(rows.length) : "—"}</span></h2><p>Ranked by net profit from settled matches and tournaments.</p></div>
           <button className={styles.refresh} aria-label="Refresh standings" disabled={refreshing} onClick={refresh}><RefreshCw size={16} className={refreshing ? styles.spinning : undefined} /></button>
         </div>
         <Form className={styles.search} onSubmit={(event) => { event.preventDefault(); if (validProfileName) router.push(profileHref(search.trim())); }}>
@@ -132,11 +132,11 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
 
         {rows && rows.length > 0 && filtered.length > 0 ? <>
           <div className={styles.tableWrap}><table className={styles.table}>
-            <caption className={styles.srOnly}>All-time {currency(asset)} standings ranked by net profit from settled matches</caption>
-            <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" className={styles.matchesColumn}>Matches</th><th scope="col">Net profit <ArrowDown size={12} aria-hidden /></th><th scope="col" className={styles.arrowColumn}><span className={styles.srOnly}>Profile</span></th></tr></thead>
+            <caption className={styles.srOnly}>All-time {currency(asset)} standings ranked by net profit from settled matches and tournaments</caption>
+            <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" className={styles.matchesColumn}>Games</th><th scope="col">Net profit <ArrowDown size={12} aria-hidden /></th><th scope="col" className={styles.arrowColumn}><span className={styles.srOnly}>Profile</span></th></tr></thead>
             <tbody>{visible.map((p) => <tr key={p.name} className={p.name === me ? styles.myRow : undefined}>
               <td><span className={`${styles.rank} ${p.rank <= 3 ? styles[`rank${p.rank}`] : ""}`}>{p.rank === 1 ? <Crown size={16} aria-label="First place" /> : String(p.rank).padStart(2, "0")}</span></td>
-              <td><Link href={profileHref(p.name)} className={styles.playerLink}><Avatar name={p.name} src={p.avatar} size={36} /><span><b>{p.name}{p.level && <RankBadge level={p.level} />}{p.name === me && <small className={styles.you}>YOU</small>}</b><small className={styles.mobileMatches}>{count(p.games)} {p.games === 1 ? "match" : "matches"}</small></span></Link></td>
+              <td><Link href={profileHref(p.name)} className={styles.playerLink}><Avatar name={p.name} src={p.avatar} size={36} /><span><b>{p.name}{p.level && <RankBadge level={p.level} />}{p.name === me && <small className={styles.you}>YOU</small>}</b><small className={styles.mobileMatches}>{count(p.games)} {p.games === 1 ? "game" : "games"}</small></span></Link></td>
               <td className={styles.matchesColumn}>{count(p.games)}</td>
               <td className={styles.profit}><strong className={p.pnl > 0 ? styles.positive : p.pnl < 0 ? styles.negative : styles.neutral}>{signedAmount(p.pnl, asset)}</strong><span>{currency(asset)}</span></td>
               <td className={styles.arrowColumn}><Link href={profileHref(p.name)} aria-label={`View ${p.name}'s profile`}><ArrowUpRight size={16} /></Link></td>
@@ -151,7 +151,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
           <p>{!rows && error ? "The standings are unavailable right now. Try refreshing in a moment." : query && rows?.length ? "Try another name, or open their profile directly. This board shows the top 50 players." : "Finish a 1v1 match to join the standings. Every climb starts with one good shot."}</p>
           {query && rows?.length ? <button className="btn" onClick={() => { setSearch(""); setPage(0); }}>Clear search</button> : !error && <Link href="/" className="btn btn-primary">Enter the arena <ArrowRight /></Link>}
         </div>}
-        {board && <div className={styles.updated}>Updated {new Date(board.updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<span>·</span>Settled 1v1 matches only</div>}
+        {board && <div className={styles.updated}>Updated {new Date(board.updated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}<span>·</span>Settled matches and tournaments</div>}
       </section>
 
       <aside className={styles.sidebar}>
@@ -172,7 +172,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
         <section className={styles.explainer}>
           <div className={styles.cardLabel}><Sparkles size={15} />HOW THE RANKS WORK</div>
           <h3>Profit is the score.</h3><p>Your match payouts minus your entries. The higher your net profit, the higher you climb.</p>
-          <ul><li>All-time results, top 50 players</li><li>Only settled 1v1 matches count</li><li>Separate boards for SOL and gems</li></ul>
+          <ul><li>All-time results, top 50 players</li><li>Settled 1v1 matches and tournaments count</li><li>Separate boards for SOL and gems</li></ul>
           <Link href="/rules">Get to know the game <ArrowUpRight size={14} /></Link>
         </section>
       </aside>
