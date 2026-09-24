@@ -11,7 +11,7 @@ import type { AntiCheatOverview, CheatCase } from "@/lib/anti-cheat-admin";
 import type { CollusionPair } from "@/lib/collusion";
 import { request } from "../api";
 import { Avatar } from "../avatar";
-import { units } from "../format";
+import { amount, units } from "../format";
 import { CASE_STATUS, SignalRow } from "./anti-cheat-case-details";
 import review from "./anti-cheat.module.css";
 import styles from "./admin.module.css";
@@ -83,11 +83,11 @@ function PairRow({ pair }: { pair: CollusionPair }) {
         <span>
           Money moved{" "}
           <b>
-            {units(Math.abs(pair.net), "devnet")} SOL → {winner.name}
+            {amount(Math.abs(pair.net), "devnet")} → {winner.name}
           </b>
         </span>
         <span>
-          Tips <b>{pair.tips ? `${pair.tips} · ${units(pair.tipped, "devnet")} SOL` : "—"}</b>
+          Tips <b>{pair.tips ? `${pair.tips} · ${amount(pair.tipped, "devnet")}` : "—"}</b>
         </span>
       </div>
       <div className={review.pairReasons}>

@@ -4,8 +4,8 @@ import { Form } from "@/components/ui/form";
 import { Check, Copy, Gift, HandCoins, Pencil, Share2, Users } from "lucide-react";
 import { REFERRAL_FEES, type ReferralSummary } from "@/lib/api-types";
 import { request } from "./api";
-import { fullSol } from "./funded-wallet";
 import styles from "./wallet.module.css";
+import { currency, fullSol } from "./format";
 
 const hoursLeft = (until: number) => Math.max(1, Math.round((until - Date.now()) / 3_600_000));
 
@@ -147,7 +147,7 @@ export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
           <span>
             <Gift size={15} /> {partner ? "Earned as a partner" : "Partner earnings"}
           </span>
-          <strong>{partner ? `${fullSol(data.earned)} SOL` : "—"}</strong>
+          <strong>{partner ? `${fullSol(data.earned)} ${currency("devnet")}` : "—"}</strong>
         </div>
       </div>
 
@@ -159,11 +159,11 @@ export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
             </span>
             <b className={styles.claimAmount}>
               {fullSol(data.pending)}
-              <small>SOL</small>
+              <small>{currency("devnet")}</small>
             </b>
             <p className={styles.claimNote}>
               {claimed > 0
-                ? `${fullSol(claimed)} SOL is in your balance.`
+                ? `${fullSol(claimed)} ${currency("devnet")} is in your balance.`
                 : data.pending > 0
                   ? "Your share of every match your players play, waiting for you."
                   : "Your share gathers here as your players play. Come back and take it."}

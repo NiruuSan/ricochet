@@ -7,8 +7,7 @@ import { PlayerNameInput } from "@/components/ui/player-name-input";
 import type { AdminPlayer } from "@/lib/admin-players";
 import { request } from "../api";
 import { Avatar } from "../avatar";
-import { fullSol } from "../funded-wallet";
-import { timeAgo } from "../format";
+import { amount, assetName, fullSol, timeAgo } from "../format";
 import styles from "./admin.module.css";
 
 const REFRESH_MS = 30_000;
@@ -43,7 +42,7 @@ export function AdminPeople() {
   const remove = async (player: AdminPlayer) => {
     const answer = await dialog.promptSigned(
       `Delete ${player.name}?\n\nThe account, their runs, the matches they played — for both sides — their ledger, their wallet and their notifications are all removed. ${
-        player.sol > 0 ? `Their ${fullSol(player.sol)} devnet SOL goes to the treasury.` : "Their balance is empty."
+        player.sol > 0 ? `Their ${amount(player.sol, "devnet")} goes to the treasury.` : "Their balance is empty."
       }\n\nThis cannot be undone. Write the reason and confirm with your own authentication code.`,
       { title: "Delete this account", confirmLabel: "Delete account", danger: true },
     );
@@ -54,7 +53,7 @@ export function AdminPeople() {
     try {
       const done = await request<{ name: string; swept: number }>("/api/admin/players", { action: "delete", name: player.name, reason: answer.reason, code: answer.code });
       await load();
-      setNotice(done.swept > 0 ? `${done.name} deleted · ${fullSol(done.swept)} SOL moved to the treasury.` : `${done.name} deleted.`);
+      setNotice(done.swept > 0 ? `${done.name} deleted · ${amount(done.swept, "devnet")} moved to the treasury.` : `${done.name} deleted.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -143,7 +142,7 @@ Balances, wallets and the ledger are untouched. Write the reason; it is recorded
                     <b>{player.gems.toLocaleString("en")}</b>
                   </div>
                   <div className={styles.cell}>
-                    <span>Devnet SOL</span>
+                    <span>{assetName("devnet")}</span>
                     <b>{fullSol(player.sol)}</b>
                   </div>
                 </div>

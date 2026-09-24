@@ -7,7 +7,7 @@ import { ArrowUpRight, Clock, Eye, Flag, Gem, Info, RefreshCw, Trophy, Wallet } 
 import type { RacePrize, WeeklyRace } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
-import { units } from "../format";
+import { amount, units } from "../format";
 import styles from "./leaderboard.module.css";
 import race from "./weekly-race.module.css";
 import { Podium } from "./podium";
@@ -29,7 +29,7 @@ function countdown(ms: number) {
 const weekLabel = (start: number) => new Date(start).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
 
 export const prizeLabel = (p: RacePrize | undefined) =>
-  p ? [p.sol ? `${units(p.sol, "devnet")} SOL` : "", p.gems ? `${units(p.gems, "gems")} gems` : ""].filter(Boolean).join(" + ") || "No prize" : "No prize";
+  p ? [p.sol ? `${amount(p.sol, "devnet")}` : "", p.gems ? `${units(p.gems, "gems")} gems` : ""].filter(Boolean).join(" + ") || "No prize" : "No prize";
 
 export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
   const [data, setData] = useState<WeeklyRace | null>(cached);
@@ -115,7 +115,7 @@ export function WeeklyRaceBoard({ me }: { me: string | undefined }) {
               <span>{PLACE_TITLES[i]}</span>
               {p.sol > 0 && (
                 <b>
-                  <Wallet size={14} /> {units(p.sol, "devnet")} SOL
+                  <Wallet size={14} /> {amount(p.sol, "devnet")}
                 </b>
               )}
               {p.gems > 0 && (

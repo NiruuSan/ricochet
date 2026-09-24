@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Check, Clock3, Medal, Play, Target, Trophy, Users } from "lucide-react";
 import type { TournamentSummary } from "@/lib/api-types";
 import { request } from "../api";
-import { amount } from "../format";
+import { amount, assetName } from "../format";
 import type { PlayerState } from "../arena";
 import { entryLabel, headlinePot, PAYOUT_LABELS, STATUS_LABELS, timing } from "../tournament-format";
 import styles from "./tournaments.module.css";
@@ -57,7 +57,7 @@ export function TournamentCard({ t, now }: { t: TournamentSummary; now: number }
     <Link href={`/tournaments/${t.id}`} className={styles.card}>
       <div className={styles.cardTop}>
         <span className={`${styles.chip} ${t.status === "live" ? styles.chipLive : ""}`}>{STATUS_LABELS[t.status].toUpperCase()}</span>
-        <span className={`${styles.chip} ${t.asset === "devnet" ? styles.chipSol : styles.chipGems}`}>{t.asset === "devnet" ? "DEVNET SOL" : "GEMS"}</span>
+        <span className={`${styles.chip} ${t.asset === "devnet" ? styles.chipSol : styles.chipGems}`}>{assetName(t.asset).toUpperCase()}</span>
       </div>
       <div className={styles.cardName}>{t.name}</div>
       <div className={styles.pot}>
@@ -96,7 +96,7 @@ function FeaturedTournament({ t, now }: { t: TournamentSummary; now: number }) {
     <Link href={`/tournaments/${t.id}`} className={lobby.featured}>
       <div className={lobby.featuredTop}>
         <span className={lobby.eventStatus}><span className={t.status === "live" ? lobby.liveDot : lobby.statusDot} />{t.status === "registration" ? "NEXT UP" : "IN PROGRESS"}<span className={lobby.statusDetail}>{STATUS_LABELS[t.status]}</span></span>
-        <span className={t.asset === "devnet" ? lobby.sol : lobby.gems}>{t.asset === "devnet" ? "DEVNET SOL" : "GEMS"}</span>
+        <span className={t.asset === "devnet" ? lobby.sol : lobby.gems}>{assetName(t.asset).toUpperCase()}</span>
       </div>
       <h2>{t.name}</h2>
       <div className={lobby.eventTiming}><Clock3 size={15} />{timing(t, now)}</div>

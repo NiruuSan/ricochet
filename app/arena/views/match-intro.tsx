@@ -2,7 +2,7 @@
 import { Gem, Zap } from "lucide-react";
 import type { Asset } from "@/lib/api-types";
 import { Avatar } from "../avatar";
-import { CURRENCY, units } from "../format";
+import { currency, units } from "../format";
 import { themeById, themeStyle } from "../theme";
 import styles from "./screens.module.css";
 
@@ -62,7 +62,7 @@ export function MatchIntro({ asset, stake, stage, opponent, tournament, theme }:
         </div>
         <div className={styles.introBelow}>
           <p className={styles.stakeUnit}>
-            {CURRENCY[asset].toUpperCase()} {tournament ? "PRIZE POOL" : "ON THE LINE"}
+            {currency(asset).toUpperCase()} {tournament ? "PRIZE POOL" : "ON THE LINE"}
           </p>
           <div className={styles.introStatus}>
             {tournament ? (

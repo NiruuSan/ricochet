@@ -7,7 +7,7 @@ import { ArrowRight, Crown, Eye, History, Lock, Medal, Radio, Swords, Trophy, Us
 import type { ArenaOverview, LiveGame, RecentGame } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
-import { amount, CURRENCY, signedAmount } from "../format";
+import { amount, currency, signedAmount } from "../format";
 import { ordinal } from "../tournament-format";
 import { TournamentCard } from "./tournaments-view";
 import styles from "./arena-dashboard.module.css";
@@ -68,12 +68,12 @@ function RecentRow({ g, onOpenMatch }: { g: RecentGame; onOpenMatch: (id: string
         <b>{g.kind === "tournament" ? g.title : g.title === "Open seat" ? "Waiting for a rival" : `vs ${g.title}`}</b>
         <small>
           {g.score.toLocaleString("en")}
-          {g.opponentScore !== null && ` – ${g.opponentScore.toLocaleString("en")}`} pts · {g.asset === "gems" ? "Gems" : "SOL"}
+          {g.opponentScore !== null && ` – ${g.opponentScore.toLocaleString("en")}`} pts · {currency(g.asset)}
         </small>
       </span>
       <span className={styles.rowEnd}>
         <span className={`${styles.pill} ${tone}`}>{resultLabel(g)}</span>
-        {g.net !== null && <small className={g.net > 0 ? "lime" : g.net < 0 ? styles.negative : ""}>{`${signedAmount(g.net, g.asset)} ${CURRENCY[g.asset]}`}</small>}
+        {g.net !== null && <small className={g.net > 0 ? "lime" : g.net < 0 ? styles.negative : ""}>{`${signedAmount(g.net, g.asset)} ${currency(g.asset)}`}</small>}
       </span>
     </>
   );

@@ -7,7 +7,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import type { CheatCase, CheatSignalView } from "@/lib/anti-cheat-admin";
 import { QUALITY } from "@/lib/anti-cheat-rules";
-import { units } from "../format";
+import { amount, units } from "../format";
 import styles from "./admin.module.css";
 import review from "./anti-cheat.module.css";
 export const CASE_STATUS: Record<CheatCase["status"], { label: string; color: string }> = {
@@ -69,7 +69,7 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
     onAction(
       { action, name: item.name, note: text },
       action === "ban"
-        ? `Ban ${item.name} and seize ${units(item.balances.sol, "devnet")} SOL and ${units(item.balances.gems, "gems")} gems? Their unsettled matches go to their opponents. This cannot be undone.`
+        ? `Ban ${item.name} and seize ${amount(item.balances.sol, "devnet")} and ${units(item.balances.gems, "gems")} gems? Their unsettled matches go to their opponents. This cannot be undone.`
         : undefined,
     );
   };
@@ -119,17 +119,17 @@ export function CaseDetails({ item, busy, onAction }: { item: CheatCase; busy: b
       <div className={review.metrics}>
         <div className={styles.stat}>
           <small className={styles.muted}>BALANCE</small>
-          <b>{units(item.balances.sol, "devnet")} SOL</b>
+          <b>{amount(item.balances.sol, "devnet")}</b>
           <span className={styles.muted}>{units(item.balances.gems, "gems")} gems</span>
         </div>
         <div className={styles.stat}>
           <small className={styles.muted}>SOL WINS · 30 DAYS</small>
           <b>{item.winnings.solMatchesWon}</b>
-          <span className={styles.muted}>net {units(item.winnings.solMatchNet, "devnet")} SOL</span>
+          <span className={styles.muted}>net {amount(item.winnings.solMatchNet, "devnet")}</span>
         </div>
         <div className={styles.stat}>
           <small className={styles.muted}>PRIZES · 30 DAYS</small>
-          <b>{units(item.winnings.tournamentPrizes + item.winnings.racePrizes, "devnet")} SOL</b>
+          <b>{amount(item.winnings.tournamentPrizes + item.winnings.racePrizes, "devnet")}</b>
           <span className={styles.muted}>
             tournaments {units(item.winnings.tournamentPrizes, "devnet")} · race {units(item.winnings.racePrizes, "devnet")}
           </span>

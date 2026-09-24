@@ -8,7 +8,7 @@ import Link from "next/link";
 import { Ban, Check, Eye, Flag, RotateCcw, Save } from "lucide-react";
 import type { AdminRaceWeek, RacePrize } from "@/lib/api-types";
 import { request } from "../api";
-import { units } from "../format";
+import { amount, units } from "../format";
 import styles from "./admin.module.css";
 import { prizeLabel } from "./weekly-race";
 
@@ -107,7 +107,7 @@ function RaceWeek({ week, prizes, busy, onAction }: { week: AdminRaceWeek; prize
             onClick={() =>
               onAction(
                 { action: "pay", week: week.weekStart },
-                `Pay the week of ${dayLabel(week.weekStart)}?\n\n${top.map((s, i) => `#${i + 1} ${s.name} (${s.score.toLocaleString("en")} pts): ${prizeLabel(prizes[i])}`).join("\n")}\n\n${units(total, "devnet")} SOL leaves the treasury house balance. This cannot be undone.`,
+                `Pay the week of ${dayLabel(week.weekStart)}?\n\n${top.map((s, i) => `#${i + 1} ${s.name} (${s.score.toLocaleString("en")} pts): ${prizeLabel(prizes[i])}`).join("\n")}\n\n${amount(total, "devnet")} leaves the treasury house balance. This cannot be undone.`,
               )
             }
           >

@@ -9,7 +9,8 @@ import { Menu } from "@/components/ui/menu";
 import { signOutToLogin } from "../auth-actions";
 import { Avatar, GemIcon } from "./avatar";
 import { RankBadge } from "./rank-badge";
-import { Fiat } from "./fiat";
+import { CurrencyMenu, useMoney } from "./currency-menu";
+import { startMoney } from "./money";
 import { units } from "./format";
 import { Notifications } from "./notifications";
 import { SuspensionNotice } from "./suspension-notice";
@@ -54,6 +55,10 @@ type ArenaProps = { view: View; profileName?: string; adminCaseName?: string; in
 
 export default function Arena({ view, profileName, adminCaseName, initialMatchId, initialTournamentId, initialInvite, tournamentId, watchId }: ArenaProps) {
   const player = usePlayerData();
+  // Reading the stored choice happens after mounting, so the first paint still
+  // matches the HTML the server sent; from then on every amount follows it.
+  useMoney();
+  useEffect(() => startMoney(), []);
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
   // The skin the player wears follows them onto the board and its screens.
@@ -164,19 +169,13 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
                 onRead={onSaved}
                 viewingMatchId={viewingMatchId}
               />
-              <Link className="balance-pill" href="/wallet" aria-label="Balances">
-                {data.launch?.configured && (
-                  <span className="pill-part pill-sol">
-                    <Wallet />
-                    {units(data.cashBalance ?? 0, "devnet")} SOL
-                    <Fiat lamports={data.cashBalance ?? 0} className="pill-fiat" />
-                  </span>
-                )}
-                <span className="pill-part">
+              <span className="balance-pill">
+                {data.launch?.configured && <CurrencyMenu lamports={data.cashBalance ?? 0} />}
+                <Link className="pill-part" href="/wallet" aria-label="Your gems">
                   <GemIcon />
                   {units(data.player.balance, "gems")}
-                </span>
-              </Link>
+                </Link>
+              </span>
               {/* The account menu: where the profile, the wallet and the way out live. */}
               {/* The rank is the one mark of standing that has to be played
                   for, so it travels with the avatar on every page. */}

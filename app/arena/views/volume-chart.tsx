@@ -3,9 +3,9 @@
 import { useId, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import type { AdminOverview, Period, VolumePoint, VolumeTotals } from "@/lib/api-types";
-import { fullSol } from "../funded-wallet";
 import styles from "./volume-chart.module.css";
 import admin from "./admin.module.css";
+import { exactSol } from "../format";
 
 const PERIODS = [["day", "Daily"], ["week", "Weekly"], ["month", "Monthly"]] as const;
 const WINDOWS = { day: "Last 24 hours · hourly volume", week: "Last 7 days · daily volume", month: "Last 30 days · daily volume" };
@@ -87,7 +87,7 @@ function Chart({ points, label, format, divisor }: { points: VolumePoint[]; labe
 function VolumeCard({ title, data, period, sol }: { title: string; data?: Partial<Record<Metric, VolumeTotals>>; period: Period; sol?: boolean }) {
   const [metric, setMetric] = useState<Metric>("entries");
   const available = sol ? METRICS : METRICS.filter(([key]) => key !== "deposits" && key !== "withdrawals" && key !== "fees");
-  const format = (value: number, key: Metric = metric) => key === "matches" ? `${value.toLocaleString("en")} matches` : sol ? `${fullSol(value)} SOL` : `${value.toLocaleString("en")} gems`;
+  const format = (value: number, key: Metric = metric) => key === "matches" ? `${value.toLocaleString("en")} matches` : sol ? `${exactSol(value)} SOL` : `${value.toLocaleString("en")} gems`;
   const selected = data?.[metric];
   const label = METRICS.find(([key]) => key === metric)![1];
   return (

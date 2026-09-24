@@ -8,8 +8,8 @@ import type { PublicPlayerProfile, TipReceipt } from "@/lib/api-types";
 import { parseSol } from "@/lib/payments/policy";
 import type { PlayerState } from "./arena";
 import { request, RequestError } from "./api";
-import { fullSol } from "./funded-wallet";
 import { CodeInput } from "./two-factor-panel";
+import { exactSol } from "./format";
 
 type Operation = { id: string; recipient: string; amount: string };
 
@@ -77,11 +77,11 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
         <DialogDescription>Send devnet SOL from your available Bounce balance directly to this player’s balance. No tip fee. Test funds only.</DialogDescription>
         {error && <div className="error" role="alert">{error}</div>}
         {receipt ? <>
-          <p className="success" role="status">Sent {fullSol(receipt.amount)} devnet SOL to {receipt.recipient}.</p>
+          <p className="success" role="status">Sent {exactSol(receipt.amount)} devnet SOL to {receipt.recipient}.</p>
           <button className="btn btn-primary" onClick={() => setOpen(false)}>Done</button>
         </> : restoreFailed ? <Link className="btn" href="/wallet">Check wallet activity</Link> : !player.loaded ? <p>Loading your wallet…</p> : !player.data.player ? <Link className="btn btn-primary" href={player.data.authenticated ? "/signup" : "/login"}>Sign in or create a player to tip</Link>
           : !player.data.launch?.configured ? <p>Devnet tipping is currently unavailable.</p> : <>
-            <p className="fine">Available: {fullSol(player.data.cashBalance ?? 0)} devnet SOL. <Link className="lime" href="/wallet">Fund wallet</Link></p>
+            <p className="fine">Available: {exactSol(player.data.cashBalance ?? 0)} devnet SOL. <Link className="lime" href="/wallet">Fund wallet</Link></p>
             {review ? <>
               <div className="math-line"><span>Recipient</span><strong>{profile.name}</strong></div>
               <div className="math-line"><span>Tip amount</span><strong>{amount} devnet SOL</strong></div>

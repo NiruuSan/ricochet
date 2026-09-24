@@ -7,7 +7,7 @@ import type { MatchSummary, TournamentHistoryItem } from "@/lib/api-types";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AssetTabs } from "../asset-tabs";
-import { amount, CURRENCY, matchStats, outcome, shortDate, shortId, signedAmount } from "../format";
+import { amount, currency, matchStats, outcome, shortDate, shortId, signedAmount } from "../format";
 import type { PlayerState } from "../arena";
 import { ordinal } from "../tournament-format";
 
@@ -61,7 +61,7 @@ export function MatchesView({ player }: { player: PlayerState }) {
           <b>{wins}</b>
         </div>
         <div className="stat-card">
-          <span className="muted">Settled P&L · {CURRENCY[asset]}</span>
+          <span className="muted">Settled P&L · {currency(asset)}</span>
           <b className={pnl >= 0 ? "lime" : ""}>{signedAmount(pnl, asset)}</b>
         </div>
       </div>

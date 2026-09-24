@@ -11,8 +11,8 @@ import { MIN_DEPOSIT, type Transfer, type TreasurySnapshot } from "@/lib/api-typ
 import { request, RequestError } from "./api";
 import { CodeInput, TwoFactorPanel, useTwoFactor } from "./two-factor-panel";
 import { ReferralCard } from "./referral-card";
-import { shortDate } from "./format";
-import { Fiat, FiatPicker } from "./fiat";
+import { currency, exactSol, fullSol, shortDate } from "./format";
+import { CurrencyPicker } from "./currency-menu";
 import styles from "./wallet.module.css";
 
 type WalletData = {
@@ -27,7 +27,7 @@ type WalletData = {
 
 const OPEN_STATUSES = ["pending", "review"];
 const isOpen = (t: Transfer) => OPEN_STATUSES.includes(t.status);
-export const fullSol = (lamports: number) => (lamports / 1e9).toLocaleString("en", { maximumFractionDigits: 9 });
+
 export const explorer = (kind: "address" | "tx", id: string) => `https://explorer.solana.com/${kind}/${id}?cluster=devnet`;
 
 const TRANSFER_LABELS: Record<string, string> = { deposit: "Deposit", withdrawal: "Withdrawal", treasury: "Treasury withdrawal" };
@@ -38,6 +38,9 @@ const pollMs = (data: WalletData | null, treasury: boolean) => (data?.transfers.
 
 export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolean; gems?: number }) {
   const path = treasury ? "/api/treasury" : "/api/wallet";
+  // Balances are written in whatever the player reads in; deposits and
+  // withdrawals stay in SOL, because that is what leaves the chain.
+  const unit = currency("devnet");
   const [data, setData] = useState<WalletData | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -215,20 +218,17 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
       ) : (
         <>
           {treasury ? (
-            <div className="wallet-value">{fullSol(data.balance)} <small>devnet SOL · house balance</small></div>
+            <div className="wallet-value">{fullSol(data.balance)} <small>{unit === "SOL" ? "devnet SOL" : unit} · house balance</small></div>
           ) : (
             <div className={styles.balances}>
               <section className={styles.solBalance}>
-                <div className={styles.balanceLabel}><Wallet size={17} />AVAILABLE TO PLAY<span>DEVNET SOL</span></div>
-                <div className={styles.balanceValue}>{fullSol(data.balance)}<span>SOL</span></div>
-                <p className={styles.balanceFiat}>
-                  <Fiat lamports={data.balance} />
+                <div className={styles.balanceLabel}><Wallet size={17} />AVAILABLE TO PLAY<span>{unit === "SOL" ? "DEVNET SOL" : unit}</span></div>
+                <div className={styles.balanceValue}>{fullSol(data.balance)}<span>{unit}</span></div>
+                <p>
+                  Test-network SOL. No monetary value.
+                  {unit !== "SOL" && <> Shown in {unit} at the live rate.</>}
                 </p>
-                <p>Test-network SOL. No monetary value.</p>
-                <div className={styles.fiatRow}>
-                  <span>Show amounts in</span>
-                  <FiatPicker />
-                </div>
+                <CurrencyPicker />
                 <div className={styles.balanceActions}>
                   {data.address ? <a className="btn btn-primary" href="#wallet-deposit"><ArrowDownToLine size={16} />Deposit</a> : <button className="btn btn-primary" disabled><ArrowDownToLine size={16} />Deposit</button>}
                   <button className="btn" disabled={busy || data.balance <= 0} onClick={openWithdrawal}><ArrowUpFromLine size={16} />Withdraw</button>
@@ -247,22 +247,22 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
             <div className="live-grid">
               <div>
                 <span>Pool wallet on-chain</span>
-                <b>{data.poolOnChain === null ? "Unavailable" : `${fullSol(data.poolOnChain ?? 0)} SOL`}</b>
+                <b>{data.poolOnChain === null ? "Unavailable" : `${fullSol(data.poolOnChain ?? 0)} ${unit}`}</b>
               </div>
               <div>
                 <span>Owed to players</span>
-                <b>{fullSol(data.playerBalances ?? 0)} SOL</b>
+                <b>{fullSol(data.playerBalances ?? 0)} {unit}</b>
               </div>
               <div>
                 <span>Match pots in escrow</span>
-                <b>{fullSol(data.escrow ?? 0)} SOL</b>
+                <b>{fullSol(data.escrow ?? 0)} {unit}</b>
               </div>
               <div>
                 <span>Unallocated on-chain</span>
                 <b>
                   {data.poolOnChain === null || data.poolOnChain === undefined
                     ? "—"
-                    : `${fullSol(data.poolOnChain - (data.playerBalances ?? 0) - (data.escrow ?? 0) - data.balance)} SOL`}
+                    : `${fullSol(data.poolOnChain - (data.playerBalances ?? 0) - (data.escrow ?? 0) - data.balance)} ${unit}`}
                 </b>
               </div>
               {data.poolAddress && (
@@ -284,15 +284,15 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
               </label>
               {incoming ? (
                 <p className="callout-inline" role="status">
-                  <RefreshCw size={14} className="spin" /> Crediting {fullSol(incoming.amount)} SOL… this takes about 30 seconds.
+                  <RefreshCw size={14} className="spin" /> Crediting {exactSol(incoming.amount)} SOL… this takes about 30 seconds.
                 </p>
               ) : (data.detected ?? 0) >= MIN_DEPOSIT ? (
                 <p className="callout-inline" role="status">
-                  <RefreshCw size={14} className="spin" /> {fullSol(data.detected!)} SOL received. Crediting it automatically…
+                  <RefreshCw size={14} className="spin" /> {exactSol(data.detected!)} SOL received. Crediting it automatically…
                 </p>
               ) : (data.detected ?? 0) > 0 ? (
                 <p className="callout-inline" role="status">
-                  {fullSol(data.detected!)} SOL received, below the 0.001 SOL minimum. Send a little more to credit it.
+                  {exactSol(data.detected!)} SOL received, below the 0.001 SOL minimum. Send a little more to credit it.
                 </p>
               ) : (
                 <p className="fine" style={{ marginTop: 10 }}>
@@ -334,7 +334,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
               </button>
             )}
           </div>
-          {!treasury && <p className={styles.depositNote}>Send only Solana devnet SOL to this address. Minimum deposit: {fullSol(MIN_DEPOSIT)} SOL.</p>}
+          {!treasury && <p className={styles.depositNote}>Send only Solana devnet SOL to this address. Minimum deposit: {exactSol(MIN_DEPOSIT)} SOL.</p>}
           </section>
           <section className={treasury ? undefined : styles.security}>
             {!treasury && <div className={styles.securityLabel}><ShieldCheck size={15} />WALLET SECURITY</div>}
@@ -365,7 +365,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
                   </div>
                   <strong className={t.kind === "deposit" ? "lime" : ""}>
                     {t.kind === "deposit" ? "+" : "−"}
-                    {fullSol(t.amount)} SOL
+                    {fullSol(t.amount)} {unit}
                   </strong>
                   <Tooltip content={t.error ?? undefined}><span className={`transfer-status ${t.status}`}>
                     {STATUS_LABELS[t.status] ?? t.status}
@@ -380,10 +380,10 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
           </section>
           {!treasury && !!data.tips?.length && (
             <section className={styles.tips}>
-              <h3>Tips <span>DEVNET SOL</span></h3>
+              <h3>Tips <span>{unit === "SOL" ? "DEVNET SOL" : unit}</span></h3>
               <div className="table-card">
                 <Table>
-                  <TableHeader><TableRow><TableHead>Tip</TableHead><TableHead>Player</TableHead><TableHead>Amount · SOL</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow><TableHead>Tip</TableHead><TableHead>Player</TableHead><TableHead>Amount · {unit}</TableHead></TableRow></TableHeader>
                   <TableBody>{data.tips.map((tip) => <TableRow key={tip.id}>
                     <TableCell>{tip.amount > 0 ? "Received" : "Sent"}<div className="fine">{new Date(tip.created).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}</div></TableCell>
                     <TableCell><Link className="lime" href={`/players/${encodeURIComponent(tip.name)}`}>{tip.name}</Link></TableCell>
@@ -407,7 +407,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
               {data.open.map((t) => (
                 <div key={t.id} className="math-line" style={{ gap: 12, marginTop: 12 }}>
                   <span>
-                    {TRANSFER_LABELS[t.kind] ?? t.kind} · {fullSol(t.amount)} SOL · {t.signature.slice(0, 12)}…
+                    {TRANSFER_LABELS[t.kind] ?? t.kind} · {fullSol(t.amount)} {unit} · {t.signature.slice(0, 12)}…
                   </span>
                   <button className="btn" disabled={busy} onClick={() => void act({ action: "reconcile", id: t.id })}>
                     Recheck
@@ -464,7 +464,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
                   placeholder="0.1"
                 />
               </label>
-              <p className="fine">Available: {fullSol(data?.balance ?? 0)} SOL, including the network fee.</p>
+              <p className="fine">Available: {exactSol(data?.balance ?? 0)} SOL, including the network fee.</p>
               <button className="btn btn-primary full" type="submit">
                 Review transfer
               </button>

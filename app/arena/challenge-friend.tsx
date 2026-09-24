@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Swords } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { STAKES, winnerPayout, type Asset } from "@/lib/api-types";
-import { amount, CURRENCY, units } from "./format";
+import { amount, currency, units } from "./format";
 import styles from "./views/friends.module.css";
 
 export type Entry = { asset: Asset; stake: number };
@@ -77,7 +77,7 @@ export function ChallengeFriend({ name, balance, solConfigured, busy, onChalleng
                 {STAKES[asset].map((s, i) => (
                   <button key={s} type="button" className={styles.stake} aria-pressed={i === index} disabled={balance(asset) < s} onClick={() => setIndex(i)}>
                     {units(s, asset)}
-                    <small>{CURRENCY[asset].toUpperCase()}</small>
+                    <small>{currency(asset).toUpperCase()}</small>
                   </button>
                 ))}
               </div>

@@ -5,7 +5,7 @@ import { Bell, Equal, Gift, Medal, ShieldAlert, Trophy, X } from "lucide-react";
 import type { NotificationItem } from "@/lib/api-types";
 import { request } from "./api";
 import { PushControl } from "./push-control";
-import { CURRENCY, timeAgo, units } from "./format";
+import { amount as money, currency, timeAgo, units } from "./format";
 import styles from "./notifications.module.css";
 
 const TOAST_MS = 6_500;
@@ -18,8 +18,8 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
   }
   if (n.kind === "security_alert") {
     const { event, amount, to } = n.data;
-    if (event === "withdrawal_started") return { tone: "security", title: "A withdrawal was started", detail: `${units(amount ?? 0, "devnet")} SOL to ${to ? `${to.slice(0, 6)}…${to.slice(-4)}` : "an external wallet"}. If this was not you, contact support now.` };
-    if (event === "tip_sent") return { tone: "security", title: `You tipped ${to ?? "a player"}`, detail: `−${units(amount ?? 0, "devnet")} SOL left your balance. If this was not you, contact support now.` };
+    if (event === "withdrawal_started") return { tone: "security", title: "A withdrawal was started", detail: `${money(amount ?? 0, "devnet")} to ${to ? `${to.slice(0, 6)}…${to.slice(-4)}` : "an external wallet"}. If this was not you, contact support now.` };
+    if (event === "tip_sent") return { tone: "security", title: `You tipped ${to ?? "a player"}`, detail: `−${money(amount ?? 0, "devnet")} left your balance. If this was not you, contact support now.` };
     if (event === "two_factor_disabled") return { tone: "security", title: "Two-factor authentication was turned off", detail: "Withdrawals and larger tips are blocked until you turn it back on. If this was not you, sign out everywhere and contact support." };
     if (event === "signed_out_everywhere") return { tone: "security", title: "You signed out everywhere", detail: "Every other session was ended. Sign in again on your other devices." };
     return { tone: "security", title: "Your recovery codes were replaced", detail: "The previous codes no longer work. If this was not you, sign out everywhere and contact support." };
@@ -35,19 +35,19 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
   }
   if (n.kind === "race_result") {
     const { rank, score, sol, gems } = n.data;
-    const prizes = [sol ? `+${units(sol, "devnet")} SOL` : "", gems ? `+${units(gems, "gems")} gems` : ""].filter(Boolean).join(" · ");
+    const prizes = [sol ? `+${money(sol, "devnet")}` : "", gems ? `+${units(gems, "gems")} gems` : ""].filter(Boolean).join(" · ");
     return { tone: "win", title: `${ordinal(rank)} in the weekly race`, detail: `${prizes || "Podium finish"} · best score ${score.toLocaleString("en")}` };
   }
   if (n.kind === "tip_received") {
-    return { tone: "tip", title: `${n.data.from} tipped you`, detail: `+${units(n.data.amount, "devnet")} SOL` };
+    return { tone: "tip", title: `${n.data.from} tipped you`, detail: `+${money(n.data.amount, "devnet")}` };
   }
   if (n.kind === "tournament_result") {
     const { name, rank, players, payout, refund, asset } = n.data;
-    if (rank === null) return { tone: "tournament", title: refund ? `${name} was called off` : `${name} has ended`, detail: refund ? `Entry refunded · +${units(refund, asset)} ${CURRENCY[asset]}` : "You did not play your run" };
+    if (rank === null) return { tone: "tournament", title: refund ? `${name} was called off` : `${name} has ended`, detail: refund ? `Entry refunded · +${units(refund, asset)} ${currency(asset)}` : "You did not play your run" };
     return {
       tone: payout > 0 ? "win" : "tournament",
       title: `${ordinal(rank)} of ${players} in ${name}`,
-      detail: payout > 0 ? `Prize +${units(payout, asset)} ${CURRENCY[asset]}` : "Outside the prize places this time",
+      detail: payout > 0 ? `Prize +${units(payout, asset)} ${currency(asset)}` : "Outside the prize places this time",
     };
   }
   if (n.kind === "referral_joined") {
@@ -70,7 +70,7 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
   }
   if (n.kind === "challenge") {
     const { from, asset, stake } = n.data;
-    return { tone: "tournament", title: `${from} challenged you`, detail: `${units(stake, asset)} ${CURRENCY[asset]} · same board, head to head` };
+    return { tone: "tournament", title: `${from} challenged you`, detail: `${units(stake, asset)} ${currency(asset)} · same board, head to head` };
   }
   const { result, opponent, net, asset, stake, score, opponentScore } = n.data;
   const vs = opponent ?? "your opponent";
@@ -78,17 +78,17 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
     return {
       tone: "draw",
       title: opponent ? `Your match vs ${vs} was cancelled` : "Your match was cancelled",
-      detail: `Entry refunded · +${units(stake, asset)} ${CURRENCY[asset]}${n.data.reason ? ` · ${n.data.reason}` : ""}`,
+      detail: `Entry refunded · +${units(stake, asset)} ${currency(asset)}${n.data.reason ? ` · ${n.data.reason}` : ""}`,
     };
   }
   const scores = `${score.toLocaleString("en")} – ${opponentScore.toLocaleString("en")}`;
   // A reduced house fee comes back as its own credit, win or lose, so it is
   // named on both: the number in the balance would not add up otherwise.
-  const back = n.data.rebate ? ` · +${units(n.data.rebate, asset)} ${CURRENCY[asset]} fee back` : "";
+  const back = n.data.rebate ? ` · +${units(n.data.rebate, asset)} ${currency(asset)} fee back` : "";
   const bonus = `${n.data.bonusGems ? ` · +${n.data.bonusGems} gems` : ""}${back}`;
-  if (result === "win" && n.data.disqualified) return { tone: "win", title: `You won: ${vs} was disqualified`, detail: `Automated play was detected on their side · +${units(net, asset)} ${CURRENCY[asset]}${bonus}` };
-  if (result === "win") return { tone: "win", title: `You won vs ${vs}`, detail: `+${units(net, asset)} ${CURRENCY[asset]}${bonus} · ${scores}` };
-  if (result === "loss") return { tone: "loss", title: `You lost vs ${vs}`, detail: `${units(net, asset)} ${CURRENCY[asset]}${back} · ${scores}` };
+  if (result === "win" && n.data.disqualified) return { tone: "win", title: `You won: ${vs} was disqualified`, detail: `Automated play was detected on their side · +${units(net, asset)} ${currency(asset)}${bonus}` };
+  if (result === "win") return { tone: "win", title: `You won vs ${vs}`, detail: `+${units(net, asset)} ${currency(asset)}${bonus} · ${scores}` };
+  if (result === "loss") return { tone: "loss", title: `You lost vs ${vs}`, detail: `${units(net, asset)} ${currency(asset)}${back} · ${scores}` };
   return { tone: "draw", title: `Draw vs ${vs}`, detail: `Entry refunded · ${scores}` };
 }
 

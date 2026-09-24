@@ -4,9 +4,8 @@ import Link from "next/link";
 import { Coins, Gem, HandCoins } from "lucide-react";
 import type { PlayerLevel, RankTier } from "@/lib/api-types";
 import { RankEmblem } from "../rank-badge";
-import { Fiat } from "../fiat";
 import { request } from "../api";
-import { amount, units } from "../format";
+import { amount, assetName, currency, units } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./cashback.module.css";
 
@@ -107,7 +106,7 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
         <p className="muted">Loading your cashback…</p>
       ) : board.rewards.length === 0 ? (
         <p className={styles.empty}>
-          Nothing yet. Cashback is worked out on your finished SOL matches, and lands the day the week turns over.
+          Nothing yet. Cashback is worked out on your finished {assetName("devnet")} matches, and lands the day the week turns over.
         </p>
       ) : (
         <div className={styles.rewards}>
@@ -125,7 +124,6 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
               <div className={styles.action}>
                 <strong className={reward.asset === "gems" ? styles.gems : undefined}>
                   {reward.asset === "gems" ? <Gem size={15} /> : <Coins size={15} />} {value(reward)}
-                  {reward.asset === "devnet" && <Fiat lamports={reward.amount} />}
                 </strong>
                 <button className="btn btn-primary" disabled={reward.claimed || busy === reward.scope} onClick={() => void claim(reward)}>
                   {reward.claimed ? "Claimed" : busy === reward.scope ? "Claiming…" : "Claim"}
@@ -155,10 +153,10 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
         {next ? (
           <>
             Reach <b>{TIER_NAMES[next.tier]}</b> and every week comes back at <b>{next.share}%</b>
-            {next.gems ? "" : ", paid in SOL"}.{" "}
+            {next.gems ? "" : `, paid in ${currency("devnet")}`}.{" "}
           </>
         ) : null}
-        Iron to Silver comes back in gems; Gold and above in SOL.
+        Iron to Silver comes back in gems; Gold and above in {currency("devnet")}.
       </p>
       {waiting.length > 0 && <p className={styles.footnote}>A period that closes unclaimed is gone, so take it while it is there.</p>}
     </section>

@@ -5,14 +5,13 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, ArrowUpRight, Gem, Link2, Target, Zap } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { feeRebate, REFERRAL_FEES, STAKES, winnerPayout, type Asset, type Run } from "@/lib/api-types";
-import { amount, CURRENCY, shareChallenge, units } from "../format";
+import { amount, assetName, currency, shareChallenge, units } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./screens.module.css";
 import { ArenaDashboard, useArenaOverview } from "./arena-dashboard";
 import { DailyGemsCard } from "./daily-gems";
 import { QuestsCard } from "./quests-view";
 import { CashbackCard } from "./cashback";
-import { Fiat } from "../fiat";
 import dashboard from "./arena-dashboard.module.css";
 
 export type LobbyChoice = "practice" | Asset;
@@ -123,14 +122,14 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
           disabled={!solConfigured}
           onClick={() => onChoose(choice === "devnet" ? null : "devnet")}
         >
-          <small>02 / 1V1 · DEVNET SOL</small>
+          <small>02 / 1V1 · {assetName("devnet").toUpperCase()}</small>
           <span className={styles.modeIcon}>
             <Zap />
           </span>
           <strong>Solana match</strong>
           <span className={styles.modeDescription}>{!solConfigured ? "Solana matches are not available yet." : "Same board. Head to head. Put your angles to the test."}</span>
-          <span className={styles.modeBalance}>{data.player && solConfigured ? `${units(balance("devnet"), "devnet")} SOL available · Test SOL only` : "Devnet test SOL · No monetary value"}</span>
-          <span className={styles.modeAction}>{!solConfigured ? "Coming soon" : choice === "devnet" ? "Choosing your entry" : "Play with SOL"}<ArrowUpRight size={19} /></span>
+          <span className={styles.modeBalance}>{data.player && solConfigured ? `${amount(balance("devnet"), "devnet")} available · Test funds only` : "Devnet test SOL · No monetary value"}</span>
+          <span className={styles.modeAction}>{!solConfigured ? "Coming soon" : choice === "devnet" ? "Choosing your entry" : `Play with ${currency("devnet")}`}<ArrowUpRight size={19} /></span>
         </button>
         <button className={`${styles.mode} ${styles.modeGems}`} aria-pressed={choice === "gems"} onClick={() => onChoose(choice === "gems" ? null : "gems")}>
           <small>03 / 1V1 · GEMS</small>
@@ -165,7 +164,7 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
               <button key={s} className={styles.stakeChoice} aria-pressed={i === stakeIndex} onClick={() => setStakeIndex(i)}>
                 {units(s, choice)}
                 <small>
-                  {CURRENCY[choice].toUpperCase()}
+                  {currency(choice).toUpperCase()}
                   {!!overview?.openSeats[choice][s] && <Tooltip content="A rival is waiting at this entry: your match starts right away"><span className={dashboard.waiting} /></Tooltip>}
                 </small>
               </button>
@@ -176,12 +175,10 @@ export function Lobby({ player, choice, onChoose, stakeIndex, setStakeIndex, onF
               <div>
                 <span>Your entry</span>
                 <b>{amount(stake, choice)}</b>
-                {choice === "devnet" && <Fiat lamports={stake} />}
               </div>
               <div>
                 <span>Winner receives</span>
                 <b className="lime">{amount(winnerPayout(stake, choice), choice)}</b>
-                {choice === "devnet" && <Fiat lamports={winnerPayout(stake, choice)} />}
               </div>
               {rebate > 0 && (
                 <div>

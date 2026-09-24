@@ -7,9 +7,8 @@ import type { Game } from "@/lib/engine";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import { drawBoard } from "../board-canvas";
-import { CURRENCY, signedAmount, units, amount } from "../format";
+import { currency, signedAmount, units, amount } from "../format";
 import { themeStyle, themeById } from "../theme";
-import { Fiat } from "../fiat";
 import { playSound } from "../sound";
 import styles from "./screens.module.css";
 
@@ -257,9 +256,8 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
               <>
                 <small>PAYOUT · NET</small>
                 <strong className={net > 0 ? styles.positive : net < 0 ? styles.negative : undefined}>
-                  {signedAmount(net, asset)} {CURRENCY[asset]}
+                  {signedAmount(net, asset)} {currency(asset)}
                 </strong>
-                {asset === "devnet" && net !== 0 && <Fiat lamports={Math.abs(net)} />}
                 <em>
                   Entry {amount(recap!.stake, asset)}
                   {recap!.bonusGems > 0 && <b className={styles.gemBonus}> · +{recap!.bonusGems} gems bonus</b>}
@@ -270,7 +268,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
               <>
                 <small>ENTRY · IN PLAY</small>
                 <strong>
-                  {units(recap!.stake, asset)} {CURRENCY[asset]}
+                  {units(recap!.stake, asset)} {currency(asset)}
                 </strong>
                 <em>Settles when both runs are done</em>
               </>

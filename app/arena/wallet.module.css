@@ -157,21 +157,3 @@
   .historyEmpty { align-items: flex-start; gap: 12px; padding: 24px 20px; }
 }
 
-/* The same balance in the player's own money, under the figure itself. It is
-   empty — and takes no room — while they have asked for SOL only. */
-.balanceFiat { position: relative; z-index: 1; margin-bottom: 6px; color: #b9c9a8; font-size: 17px; font-weight: 750; letter-spacing: -0.3px; }
-.balanceFiat:empty { display: none; }
-.balanceFiat :global(.fiat) { font-size: inherit; color: inherit; font-weight: inherit; }
-
-/* Where the player picks the money they read amounts in. */
-.fiatRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  color: #7f8d9f;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-}

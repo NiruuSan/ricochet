@@ -1,6 +1,7 @@
 import { Tooltip } from "@/components/ui/tooltip";
 import type { PlayerLevel, RankTier } from "@/lib/api-types";
 import { LAMPORTS_PER_XP } from "@/lib/levels";
+import { amount } from "./format";
 import styles from "./rank-badge.module.css";
 
 const NUMERALS = { 1: "I", 2: "II", 3: "III" } as const;
@@ -33,7 +34,6 @@ export function RankBadge({ level, className = "" }: { level: PlayerLevel; class
   );
 }
 
-const sol = (lamports: number) => (lamports / 1_000_000_000).toLocaleString("en", { maximumFractionDigits: 2 });
 
 /** The rank with a progress bar towards the next one, for profiles. */
 export function RankProgress({ level, own }: { level: PlayerLevel; own: boolean }) {
@@ -57,8 +57,8 @@ export function RankProgress({ level, own }: { level: PlayerLevel; own: boolean 
           {level.next === null
             ? "Top rank reached."
             : own
-              ? `Wager ${sol((level.next - level.xp) * LAMPORTS_PER_XP)} more SOL to reach ${level.nextName}`
-              : `${sol((level.next - level.xp) * LAMPORTS_PER_XP)} SOL away from ${level.nextName}`}
+              ? `Wager ${amount((level.next - level.xp) * LAMPORTS_PER_XP, "devnet")} more to reach ${level.nextName}`
+              : `${amount((level.next - level.xp) * LAMPORTS_PER_XP, "devnet")} away from ${level.nextName}`}
         </small>
       </div>
     </div>

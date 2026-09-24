@@ -11,8 +11,7 @@ import type { PlayerState } from "../arena";
 import { request } from "../api";
 import { RankEmblem, RankProgress } from "../rank-badge";
 import { Avatar } from "../avatar";
-import { fullSol } from "../funded-wallet";
-import { shortId } from "../format";
+import { assetName, currency, fullSol, shortId } from "../format";
 import { ordinal } from "../tournament-format";
 import { AddFriend } from "../add-friend";
 import { PlayerActions } from "../player-actions";
@@ -22,7 +21,6 @@ import styles from "./profile-dashboard.module.css";
 const RANGES = [["day", "1D", "Last 24 hours"], ["week", "1W", "Last 7 days"], ["month", "1M", "Last 30 days"], ["year", "1Y", "Last 365 days"], ["all", "ALL", "All time"]] as const;
 const number = (value: number, asset: Asset) => asset === "devnet" ? fullSol(value) : value.toLocaleString("en");
 const signed = (value: number, asset: Asset) => `${value > 0 ? "+" : ""}${number(value, asset)}`;
-const currency = (asset: Asset) => asset === "gems" ? "gems" : "SOL";
 const RESULTS = { win: "Won", loss: "Lost", draw: "Draw", cancelled: "Cancelled" };
 const TOURNAMENT_STATUS = { registration: "Registered", live: "Live", closing: "Paying out", settled: "Did not play", cancelled: "Cancelled" };
 
@@ -86,7 +84,7 @@ function StatsSection({ stats, asset }: { stats: ProfileStats; asset: Asset }) {
   const streak = matches.streak > 0 ? `${matches.streak}W` : matches.streak < 0 ? `${-matches.streak}L` : "—";
   const whole = (n: number | null) => (n === null ? "—" : n.toLocaleString("en"));
   return <section className={styles.statsSection} aria-label="Player statistics">
-    <div className={styles.sectionHeading}><div><h2>Performance breakdown</h2><p>A closer look at the finished games.</p></div><span className={styles.statsScope}>{asset === "gems" ? "Gems" : "Devnet SOL"} · finished games</span></div>
+    <div className={styles.sectionHeading}><div><h2>Performance breakdown</h2><p>A closer look at the finished games.</p></div><span className={styles.statsScope}>{assetName(asset)} · finished games</span></div>
     <div className={styles.statsGrid}>
       <div className={`${styles.card} ${styles.statsCard}`}>
         <h3><Swords size={15} /> Matches</h3>
@@ -238,7 +236,7 @@ export function ProfileDashboard({
       </div>
     </header>}
     <div className={styles.assetBar}>
-      <div className={styles.assetTabs} role="group" aria-label="Profile currency"><button aria-pressed={asset === "devnet"} onClick={() => player.setAsset("devnet")}><Zap size={17} /> Devnet SOL</button><button aria-pressed={asset === "gems"} onClick={() => player.setAsset("gems")}><Gem size={17} /> Gems</button></div>
+      <div className={styles.assetTabs} role="group" aria-label="Profile currency"><button aria-pressed={asset === "devnet"} onClick={() => player.setAsset("devnet")}><Zap size={17} /> {assetName("devnet")}</button><button aria-pressed={asset === "gems"} onClick={() => player.setAsset("gems")}><Gem size={17} /> Gems</button></div>
       <Link className={styles.back} href={privateView ? "/wallet" : "/leaderboard"}>{privateView ? <Wallet size={15} /> : <ArrowLeft size={15} />}{privateView ? "My wallet" : "Leaderboard"}</Link>
     </div>
     {error && <div className={styles.error} role="alert"><span>{error}</span><button onClick={() => setRetry((value) => value + 1)}>Retry</button></div>}
@@ -247,7 +245,7 @@ export function ProfileDashboard({
       <div className={styles.summary}>
         <PnlCard key={asset} performance={performance} asset={asset} />
         <section className={`${styles.card} ${styles.overviewCard}`} aria-label="Player summary">
-          <div className={styles.overviewHeading}><h2><Crosshair size={16} />At a glance</h2><span>{asset === "gems" ? "GEMS" : "DEVNET SOL"}</span></div>
+          <div className={styles.overviewHeading}><h2><Crosshair size={16} />At a glance</h2><span>{assetName(asset).toUpperCase()}</span></div>
           <div className={styles.playerStats}>
             <div><span><Wallet size={16} />{own ? "Available balance" : "Open stakes"}</span><strong>{number(own ? available : performance.openEntries, asset)} <small>{currency(asset)}</small></strong></div>
             <div><span><Zap size={16} />Biggest win</span><strong>{number(performance.bestWin, asset)} <small>{currency(asset)}</small></strong></div>

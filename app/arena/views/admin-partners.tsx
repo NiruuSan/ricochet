@@ -6,8 +6,8 @@ import { useActionDialog } from "@/components/ui/action-dialog";
 import type { AdminReferral } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
-import { fullSol } from "../funded-wallet";
 import styles from "./admin.module.css";
+import { currency, fullSol } from "../format";
 
 const REFRESH_MS = 30_000;
 
@@ -132,15 +132,15 @@ export function AdminPartners() {
                   </div>
                   <div className={styles.cell}>
                     <span>Their earnings</span>
-                    <b>{row.level >= 2 || row.earned > 0 ? `${fullSol(row.earned)} SOL` : "—"}</b>
+                    <b>{row.level >= 2 || row.earned > 0 ? `${fullSol(row.earned)} ${currency("devnet")}` : "—"}</b>
                   </div>
                   <div className={styles.cell}>
                     <span>Unclaimed</span>
-                    <b>{row.pending > 0 ? `${fullSol(row.pending)} SOL` : "—"}</b>
+                    <b>{row.pending > 0 ? `${fullSol(row.pending)} ${currency("devnet")}` : "—"}</b>
                   </div>
                   <div className={styles.cell}>
                     <span>Net to the house</span>
-                    <b className="lime">{fullSol(row.siteEarned)} SOL</b>
+                    <b className="lime">{fullSol(row.siteEarned)} {currency("devnet")}</b>
                   </div>
                 </div>
                 <div className={styles.actions}>

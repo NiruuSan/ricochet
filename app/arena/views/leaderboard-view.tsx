@@ -10,7 +10,7 @@ import { RankBadge } from "../rank-badge";
 import { Avatar } from "../avatar";
 import type { Asset, Leader } from "@/lib/api-types";
 import { request } from "../api";
-import { CURRENCY, signedAmount } from "../format";
+import { assetName, currency, signedAmount } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./leaderboard.module.css";
 import { Podium } from "./podium";
@@ -93,7 +93,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
     <div className={styles.boardBar}>
       <div className={styles.currencyTabs} role="group" aria-label="Leaderboard view">
         {(["devnet", "gems"] as const).map((which) => <button key={which} aria-pressed={boardMode === "profit" && asset === which} onClick={() => { setAsset(which); setBoard("profit"); setPage(0); }}>
-          {which === "devnet" ? <Wallet size={16} /> : <Gem size={16} />}{which === "devnet" ? "Devnet SOL" : "Gems"}
+          {which === "devnet" ? <Wallet size={16} /> : <Gem size={16} />}{assetName(which)}
         </button>)}
         <button aria-pressed={boardMode === "race"} onClick={() => setBoard("race")}><Flag size={16} />Weekly race</button>
       </div>
@@ -105,15 +105,15 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
     {error && <div className={styles.error} role="alert"><Info size={17} /><span>{rows ? "Could not refresh. Showing the last available standings." : error}</span><button onClick={refresh} disabled={refreshing}>Try again</button></div>}
     {rows?.length ? (
       <section aria-labelledby="leaders-title">
-        <div className={styles.leadersHeading}><h2 id="leaders-title">Leading the way</h2><span>All-time net profit · {asset === "devnet" ? "Devnet SOL" : "Gems"}</span></div>
-        <Podium variant="leaderboard" entries={rows.slice(0, 3).map((p, i) => ({ name: p.name, avatar: p.avatar, href: profileHref(p.name), rank: i + 1, meta: `${count(p.games)} settled ${p.games === 1 ? "match" : "matches"}`, valueLabel: "NET PROFIT", value: signedAmount(p.pnl, asset), unit: CURRENCY[asset], negative: p.pnl < 0, isYou: p.name === me }))} />
+        <div className={styles.leadersHeading}><h2 id="leaders-title">Leading the way</h2><span>All-time net profit · {assetName(asset)}</span></div>
+        <Podium variant="leaderboard" entries={rows.slice(0, 3).map((p, i) => ({ name: p.name, avatar: p.avatar, href: profileHref(p.name), rank: i + 1, meta: `${count(p.games)} settled ${p.games === 1 ? "match" : "matches"}`, valueLabel: "NET PROFIT", value: signedAmount(p.pnl, asset), unit: currency(asset), negative: p.pnl < 0, isYou: p.name === me }))} />
       </section>
     ) : !rows && !error ? <div className={styles.podiumSkeleton} role="status" aria-label="Loading leaderboard"><div /><div /><div /><span className={styles.srOnly}>Loading leaderboard…</span></div> : null}
 
     {mine && (
       <a className={styles.positionSummary} href="#standings" onClick={() => { setSearch(""); setPage(Math.floor(myIndex / PAGE_SIZE)); }}>
         <Avatar name={mine.name} src={mine.avatar} size={36} />
-        <span><b>You’re #{myIndex + 1}</b><small>{signedAmount(mine.pnl, asset)} {CURRENCY[asset]} net profit · Find your position</small></span>
+        <span><b>You’re #{myIndex + 1}</b><small>{signedAmount(mine.pnl, asset)} {currency(asset)} net profit · Find your position</small></span>
         <ArrowRight size={17} />
       </a>
     )}
@@ -132,13 +132,13 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
 
         {rows && rows.length > 0 && filtered.length > 0 ? <>
           <div className={styles.tableWrap}><table className={styles.table}>
-            <caption className={styles.srOnly}>All-time {CURRENCY[asset]} standings ranked by net profit from settled matches</caption>
+            <caption className={styles.srOnly}>All-time {currency(asset)} standings ranked by net profit from settled matches</caption>
             <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" className={styles.matchesColumn}>Matches</th><th scope="col">Net profit <ArrowDown size={12} aria-hidden /></th><th scope="col" className={styles.arrowColumn}><span className={styles.srOnly}>Profile</span></th></tr></thead>
             <tbody>{visible.map((p) => <tr key={p.name} className={p.name === me ? styles.myRow : undefined}>
               <td><span className={`${styles.rank} ${p.rank <= 3 ? styles[`rank${p.rank}`] : ""}`}>{p.rank === 1 ? <Crown size={16} aria-label="First place" /> : String(p.rank).padStart(2, "0")}</span></td>
               <td><Link href={profileHref(p.name)} className={styles.playerLink}><Avatar name={p.name} src={p.avatar} size={36} /><span><b>{p.name}{p.level && <RankBadge level={p.level} />}{p.name === me && <small className={styles.you}>YOU</small>}</b><small className={styles.mobileMatches}>{count(p.games)} {p.games === 1 ? "match" : "matches"}</small></span></Link></td>
               <td className={styles.matchesColumn}>{count(p.games)}</td>
-              <td className={styles.profit}><strong className={p.pnl > 0 ? styles.positive : p.pnl < 0 ? styles.negative : styles.neutral}>{signedAmount(p.pnl, asset)}</strong><span>{CURRENCY[asset]}</span></td>
+              <td className={styles.profit}><strong className={p.pnl > 0 ? styles.positive : p.pnl < 0 ? styles.negative : styles.neutral}>{signedAmount(p.pnl, asset)}</strong><span>{currency(asset)}</span></td>
               <td className={styles.arrowColumn}><Link href={profileHref(p.name)} aria-label={`View ${p.name}'s profile`}><ArrowUpRight size={16} /></Link></td>
             </tr>)}</tbody>
           </table></div>
@@ -160,7 +160,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
           {mine ? <>
             <div className={styles.myIdentity}><Avatar name={mine.name} src={mine.avatar} size={42} /><div><b>{mine.name}</b><span>{mine.level ? `${mine.level.name} · ${mine.level.xp.toLocaleString("en")} XP` : "Your place in the pack"}</span></div></div>
             <div className={styles.myRank}>#{myIndex + 1}<span>of {rows!.length} ranked players</span></div>
-            <div className={styles.myProfit}><span>Net profit</span><b className={mine.pnl < 0 ? styles.negative : styles.positive}>{signedAmount(mine.pnl, asset)} {CURRENCY[asset]}</b></div>
+            <div className={styles.myProfit}><span>Net profit</span><b className={mine.pnl < 0 ? styles.negative : styles.positive}>{signedAmount(mine.pnl, asset)} {currency(asset)}</b></div>
             <a className={styles.positionLink} href="#standings" onClick={() => { setSearch(""); setPage(Math.floor(myIndex / PAGE_SIZE)); }}>Find my position <ArrowRight size={15} /></a>
           </> : <>
             <div className={styles.orbit} aria-hidden><span /><Trophy size={30} /><span /></div>
