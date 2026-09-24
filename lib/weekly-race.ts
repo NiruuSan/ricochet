@@ -74,7 +74,8 @@ async function bestScores(week: number, limit: number): Promise<ScoreRow[]> {
        )
        SELECT b.user_id, p.name, p.avatar, b.score, b.at, b.watch
        FROM best b JOIN players p ON p.id = b.user_id
-       WHERE b.n = 1
+       -- The house's own players never take a prize a person could have won.
+       WHERE b.n = 1 AND p.bot = 0
        ORDER BY b.score DESC, b.at ASC, p.name ASC
        LIMIT ?`,
     )

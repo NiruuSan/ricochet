@@ -125,6 +125,7 @@ Balances, wallets and the ledger are untouched. Write the reason; it is recorded
                           <ShieldAlert size={11} /> Suspended
                         </span>
                       )}
+                      {!!player.bot && <span className={`${styles.chip} ${styles.calm}`}>House</span>}
                       {!!player.deleted && <span className={styles.chip}>Closed</span>}
                     </b>
                     <span>

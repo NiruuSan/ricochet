@@ -30,13 +30,15 @@ export type AdminPlayer = {
   games: number;
   suspended: number;
   deleted: number | null;
+  /** One of the house's practice opponents (lib/bots.ts), not a person. */
+  bot: number;
 };
 
 /** Everyone who ever made a profile, newest first. Names only: player IDs stay on the server. */
 export async function adminPlayers(limit = 200): Promise<AdminPlayer[]> {
   const { results } = await database()
     .prepare(
-      `SELECT p.name, p.created, p.last_seen AS lastSeen, p.balance AS gems, p.deleted,
+      `SELECT p.name, p.created, p.last_seen AS lastSeen, p.balance AS gems, p.deleted, p.bot,
          COALESCE((SELECT a.balance FROM cash_accounts a WHERE a.id = 'devnet:' || p.id), 0) AS sol,
          (SELECT COUNT(*) FROM runs r WHERE r.user_id = p.id) AS games,
          EXISTS (SELECT 1 FROM player_suspensions s WHERE s.user_id = p.id AND s.status IN ('suspended', 'banned')) AS suspended

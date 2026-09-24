@@ -232,6 +232,13 @@
       "when": 1790177313142,
       "tag": "0032_cashback",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1790263713142,
+      "tag": "0033_bots",
+      "breakpoints": true
     }
   ]
 }

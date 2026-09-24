@@ -3,6 +3,7 @@ import { sweepStaleMatches } from "@/lib/expiry";
 import { json } from "@/lib/http";
 import { ensureDailyTournaments, settleDueTournaments } from "@/lib/tournaments";
 import { cleanupBugAttachments } from "@/lib/bug-attachments";
+import { tickBots } from "@/lib/bots";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,9 @@ export async function GET(req: Request) {
     const dailyCups = (await ensureDailyTournaments()).length;
     await dispatchPush();
     const attachmentsRemoved = await cleanupBugAttachments();
-    return json({ ok: true, ...swept, dailyCups, attachmentsRemoved });
+    // The house's players, in case nobody has loaded a page in a while.
+    const housePlayers = await tickBots();
+    return json({ ok: true, ...swept, dailyCups, attachmentsRemoved, housePlayers });
   } catch (e) {
     console.error(e);
     return json({ error: "The sweep failed." }, 503);

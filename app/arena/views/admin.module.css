@@ -482,6 +482,41 @@
   gap: 10px;
   margin-top: 14px;
 }
+/* How well the house's players play: three cards, any of them on. */
+.skills {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.skills button {
+  padding: 10px 12px;
+  border: 1px solid #2f3b4f;
+  border-radius: 11px;
+  background: #0f1724;
+  color: #93a1b8;
+  text-align: left;
+  cursor: pointer;
+}
+.skills button b {
+  display: block;
+  color: #d4dded;
+  font-size: 13.5px;
+}
+.skills button small {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.skills button[aria-pressed="true"] {
+  border-color: #c6f56466;
+  background: #c6f5640f;
+}
+.skills button[aria-pressed="true"] b {
+  color: #c6f564;
+}
+
 .search {
   display: flex;
   max-width: 460px;

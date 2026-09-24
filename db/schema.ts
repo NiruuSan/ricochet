@@ -18,6 +18,9 @@ export const players = sqliteTable(
     // When the player deleted their account. The row stays, with its identity
     // scrubbed, because the ledger and both sides of every match refer to it.
     deleted: integer("deleted"),
+    // One of the house's practice opponents (lib/bots.ts), not a person. They
+    // are taken off the site before launch.
+    bot: integer("bot").notNull().default(0),
     // The code this player shares. Made on demand, never reused.
     referralCode: text("referral_code"),
     // 1: anyone's code, a day of reduced fees for whoever signs up with it.

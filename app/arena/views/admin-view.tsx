@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Banknote, Bug, Flag, Gamepad2, Gauge, Handshake, Lock, ShieldAlert, ShieldCheck, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
+import { Banknote, Bot, Bug, Flag, Gamepad2, Gauge, Handshake, Lock, ShieldAlert, ShieldCheck, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
 import type { AdminOverview } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -12,6 +12,7 @@ import { AdminGames } from "./admin-games";
 import { AdminPartners } from "./admin-partners";
 import { AdminPeople } from "./admin-people";
 import { AdminReports } from "./admin-reports";
+import { AdminBots } from "./admin-bots";
 import { AdminBugReports } from "./admin-bug-reports";
 import { AdminRace } from "./admin-race";
 import { AdminTournaments } from "./admin-tournaments";
@@ -35,6 +36,7 @@ type Section = { label: string; icon: LucideIcon; title: string; blurb: string; 
 const SECTIONS = {
   overview: { label: "Overview", icon: Gauge, title: "House overview", blurb: "Who is here, what is being wagered, and how many of them come back. Refreshes every 15 seconds." },
   treasury: { label: "Treasury", icon: Banknote, title: "Treasury", blurb: "The house wallet: what it holds, what it owes, and the way money comes in and goes out." },
+  bots: { label: "House players", icon: Bot, title: "House players", blurb: "The players the house sits at the tables while the site fills up, and the button that retires them at launch." },
   games: { label: "Games", icon: Gamepad2, title: "Games in progress", blurb: "Every 1v1 match that has not settled, most recently played first. Tournament runs are ended from Tournaments.", queue: "games" },
   tournaments: { label: "Tournaments", icon: Trophy, title: "Tournaments", blurb: "Schedule a cup, watch it fill, end it early or refund it." },
   race: { label: "Weekly race", icon: Zap, title: "Weekly race", blurb: "The best single score of the week, what each place pays, and the button that pays it." },
@@ -48,7 +50,7 @@ const SECTIONS = {
 type TabKey = keyof typeof SECTIONS;
 
 const GROUPS: { name: string; tabs: TabKey[] }[] = [
-  { name: "House", tabs: ["overview", "treasury"] },
+  { name: "House", tabs: ["overview", "treasury", "bots"] },
   { name: "Play", tabs: ["games", "tournaments", "race"] },
   { name: "Integrity", tabs: ["anti-cheat", "reports", "security"] },
   { name: "People", tabs: ["players", "partners", "bugs"] },
@@ -136,6 +138,8 @@ export function AdminView({ player }: { player: PlayerState }) {
             <HouseOverview overview={overview} />
           ) : tab === "treasury" ? (
             <FundedWallet treasury />
+          ) : tab === "bots" ? (
+            <AdminBots />
           ) : tab === "games" ? (
             <AdminGames />
           ) : tab === "tournaments" ? (

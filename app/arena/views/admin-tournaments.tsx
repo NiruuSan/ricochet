@@ -4,7 +4,7 @@ import { DateTimeField } from "@/components/ui/date-time-field";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2 } from "lucide-react";
+import { Bot, Plus, Trash2 } from "lucide-react";
 import { PAYOUT_SHARES, TOURNAMENT_FEE_PERCENT, type AdminTournament, type Asset, type PayoutPreset } from "@/lib/api-types";
 import { request } from "../api";
 import { amount } from "../format";
@@ -188,6 +188,7 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
   const dialog = useActionDialog();
   const [list, setList] = useState<AdminTournament[] | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
@@ -212,6 +213,21 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
       clearInterval(timer);
     };
   }, [load]);
+
+  /** The house's own players take whatever seats a cup has left (lib/bots.ts). */
+  const fill = async (t: AdminTournament) => {
+    setBusy(t.id);
+    setError("");
+    try {
+      const done = await request<{ filled: number; entrants: number; places: number }>("/api/admin/bots", { action: "fill", id: t.id });
+      await load();
+      setNotice(done.filled ? `${done.filled} house ${done.filled === 1 ? "player" : "players"} entered · ${done.entrants}/${done.places} seats taken.` : "No house player was free to enter.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  };
 
   const act = async (action: "cancel" | "close" | "delete", t: AdminTournament) => {
     const question =
@@ -246,6 +262,11 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
           <div className="error" role="alert">
             <span>{error}</span>
           </div>
+        )}
+        {notice && (
+          <p className="success" role="status">
+            {notice}
+          </p>
         )}
         {!list ? (
           <p className={styles.loading}>Loading tournaments…</p>
@@ -292,6 +313,11 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
                   <Link className="btn" href={`/tournaments/${t.id}`}>
                     View
                   </Link>
+                  {t.status === "registration" && t.entrants < t.places && (
+                    <button className="btn" disabled={busy === t.id} onClick={() => void fill(t)}>
+                      <Bot size={15} /> Fill seats
+                    </button>
+                  )}
                   {t.status === "live" && (
                     <button className="btn" disabled={busy === t.id} onClick={() => void act("close", t)}>
                       End now
