@@ -3,7 +3,7 @@ import { initial, simulate, simulateShot, ShotError, type Game } from "./engine"
 import { GameError, settle, startMatch } from "./matches";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
 import { rowsFor } from "./secret-rows";
-import { registerForTournament } from "./tournaments";
+import { endIfEveryoneFinished, registerForTournament, tournamentStatus } from "./tournaments";
 
 // The house's practice opponents.
 //
@@ -309,20 +309,23 @@ export async function tickBots(now = Date.now()) {
       .prepare(
         `SELECT e.id, e.tournament_id, e.registered, t.seed, t.ruleset, t.row_key, t.starts_at, t.ends_at, p.id AS uid
          FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id JOIN players p ON p.id = e.user_id
-         WHERE p.bot = 1 AND e.done = 0 AND t.status = 'running' AND t.starts_at <= ? AND t.ends_at > ? LIMIT 8`,
+         -- A cup that has started is still 'scheduled' in the table: live is the
+         -- clock, not a column (lib/tournament-history.ts).
+         WHERE p.bot = 1 AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ? LIMIT 8`,
       )
       .bind(now, now)
       .all<{ id: string; tournament_id: string; registered: number; seed: number; ruleset: number; row_key: string | null; starts_at: number; ends_at: number; uid: string }>();
     for (const entry of entries) {
       if (budget <= 0) break;
-      // Somewhere in the first two thirds of the window, then a run's length.
+      // Somewhere in the first third of the window, then a run's length.
       const window = entry.ends_at - entry.starts_at;
-      const begins = entry.starts_at + hashed(entry.id) * window * 0.6;
+      const begins = entry.starts_at + hashed(entry.id) * window * 0.34;
       if (now < begins + runTime(entry.id)) continue;
       const skill = skillFor(entry.uid, config);
       const played = playRun(entry.seed, entry.ruleset, entry.row_key, skill, seeded(entry.id));
       await db.prepare("UPDATE tournament_entries SET started = COALESCE(started, ?) WHERE id = ?").bind(Math.round(begins), entry.id).run();
       await saveRun("tournament_entries", entry.id, `t-${entry.id}`, Math.round(begins), played, now);
+      await endIfEveryoneFinished(entry.tournament_id, now).catch((e) => console.error("Could not end the tournament early", e));
       budget--;
       done.played++;
     }
@@ -346,7 +349,7 @@ export async function tickBots(now = Date.now()) {
     .all<{ id: string; stake: number; asset: string }>();
   for (const seat of seats) {
     if (budget <= 0) break;
-    const free = await freeBot(roster, seat.stake, seat.asset);
+    const free = await freeBot(roster, seat.stake, seat.asset, undefined, now);
     if (!free) continue;
     try {
       await startMatch(free, seat.stake, seat.asset);
@@ -371,7 +374,7 @@ export async function tickBots(now = Date.now()) {
       if (budget <= 0) break;
       // A bot joins a cup only once the humans have had their chance at it.
       if (cup.entrants >= cup.places || now < cup.starts_at - 45 * 60_000) continue;
-      const free = await freeBot(roster, cup.entry_fee, cup.asset, cup.id);
+      const free = await freeBot(roster, cup.entry_fee, cup.asset, cup.id, now);
       if (!free) continue;
       try {
         await registerForTournament(free, cup.id, now);
@@ -394,14 +397,14 @@ export async function fillTournament(adminUid: string, idInput: unknown, now = D
   const db = database();
   const cup = await db
     .prepare(
-      `SELECT t.id, t.entry_fee, t.asset, t.places, t.status,
+      `SELECT t.id, t.entry_fee, t.asset, t.places, t.status, t.starts_at, t.ends_at,
          (SELECT COUNT(*) FROM tournament_entries e WHERE e.tournament_id = t.id) AS entrants
        FROM tournaments t WHERE t.id = ?`,
     )
     .bind(id)
-    .first<{ id: string; entry_fee: number; asset: string; places: number; status: string; entrants: number }>();
+    .first<{ id: string; entry_fee: number; asset: string; places: number; status: string; starts_at: number; ends_at: number; entrants: number }>();
   if (!cup) throw new GameError("No such tournament.", 404);
-  if (cup.status !== "scheduled") throw new GameError("Only a tournament that has not started can be filled.", 409);
+  if (tournamentStatus(cup, now) !== "registration") throw new GameError("Only a tournament that has not started can be filled.", 409);
   const roster = await activeBots(config);
   let filled = 0;
   for (const uid of roster) {
@@ -465,11 +468,20 @@ async function activeBots(config: BotConfig) {
 const skillFor = (uid: string, config: BotConfig) => skillOf(Math.max(0, ROSTER.findIndex((name) => `bot:${name.toLowerCase()}` === uid)), config.skills);
 
 /** The first bot with nothing on, enough money for the entry, and not already in. */
-async function freeBot(roster: string[], stake: number, asset: string, tournamentId?: string) {
+async function freeBot(roster: string[], stake: number, asset: string, tournamentId?: string, now = Date.now()) {
   const db = database();
   for (const uid of roster) {
     const busy = await db.prepare("SELECT 1 AS yes FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.user_id = ? AND r.done = 0 AND m.settled = 0").bind(uid).first();
     if (busy) continue;
+    // A cup it has entered and not played comes before anything else.
+    const owes = await db
+      .prepare(
+        `SELECT 1 AS yes FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id
+         WHERE e.user_id = ? AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ?`,
+      )
+      .bind(uid, now, now)
+      .first();
+    if (owes) continue;
     if (tournamentId) {
       const already = await db.prepare("SELECT 1 AS yes FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").bind(tournamentId, uid).first();
       if (already) continue;

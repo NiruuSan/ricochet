@@ -403,7 +403,7 @@ export async function disqualifyTournamentRuns(uid: string, now = Date.now()) {
  * Ends a live tournament as soon as every entrant has finished their run, and
  * pays it out. Registration closes at the start, so the entrants are final.
  */
-async function endIfEveryoneFinished(id: string, now: number) {
+export async function endIfEveryoneFinished(id: string, now: number) {
   const db = database();
   const ended = await db
     .prepare(

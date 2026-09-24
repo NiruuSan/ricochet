@@ -100,12 +100,29 @@ try {
   await assert.rejects(() => bots.fillTournament(ADMIN, "nope", NOW), /No such tournament/);
 
   // Their tournament run is played inside the window, not the moment it opens.
-  run("UPDATE tournaments SET status = 'running', starts_at = ?, ends_at = ? WHERE id = ?", NOW, NOW + 3 * 3_600_000, cupId);
+  // A cup that has started is still 'scheduled' in the table: live is the clock.
+  run("UPDATE tournaments SET starts_at = ?, ends_at = ? WHERE id = ?", NOW, NOW + 3 * 3_600_000, cupId);
+  assert.equal(sqlite.prepare("SELECT status FROM tournaments WHERE id = ?").get(cupId).status, "scheduled", "which is how the site stores a live one");
   await bots.tickBots(NOW + 60_000);
   assert.equal(Number(sqlite.prepare("SELECT COUNT(*) AS n FROM tournament_entries WHERE tournament_id = ? AND done = 1").get(cupId).n), 0, "nobody plays in the first minute");
   for (let i = 0; i < 4; i++) await bots.tickBots(NOW + 3 * 3_600_000 - 60_000);
   const played = Number(sqlite.prepare("SELECT COUNT(*) AS n FROM tournament_entries WHERE tournament_id = ? AND done = 1").get(cupId).n);
   assert.equal(played, 3, "by the end of the window every one of them has played");
+
+  // A cup it owes a run to comes before a 1v1 seat.
+  // The cup paid out when the last of them finished, so it is put back on.
+  run("UPDATE tournament_entries SET done = 0, state = NULL, finished = NULL, score = 0, rank = NULL, payout = 0 WHERE tournament_id = ?", cupId);
+  run("UPDATE tournaments SET status = 'scheduled', starts_at = ?, ends_at = ? WHERE id = ?", NOW, NOW + 3 * 3_600_000, cupId);
+  const waiting = await startMatch(HUMAN, String(SOL / 20), "devnet");
+  const waitingMatch = sqlite.prepare("SELECT match_id FROM runs WHERE id = ?").get(waiting.id).match_id;
+  run("UPDATE matches SET created = ? WHERE id = ?", NOW - 5 * 60_000, waitingMatch);
+  await bots.tickBots(NOW + 60_000);
+  assert.equal(
+    sqlite.prepare("SELECT p2 FROM matches WHERE id = ?").get(waitingMatch).p2,
+    null,
+    "with a cup run still owed, the seat is left alone",
+  );
+  await playShot(HUMAN, waiting.id, waiting.revision, "forfeit");
 
   // The switch really is one.
   await bots.setBotConfig(ADMIN, { enabled: false }, NOW);
