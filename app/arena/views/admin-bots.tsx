@@ -8,6 +8,9 @@ import { Avatar } from "../avatar";
 import { amount, units } from "../format";
 import styles from "./admin.module.css";
 
+/** What the house still owes: runs in matches, runs in cups, and cups ahead. */
+type Work = { matches: number; cupRuns: number; cupsAhead: number };
+
 const REFRESH_MS = 20_000;
 const MAX = 20;
 const SKILLS: { id: BotSkill; label: string; note: string }[] = [
@@ -16,7 +19,7 @@ const SKILLS: { id: BotSkill; label: string; note: string }[] = [
   { id: "sharp", label: "Sharp", note: "Takes the best angle it can find" },
 ];
 
-type Board = { config: BotConfig; bots: BotRow[] };
+type Board = { config: BotConfig; bots: BotRow[]; work: Work };
 
 /**
  * The house's practice opponents: the switch, how many sit down, how well they
@@ -49,7 +52,7 @@ export function AdminBots() {
     setNotice("");
     try {
       const next = await request<Partial<Board> & Record<string, unknown>>("/api/admin/bots", body);
-      if (next.config && next.bots) setBoard({ config: next.config, bots: next.bots });
+      if (next.config && next.bots) setBoard({ config: next.config, bots: next.bots, work: next.work ?? board?.work ?? { matches: 0, cupRuns: 0, cupsAhead: 0 } });
       else await load();
       if (said) setNotice(said);
       return next;
@@ -157,12 +160,32 @@ export function AdminBots() {
           </label>
         </div>
 
+        <p className={styles.fine}>
+          Waiting for them right now: {board.work.cupRuns} {board.work.cupRuns === 1 ? "cup run" : "cup runs"} · {board.work.matches}{" "}
+          {board.work.matches === 1 ? "match" : "matches"} · {board.work.cupsAhead} {board.work.cupsAhead === 1 ? "entry" : "entries"} in cups still to start. On an ordinary
+          turn they play a few at a time and spread a cup run over the first minutes of its window; the button below skips the waiting.
+        </p>
+
         <div className={styles.formActions}>
           <button className="btn" disabled={!!busy} onClick={() => void send({ action: "fund" }, "Wallets topped up from the treasury.")}>
             <Coins size={15} /> Top up wallets
           </button>
-          <button className="btn" disabled={!!busy || !config.enabled} onClick={() => void send({ action: "play" }, "They took their turn.")}>
-            <Play size={15} /> Take a turn now
+          <button
+            className="btn"
+            disabled={!!busy || !config.enabled}
+            onClick={async () => {
+              const next = await send({ action: "play" });
+              if (!next) return;
+              const done = (next.done ?? {}) as { played?: number; joined?: number; entered?: number };
+              const said = [
+                done.played ? `${done.played} ${done.played === 1 ? "run" : "runs"} played` : "",
+                done.joined ? `${done.joined} ${done.joined === 1 ? "seat" : "seats"} taken` : "",
+                done.entered ? `${done.entered} ${done.entered === 1 ? "cup" : "cups"} entered` : "",
+              ].filter(Boolean);
+              setNotice(said.length ? `${said.join(" · ")}.` : "Nothing was waiting for them.");
+            }}
+          >
+            <Play size={15} /> Play everything waiting
           </button>
           <button className="btn btn-danger" disabled={!!busy || !bots.length} onClick={() => void retire()}>
             <Trash2 size={15} /> Retire them all

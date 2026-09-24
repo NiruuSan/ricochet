@@ -1,5 +1,5 @@
 import { administrator } from "@/lib/auth-user";
-import { botConfig, bots, fillTournament, fundBots, removeBots, setBotConfig, tickBots, type BotSkill } from "@/lib/bots";
+import { botConfig, bots, botWork, fillTournament, fundBots, removeBots, setBotConfig, tickBots, type BotSkill } from "@/lib/bots";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
@@ -10,8 +10,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
   try {
-    const [config, roster] = await Promise.all([botConfig(), bots()]);
-    return json({ config, bots: roster });
+    const [config, roster, work] = await Promise.all([botConfig(), bots(), botWork()]);
+    return json({ config, bots: roster, work });
   } catch (e) {
     console.error(e);
     return json({ error: "The house players are unavailable." }, 503);
@@ -37,8 +37,12 @@ export async function POST(req: Request) {
       return json({ config, bots: await bots() });
     }
     if (b.action === "fund") return json({ moved: await fundBots(), bots: await bots() });
-    // Their turn, now, rather than on the next page somebody loads.
-    if (b.action === "play") return json({ done: await tickBots(), bots: await bots() });
+    // Their turn, now: every run that is waiting, without the pauses that make
+    // them look human on an ordinary tick.
+    if (b.action === "play") {
+      const done = await tickBots(Date.now(), { budget: 25, immediate: true });
+      return json({ done, bots: await bots(), work: await botWork() });
+    }
     if (b.action === "fill") return json(await fillTournament(user.userId, b.id));
     if (b.action === "remove") {
       const gone = await removeBots(user.userId);

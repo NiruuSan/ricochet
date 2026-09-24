@@ -275,13 +275,17 @@ const runTime = (key: string) => 60_000 + hashed(key) * 240_000;
 
 /**
  * One turn of the house's players. Bounded on purpose: it runs inside ordinary
- * requests, so it does a little and comes back.
+ * requests, so it does a little and comes back. An administrator asking for a
+ * turn can hand it a bigger budget and tell it not to wait — `immediate` drops
+ * the pauses that make them look human, which is what you want when you are
+ * testing rather than watching.
  */
-export async function tickBots(now = Date.now()) {
+export async function tickBots(now = Date.now(), options: { budget?: number; immediate?: boolean } = {}) {
   const config = await botConfig();
   if (!config.enabled || !config.count) return { played: 0, entered: 0, joined: 0 };
   const db = database();
-  let budget = WORK_PER_TICK;
+  const immediate = !!options.immediate;
+  let budget = options.budget ?? WORK_PER_TICK;
   const done = { played: 0, entered: 0, joined: 0 };
 
   // Runs that have had their time: play them out and settle the match.
@@ -294,7 +298,7 @@ export async function tickBots(now = Date.now()) {
     .all<{ id: string; match_id: string; created: number; seed: number; ruleset: number; row_key: string | null; uid: string }>();
   for (const run of running) {
     if (budget <= 0) break;
-    if (now - run.created < runTime(run.id)) continue;
+    if (!immediate && now - run.created < runTime(run.id)) continue;
     const skill = skillFor(run.uid, config);
     const played = playRun(run.seed, run.ruleset, run.row_key, skill, seeded(run.id));
     await saveRun("runs", run.id, `m-${run.id}`, run.created, played, now);
@@ -317,10 +321,11 @@ export async function tickBots(now = Date.now()) {
       .all<{ id: string; tournament_id: string; registered: number; seed: number; ruleset: number; row_key: string | null; starts_at: number; ends_at: number; uid: string }>();
     for (const entry of entries) {
       if (budget <= 0) break;
-      // Somewhere in the first third of the window, then a run's length.
+      // Early in the window and never more than twenty-five minutes in, so a
+      // cup has scores on the board while people are still looking at it.
       const window = entry.ends_at - entry.starts_at;
-      const begins = entry.starts_at + hashed(entry.id) * window * 0.34;
-      if (now < begins + runTime(entry.id)) continue;
+      const begins = entry.starts_at + hashed(entry.id) * Math.min(window * 0.2, 25 * 60_000);
+      if (!immediate && now < begins + runTime(entry.id)) continue;
       const skill = skillFor(entry.uid, config);
       const played = playRun(entry.seed, entry.ruleset, entry.row_key, skill, seeded(entry.id));
       await db.prepare("UPDATE tournament_entries SET started = COALESCE(started, ?) WHERE id = ?").bind(Math.round(begins), entry.id).run();
@@ -345,7 +350,7 @@ export async function tickBots(now = Date.now()) {
        ORDER BY m.created LIMIT 4`,
     )
     // A seat is given a moment to find a person before the house takes it.
-    .bind(now - 45_000)
+    .bind(immediate ? now : now - 45_000)
     .all<{ id: string; stake: number; asset: string }>();
   for (const seat of seats) {
     if (budget <= 0) break;
@@ -373,7 +378,7 @@ export async function tickBots(now = Date.now()) {
     for (const cup of cups) {
       if (budget <= 0) break;
       // A bot joins a cup only once the humans have had their chance at it.
-      if (cup.entrants >= cup.places || now < cup.starts_at - 45 * 60_000) continue;
+      if (cup.entrants >= cup.places || (!immediate && now < cup.starts_at - 45 * 60_000)) continue;
       const free = await freeBot(roster, cup.entry_fee, cup.asset, cup.id, now);
       if (!free) continue;
       try {
@@ -386,6 +391,23 @@ export async function tickBots(now = Date.now()) {
     }
   }
   return done;
+}
+
+/** What the house's players still owe: a run in a match, or a run in a cup. */
+export async function botWork(now = Date.now()) {
+  const row = await database()
+    .prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM runs r JOIN matches m ON m.id = r.match_id JOIN players p ON p.id = r.user_id
+          WHERE p.bot = 1 AND r.done = 0 AND m.settled = 0) AS matches,
+         (SELECT COUNT(*) FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id JOIN players p ON p.id = e.user_id
+          WHERE p.bot = 1 AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ?) AS cupRuns,
+         (SELECT COUNT(*) FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id JOIN players p ON p.id = e.user_id
+          WHERE p.bot = 1 AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at > ?) AS cupsAhead`,
+    )
+    .bind(now, now, now)
+    .first<{ matches: number; cupRuns: number; cupsAhead: number }>();
+  return { matches: Number(row?.matches ?? 0), cupRuns: Number(row?.cupRuns ?? 0), cupsAhead: Number(row?.cupsAhead ?? 0) };
 }
 
 /** Administrator: puts the house's players on every seat a cup has left. */

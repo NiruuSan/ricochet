@@ -109,6 +109,14 @@ try {
   const played = Number(sqlite.prepare("SELECT COUNT(*) AS n FROM tournament_entries WHERE tournament_id = ? AND done = 1").get(cupId).n);
   assert.equal(played, 3, "by the end of the window every one of them has played");
 
+  // The administrator's own button does not wait for anybody's pace.
+  run("UPDATE tournament_entries SET done = 0, state = NULL, finished = NULL, score = 0, rank = NULL, payout = 0 WHERE tournament_id = ?", cupId);
+  run("UPDATE tournaments SET status = 'scheduled', starts_at = ?, ends_at = ? WHERE id = ?", NOW, NOW + 3 * 3_600_000, cupId);
+  assert.equal((await bots.botWork(NOW + 60_000)).cupRuns, 3, "three cup runs are waiting");
+  const forced = await bots.tickBots(NOW + 60_000, { budget: 25, immediate: true });
+  assert.equal(forced.played, 3, "and the button plays all three at once, a minute in");
+  assert.equal((await bots.botWork(NOW + 60_000)).cupRuns, 0, "with nothing left owed");
+
   // A cup it owes a run to comes before a 1v1 seat.
   // The cup paid out when the last of them finished, so it is put back on.
   run("UPDATE tournament_entries SET done = 0, state = NULL, finished = NULL, score = 0, rank = NULL, payout = 0 WHERE tournament_id = ?", cupId);
