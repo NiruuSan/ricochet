@@ -95,7 +95,7 @@ function FeaturedTournament({ t, now }: { t: TournamentSummary; now: number }) {
   return (
     <Link href={`/tournaments/${t.id}`} className={lobby.featured}>
       <div className={lobby.featuredTop}>
-        <span className={lobby.eventStatus}><span className={t.status === "live" ? lobby.liveDot : lobby.statusDot} />{t.status === "registration" ? "NEXT UP" : "IN PROGRESS"}<span className={lobby.statusDetail}>{STATUS_LABELS[t.status]}</span></span>
+        <span className={lobby.eventStatus}><span className={t.status === "live" ? lobby.liveDot : lobby.statusDot} />{t.status === "registration" ? "NEXT UP" : "IN PROGRESS"}{t.status !== "live" && <span className={lobby.statusDetail}>{STATUS_LABELS[t.status]}</span>}</span>
         <span className={t.asset === "devnet" ? lobby.sol : lobby.gems}>{assetName(t.asset).toUpperCase()}</span>
       </div>
       <h2>{t.name}</h2>

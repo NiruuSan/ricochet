@@ -1,0 +1,549 @@
+/* One tournament: what it is worth, when it closes, and where you stand.
+ *
+ * The page answers three questions in that order, so it is built as a header
+ * band — the clock and the pot — then the standings, with the prize ladder
+ * beside them on a wide screen and under them on a narrow one.
+ */
+
+.page {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 0 70px;
+}
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #c6f564;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+/* Header ------------------------------------------------------------------ */
+.head {
+  margin-top: 18px;
+  padding: 24px;
+  border: 1px solid #2b3546;
+  border-radius: 20px;
+  background: linear-gradient(150deg, #1b2431, #111924 62%);
+}
+.headTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px 24px;
+  flex-wrap: wrap;
+}
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #243042;
+  color: #b6c2d4;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.live {
+  background: #c6f5641c;
+  color: #c6f564;
+}
+.live::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #c6f564;
+  vertical-align: 1px;
+  animation: cupPulse 1.2s ease-in-out infinite;
+}
+.sol {
+  background: #9945ff1f;
+  color: #c6a5ff;
+}
+.gems {
+  background: #a78bfa1f;
+  color: #c9aaff;
+}
+@keyframes cupPulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.title {
+  margin: 14px 0 6px;
+  font-size: clamp(28px, 3.8vw, 44px);
+  font-weight: 900;
+  letter-spacing: -1.6px;
+  line-height: 1.04;
+}
+.when {
+  color: #93a1b8;
+  font-size: 13px;
+}
+
+/* The clock is the most perishable thing on the page, so it is the loudest. */
+.clock {
+  min-width: 152px;
+  padding: 12px 18px;
+  border: 1px solid #2f3b4f;
+  border-radius: 14px;
+  background: #0e1521;
+  text-align: right;
+}
+.clock small {
+  display: block;
+  color: #7f8da3;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.clock b {
+  display: block;
+  margin-top: 4px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.8px;
+  font-variant-numeric: tabular-nums;
+}
+.urgent b {
+  color: #c6f564;
+}
+
+/* Facts ------------------------------------------------------------------- */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin: 22px 0 0;
+  padding-top: 20px;
+  border-top: 1px solid #253045;
+}
+.fact small {
+  display: block;
+  color: #7f8da3;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+.fact b {
+  display: block;
+  margin-top: 6px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+.fact span {
+  display: block;
+  margin-top: 4px;
+  color: #8291a8;
+  font-size: 11.5px;
+}
+.pot b {
+  color: #c6f564;
+}
+.bar {
+  height: 5px;
+  margin-top: 9px;
+  border-radius: 999px;
+  background: #1d2634;
+  overflow: hidden;
+}
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7fd6ff, #c6f564);
+}
+
+/* What you can do about it ------------------------------------------------ */
+.act {
+  display: flex;
+  align-items: center;
+  gap: 16px 20px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid #253045;
+}
+.act :global(.btn) {
+  padding: 14px 22px;
+  font-size: 15px;
+}
+.rule {
+  flex: 1 1 340px;
+  min-width: 0;
+  color: #8291a8;
+  font-size: 12px;
+  line-height: 1.65;
+}
+/* Being in, having finished, having won: a state, not a dead button. */
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 18px;
+  border: 1px solid #2f3b4f;
+  border-radius: 12px;
+  background: #121a26;
+  font-size: 14px;
+  font-weight: 700;
+}
+.stateIn {
+  border-color: #c6f56440;
+  background: #c6f5640d;
+  color: #c6f564;
+}
+.stateWon {
+  border-color: #ffd17b40;
+  background: #ffd17b0f;
+  color: #ffd17b;
+}
+
+/* Standings and prizes ---------------------------------------------------- */
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 22px;
+  align-items: start;
+  margin-top: 30px;
+}
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.sectionHead h2 {
+  font-size: 19px;
+  letter-spacing: -0.4px;
+}
+.sectionHead span {
+  color: #7f8da3;
+  font-size: 12px;
+}
+.podium {
+  margin-bottom: 18px;
+}
+
+.rows {
+  display: grid;
+  gap: 6px;
+}
+.row {
+  display: grid;
+  /* Rank, player, score, replay, prize: five columns, so every row lines up
+     whether or not there is a run to watch. */
+  grid-template-columns: 38px minmax(0, 1fr) 96px 92px 104px;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border: 1px solid #1d2634;
+  border-radius: 12px;
+  background: #121a26;
+  font-size: 14px;
+}
+.row:hover {
+  border-color: #2a374b;
+}
+.rank {
+  color: #93a1b8;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.first {
+  color: #ffd17b;
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+}
+.who > span {
+  min-width: 0;
+}
+.name {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-weight: 700;
+}
+.state2 {
+  display: block;
+  margin-top: 2px;
+  color: #7f8da3;
+  font-size: 11.5px;
+}
+.playing {
+  color: #c6f564;
+}
+.score {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.score small {
+  margin-left: 4px;
+  color: #7f8da3;
+  font-size: 11px;
+  font-weight: 600;
+}
+.prize {
+  min-width: 96px;
+  color: #c6f564;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.noPrize {
+  color: #55637a;
+}
+.mine {
+  border-color: #c6f56455;
+  background: #c6f5640d;
+}
+.youTag {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #c6f564;
+  color: #16200a;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.watch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #34415a;
+  color: #d8e6fa;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.watch:hover {
+  border-color: #c6f56488;
+  color: #c6f564;
+}
+
+/* Before the start there are no scores, only names. */
+.field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.field li {
+  border: 1px solid #1d2634;
+  border-radius: 999px;
+  background: #121a26;
+}
+.field li:hover {
+  border-color: #2a374b;
+}
+.field a {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 14px 7px 8px;
+  color: #e8edf6;
+  font-size: 14px;
+  font-weight: 650;
+}
+.field :global(.avatar) {
+  border-radius: 50%;
+}
+
+/* The prize ladder -------------------------------------------------------- */
+.prizes {
+  position: sticky;
+  top: 22px;
+  padding: 20px;
+  border: 1px solid #2b3546;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #1a2230, #121a26);
+}
+.prizes h2 {
+  font-size: 17px;
+}
+.prizes > p {
+  margin-top: 14px;
+  color: #7f8da3;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+/* The three that everyone plays for, then the rest at a glance. */
+.top {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.place {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px;
+  border: 1px solid #263145;
+  border-radius: 12px;
+  background: #0f1724;
+}
+.medal {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #243042;
+  color: #b6c2d4;
+  font-size: 11px;
+  font-weight: 800;
+}
+.place b {
+  margin-left: auto;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.place span {
+  color: #93a1b8;
+  font-size: 12.5px;
+}
+.gold {
+  border-color: #ffd17b3d;
+  background: #ffd17b0d;
+}
+.gold .medal {
+  background: #ffd17b;
+  color: #2a1e05;
+}
+.gold b {
+  color: #ffd17b;
+}
+.silver .medal {
+  background: #cdd7e6;
+  color: #1a2330;
+}
+.bronze .medal {
+  background: #d9955a;
+  color: #2a1706;
+}
+.rest {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #263145;
+}
+.rest div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #93a1b8;
+}
+.rest b {
+  color: #d4dded;
+  font-variant-numeric: tabular-nums;
+}
+
+.empty {
+  padding: 34px 20px;
+  border: 1px dashed #2b3546;
+  border-radius: 16px;
+  color: #93a1b8;
+  text-align: center;
+}
+.loading {
+  margin-top: 24px;
+  color: #93a1b8;
+}
+
+/* Narrow ------------------------------------------------------------------ */
+@media (max-width: 1000px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* On a phone the ladder belongs after the standings, not before them. */
+  .prizes {
+    position: static;
+    order: 2;
+  }
+}
+@media (max-width: 720px) {
+  .head {
+    padding: 18px;
+  }
+  .headTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .clock {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+    padding: 10px 14px;
+    text-align: left;
+  }
+  .clock b {
+    margin: 0;
+    font-size: 20px;
+  }
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .act :global(.btn),
+  .state {
+    width: 100%;
+    justify-content: center;
+  }
+  /* Two lines on a phone: who and what they scored, then what it is worth. */
+  .row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    gap: 8px 10px;
+    padding: 10px 12px;
+  }
+  .rank {
+    grid-area: 1 / 1 / 2 / 2;
+  }
+  .who {
+    grid-area: 1 / 2 / 2 / 3;
+  }
+  .score {
+    grid-area: 1 / 3 / 2 / 4;
+  }
+  .watch {
+    grid-area: 2 / 2 / 3 / 3;
+    justify-self: start;
+  }
+  .prize {
+    grid-area: 2 / 3 / 3 / 4;
+    min-width: 0;
+    font-size: 12.5px;
+  }
+}
