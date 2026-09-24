@@ -147,20 +147,31 @@ export async function bots(): Promise<BotRow[]> {
 export async function ensureBots(now = Date.now()) {
   const config = await botConfig();
   const db = database();
-  const { results: existing } = await db.prepare("SELECT id FROM players WHERE bot = 1").all<{ id: string }>();
+  // Only the ones actually on the site count: a retired row keeps its flag, and
+  // turning them back on has to bring it back rather than skip it.
+  const { results: existing } = await db.prepare("SELECT id FROM players WHERE bot = 1 AND deleted IS NULL").all<{ id: string }>();
   const have = new Set(existing.map((row) => row.id));
-  const ops: Statement[] = [];
   for (let i = 0; i < config.count; i++) {
     const id = botId(i);
     if (have.has(id)) continue;
-    ops.push(
-      db
-        .prepare("INSERT INTO players(id, name, balance, created, last_seen, bot) VALUES(?, ?, ?, ?, ?, 1) ON CONFLICT(id) DO UPDATE SET bot = 1, deleted = NULL")
+    try {
+      // Two plain statements rather than an upsert: inside an upsert, SQLite
+      // hands its own conflict handling down to the `activity_signup` and
+      // `activity_presence` triggers, and their `INSERT OR IGNORE` into
+      // player_activity becomes an abort as soon as that row already exists.
+      await db
+        .prepare("INSERT OR IGNORE INTO players(id, name, balance, created, last_seen, bot) VALUES(?, ?, ?, ?, ?, 1)")
         // Older rows first, so the roster reads in the order it was filled.
-        .bind(id, ROSTER[i], 5_000, now - (MAX_BOTS - i) * 3_600_000, now),
-    );
+        .bind(id, ROSTER[i], 5_000, now - (MAX_BOTS - i) * 3_600_000, now)
+        .run();
+      // And back from retirement, under their own name again.
+      await db.prepare("UPDATE players SET bot = 1, deleted = NULL, name = ?, last_seen = ? WHERE id = ?").bind(ROSTER[i], now, id).run();
+    } catch (e) {
+      // Somebody took the name while they were away: that one stays off the
+      // site rather than holding up the rest of the roster.
+      if (!(e instanceof Error) || !/UNIQUE/i.test(e.message)) throw e;
+    }
   }
-  if (ops.length) await db.batch(ops);
   await fundBots(now);
 }
 

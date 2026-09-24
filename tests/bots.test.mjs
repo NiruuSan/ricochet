@@ -154,6 +154,18 @@ try {
     "the matches they played stay, because they are their opponents' history too",
   );
 
+  // And they can be put back on: turning them on again brings the same players,
+  // under their own names, with the treasury funding them afresh.
+  const back = await bots.setBotConfig(ADMIN, { enabled: true, count: 3 }, NOW + 32 * 60_000);
+  assert.equal(back.count, 3);
+  const again = await bots.bots();
+  assert.deepEqual(
+    again.map((bot) => bot.name),
+    roster.map((bot) => bot.name),
+    "the same three came back, named as they were",
+  );
+  assert.ok(again.every((bot) => bot.sol >= back.floor), "and funded again");
+
   console.log("PASS: bots (off by default, funded by the treasury, taking open seats after a pause, playing through the engine with replayable shots, skill that shows, filling a cup on the button, stopping on the switch, and giving the treasury its money back at launch)");
 } catch (e) {
   console.error(e);
