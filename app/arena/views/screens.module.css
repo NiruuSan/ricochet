@@ -991,6 +991,84 @@
   max-width: 100%;
 }
 
+/* ---------- The board behind a name ---------- */
+/* On the tournament result, every name in the standings shows the board that
+   player finished on. The card follows the pointer's row rather than sitting in
+   the flow, so the standings keep the height the boards used to take. */
+.peekName {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.peekName:hover b,
+.peekName:focus-visible b {
+  color: #c6f564;
+}
+.peekName:focus-visible {
+  outline: 2px solid #c6f564;
+  outline-offset: 3px;
+}
+/* With the boards gone from the flow, the standings sit level with the outcome
+   beside them. Auto margins rather than centring: they fall back to nothing
+   when the standings are taller than the screen, so no row is cut off. */
+.detailsCentred > :first-child {
+  margin-top: auto;
+}
+.detailsCentred > :last-child {
+  margin-bottom: auto;
+}
+.peekHint {
+  margin: 0;
+  font-size: 12px;
+  color: #6f7f96;
+}
+.peek {
+  position: fixed;
+  z-index: 160;
+  border: 1px solid #2b3546;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0d1421;
+  box-shadow: 0 18px 44px #00000073;
+  pointer-events: none;
+  animation: fadeIn 0.14s ease-out;
+}
+.peek canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.peekLabel {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  right: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #93a1b8;
+  text-transform: uppercase;
+}
+.peekNote {
+  height: 100%;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  padding: 26px 18px;
+  text-align: center;
+  font-size: 13px;
+  color: #93a1b8;
+}
+
 /* ---------- Keyframes ---------- */
 @keyframes fadeIn {
   from {
