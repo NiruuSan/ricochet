@@ -234,14 +234,14 @@ for (const [i, created] of boundaryTimes.entries()) {
 }
 const chartOverview = await adminOverview(chartNow);
 for (const [period, added] of [["day", 2], ["week", 4], ["month", 6]]) {
-  const volume = chartOverview.gems.matches;
-  assert.equal(volume[period] - overview.gems.matches[period], added, `${period} window boundaries`);
+  const volume = chartOverview.gems.games;
+  assert.equal(volume[period] - overview.gems.games[period], added, `${period} window boundaries`);
   assert.equal(volume.series[period].reduce((sum, point) => sum + point.value, 0), volume[period]);
-  assert.equal(volume.series[period][0].value - overview.gems.matches.series[period][0].value, 1, "Start boundary enters the first bucket");
+  assert.equal(volume.series[period][0].value - overview.gems.games.series[period][0].value, 1, "Start boundary enters the first bucket");
 }
 const later = await adminOverview(t0 + 40 * 86_400_000);
 assert.deepEqual([later.gems.entries.month, later.devnet.entries.month, later.players.online], [0, 0, 0], "Old activity leaves the rolling windows");
-assert.ok(later.gems.matches.series.month.every((point) => point.value === 0), "Empty intervals are zero-filled");
+assert.ok(later.gems.games.series.month.every((point) => point.value === 0), "Empty intervals are zero-filled");
 assert.ok(!JSON.stringify(overview).includes("user-"), "The overview carries no player IDs");
 
 // Ruleset 4: a forfeit only ends that run. The entry stays in the pot, the seat

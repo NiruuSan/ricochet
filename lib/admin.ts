@@ -19,10 +19,16 @@ export const adminAudit = (adminUid: string, action: string, target: string, rea
     .prepare("INSERT INTO admin_audit(id, admin_id, action, target_user_id, reason, created) VALUES(?, ?, ?, ?, ?, ?)")
     .bind(crypto.randomUUID(), adminUid, action, target, reason, now);
 
+/**
+ * Every game opened on the site, as one stream of creation times: a tournament
+ * is one game here, the same way the leaderboard counts it.
+ */
+const GAMES_OPENED = "(SELECT asset, created FROM matches UNION ALL SELECT asset, created FROM tournaments)";
+
 /** Player counts and rolling volumes for the administrator dashboard. */
 export async function adminOverview(now = Date.now()): Promise<AdminOverview> {
   const db = database();
-  const [players, online, queues, devEntries, devMatches, deposits, withdrawals, devFees, gemEntries, gemMatches, gemFees] = await Promise.all([
+  const [players, online, queues, devEntries, devGames, deposits, withdrawals, devFees, gemEntries, gemGames, gemFees] = await Promise.all([
     db
       .prepare("SELECT COUNT(*) AS registered, COALESCE(SUM(CASE WHEN last_seen >= ? THEN 1 ELSE 0 END), 0) AS online FROM players")
       .bind(now - ONLINE_MS)
@@ -37,14 +43,14 @@ export async function adminOverview(now = Date.now()): Promise<AdminOverview> {
                 (SELECT COUNT(*) FROM bug_reports WHERE status = 'open') AS bugs`,
       )
       .first<{ games: number; cases: number; reports: number; bugs: number }>(),
-    // Devnet SOL staked into matches by players.
-    volumeHistory(db, now, "cash_ledger", "-amount", "kind = 'match_entry'"),
-    volumeHistory(db, now, "matches", "1", "asset = 'devnet'"),
+    // Devnet SOL staked by players, in matches and in tournaments alike.
+    volumeHistory(db, now, "cash_ledger", "-amount", "kind IN ('match_entry', 'tournament_entry')"),
+    volumeHistory(db, now, GAMES_OPENED, "1", "asset = 'devnet'"),
     volumeHistory(db, now, "cash_transfers", "amount", "kind = 'deposit' AND status = 'finalized' AND user_id <> ?", "updated", [HOUSE]),
     volumeHistory(db, now, "cash_transfers", "amount", "kind = 'withdrawal' AND status = 'finalized'", "updated"),
     volumeHistory(db, now, "cash_ledger", "amount", "kind = 'house_fee'"),
-    volumeHistory(db, now, "ledger", "-amount", "kind = 'entry'"),
-    volumeHistory(db, now, "matches", "1", "asset = 'gems'"),
+    volumeHistory(db, now, "ledger", "-amount", "kind IN ('entry', 'tournament_entry')"),
+    volumeHistory(db, now, GAMES_OPENED, "1", "asset = 'gems'"),
     volumeHistory(db, now, "matches", "fee", "asset = 'gems' AND settled = 1"),
   ]);
   const registered = Number(players?.registered ?? 0);
@@ -63,8 +69,8 @@ export async function adminOverview(now = Date.now()): Promise<AdminOverview> {
       reports: Number(queues?.reports ?? 0),
       bugs: Number(queues?.bugs ?? 0),
     },
-    devnet: { entries: devEntries, matches: devMatches, deposits, withdrawals, fees: devFees },
-    gems: { entries: gemEntries, matches: gemMatches, fees: gemFees },
+    devnet: { entries: devEntries, games: devGames, deposits, withdrawals, fees: devFees },
+    gems: { entries: gemEntries, games: gemGames, fees: gemFees },
     generated: now,
   };
 }

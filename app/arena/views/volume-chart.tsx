@@ -10,8 +10,8 @@ import { exactSol } from "../format";
 const PERIODS = [["day", "Daily"], ["week", "Weekly"], ["month", "Monthly"]] as const;
 const WINDOWS = { day: "Last 24 hours · hourly volume", week: "Last 7 days · daily volume", month: "Last 30 days · daily volume" };
 const METRICS = [
-  ["entries", "Staked in matches"],
-  ["matches", "Matches created"],
+  ["entries", "Staked in games"],
+  ["games", "Games opened"],
   ["deposits", "Player deposits"],
   ["withdrawals", "Player withdrawals"],
   ["fees", "House fees"],
@@ -87,7 +87,7 @@ function Chart({ points, label, format, divisor }: { points: VolumePoint[]; labe
 function VolumeCard({ title, data, period, sol }: { title: string; data?: Partial<Record<Metric, VolumeTotals>>; period: Period; sol?: boolean }) {
   const [metric, setMetric] = useState<Metric>("entries");
   const available = sol ? METRICS : METRICS.filter(([key]) => key !== "deposits" && key !== "withdrawals" && key !== "fees");
-  const format = (value: number, key: Metric = metric) => key === "matches" ? `${value.toLocaleString("en")} matches` : sol ? `${exactSol(value)} SOL` : `${value.toLocaleString("en")} gems`;
+  const format = (value: number, key: Metric = metric) => key === "games" ? `${value.toLocaleString("en")} game${value === 1 ? "" : "s"}` : sol ? `${exactSol(value)} SOL` : `${value.toLocaleString("en")} gems`;
   const selected = data?.[metric];
   const label = METRICS.find(([key]) => key === metric)![1];
   return (
@@ -101,7 +101,7 @@ function VolumeCard({ title, data, period, sol }: { title: string; data?: Partia
         ))}
       </div>
       <div className={styles.caption}><b>{label}</b><span>{WINDOWS[period]}</span></div>
-      {selected ? <Chart key={`${period}-${metric}`} points={selected.series[period]} label={`${title}: ${label}`} format={format} divisor={sol && metric !== "matches" ? 1e9 : 1} /> :
+      {selected ? <Chart key={`${period}-${metric}`} points={selected.series[period]} label={`${title}: ${label}`} format={format} divisor={sol && metric !== "games" ? 1e9 : 1} /> :
         <div className={styles.loading} role="status"><RefreshCw size={16} className="spin" /> Loading volume…</div>}
     </section>
   );
@@ -119,7 +119,10 @@ export function AdminVolume({ overview }: { overview: AdminOverview | null }) {
       </div>
       <VolumeCard title="Devnet SOL" data={overview?.devnet} period={period} sol />
       <VolumeCard title="Gems" data={overview?.gems} period={period} />
-      <p className={admin.fine}>Rolling windows ending at the last update. Times are local. Deposits and withdrawals count once confirmed on-chain.</p>
+      <p className={admin.fine}>
+        Rolling windows ending at the last update. Times are local. Matches and tournaments count together: entry fees under what was staked, and one game for each
+        match or tournament opened. Deposits and withdrawals count once confirmed on-chain.
+      </p>
     </section>
   );
 }

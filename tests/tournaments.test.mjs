@@ -142,6 +142,14 @@ try {
   assert.equal(cat.games, 1, "and the cup counts as a game played");
   assert.equal(board.find((row) => row.name === "Dom").pnl, -100_000_000, "An entry nobody played is a loss like any other");
   assert.ok(board.findIndex((row) => row.name === "Ann") < board.findIndex((row) => row.name === "Dom"), "and the winners stand above them");
+  // The admin's volume counts a cup the same way: the entries are staked money,
+  // and the cup itself is one game opened.
+  const { adminOverview } = await import("../lib/admin.ts");
+  const volume = await adminOverview(end);
+  assert.equal(volume.devnet.entries.day, 400_000_000, "Four entries at 0.1 SOL are staked volume");
+  assert.equal(volume.devnet.games.day, 1, "and the cup counts as one game opened");
+  assert.equal(volume.devnet.fees.day, 48_000_000, "The house's cut on a cup shows in the fees");
+
   assert.equal((await tournamentHistory("u-cat", "gems", 50, end)).length, 0, "History is per currency");
   const liveHistory = await tournamentHistory("u-cat", "devnet", 50, live);
   assert.deepEqual([liveHistory[0].status, liveHistory[0].net], ["settled", Math.floor((pot * 20) / 100) - 100_000_000]);

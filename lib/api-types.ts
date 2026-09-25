@@ -424,8 +424,9 @@ export type AdminOverview = {
   players: { registered: number; online: number; offline: number; onlineNames: { name: string; avatar: string | null }[] };
   /** What is waiting for the administrator, for the badges on the admin rail. */
   queues: { games: number; cases: number; reports: number; bugs: number };
-  devnet: { entries: VolumeTotals; matches: VolumeTotals; deposits: VolumeTotals; withdrawals: VolumeTotals; fees: VolumeTotals };
-  gems: { entries: VolumeTotals; matches: VolumeTotals; fees: VolumeTotals };
+  /** `entries` is what players staked and `games` the matches and tournaments opened. */
+  devnet: { entries: VolumeTotals; games: VolumeTotals; deposits: VolumeTotals; withdrawals: VolumeTotals; fees: VolumeTotals };
+  gems: { entries: VolumeTotals; games: VolumeTotals; fees: VolumeTotals };
   generated: number;
 };
 
