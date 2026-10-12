@@ -375,6 +375,37 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* The rest of the schedule, a page at a time. */
+.more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #2b3546;
+  border-radius: 14px;
+  background: #131b24;
+  color: #e7edf7;
+  font-size: 14px;
+  font-weight: 700;
+}
+.more span {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #1b2330;
+  color: #93a1b8;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.more svg {
+  color: #c6f564;
+}
+.more:hover {
+  border-color: #c6f56466;
+  color: #c6f564;
+}
 .guide {
   padding: 9px 0 0 22px;
   border-left: 1px solid #263040;

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpRight, Check, Clock3, Medal, Play, Target, Trophy, Users } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Check, ChevronDown, Clock3, Medal, Play, Target, Trophy, Users } from "lucide-react";
 import type { TournamentSummary } from "@/lib/api-types";
 import { request } from "../api";
 import { amount, assetName } from "../format";
@@ -11,6 +11,8 @@ import styles from "./tournaments.module.css";
 import lobby from "./tournament-lobby.module.css";
 
 const REFRESH_MS = 15_000;
+/** Cards shown under the featured event before "Show more", and how many each tap adds. */
+const PAGE = 6;
 
 /** Tournaments, refreshed while the page is open, with a clock for countdowns. */
 export function useTournaments() {
@@ -128,6 +130,8 @@ type TournamentFilter = "all" | "registration" | "live" | "finished" | "mine";
 export function TournamentsView({ player }: { player: PlayerState }) {
   const { tournaments, error, now } = useTournaments();
   const [filter, setFilter] = useState<TournamentFilter>("all");
+  const [shown, setShown] = useState(PAGE);
+  const pick = (next: TournamentFilter) => (setFilter(next), setShown(PAGE));
   const live = tournaments?.filter((t) => t.status === "live" || t.status === "closing") ?? [];
   const upcoming = tournaments?.filter((t) => t.status === "registration") ?? [];
   const finished = tournaments?.filter((t) => t.status === "settled" || t.status === "cancelled") ?? [];
@@ -142,7 +146,12 @@ export function TournamentsView({ player }: { player: PlayerState }) {
   const visible = filters.find((f) => f.id === filter)!.items;
   const featured = visible.filter((t) => t.status === "live" || t.status === "registration" || t.status === "closing")
     .sort((a, b) => Number(b.status === "live") - Number(a.status === "live") || a.startsAt - b.startsAt)[0];
-  const otherEvents = visible.filter((t) => t.id !== featured?.id);
+  // What is still to come first, soonest first; then what is over, most recent first.
+  const open = (t: TournamentSummary) => t.status === "live" || t.status === "closing" || t.status === "registration";
+  const otherEvents = visible
+    .filter((t) => t.id !== featured?.id)
+    .sort((a, b) => Number(open(b)) - Number(open(a)) || (open(a) ? a.startsAt - b.startsAt : b.endsAt - a.endsAt));
+  const hidden = Math.max(0, otherEvents.length - shown);
   const emptyCopy = {
     all: ["The next challenge is on its way", "New tournaments will appear here. In the meantime, keep your angles sharp in the arena."],
     registration: ["No open registrations right now", "Check back for your next chance to join the field."],
@@ -183,7 +192,7 @@ export function TournamentsView({ player }: { player: PlayerState }) {
       )}
       <div className={lobby.filters} role="group" aria-label="Filter tournaments">
         {filters.map((f) => (
-          <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => setFilter(f.id)}>
+          <button key={f.id} type="button" aria-pressed={filter === f.id} onClick={() => pick(f.id)}>
             {f.label}<span>{tournaments ? f.items.length : "–"}</span>
           </button>
         ))}
@@ -204,7 +213,7 @@ export function TournamentsView({ player }: { player: PlayerState }) {
               {filter === "mine" && !player.data.player ? (
                 <Link href={player.data.authenticated ? "/signup" : "/login"}>Sign in <ArrowRight size={15} /></Link>
               ) : filter !== "all" ? (
-                <button type="button" onClick={() => setFilter("all")}>Explore all events <ArrowRight size={15} /></button>
+                <button type="button" onClick={() => pick("all")}>Explore all events <ArrowRight size={15} /></button>
               ) : (
                 <Link href="/">Head to the arena <ArrowRight size={15} /></Link>
               )}
@@ -214,8 +223,13 @@ export function TournamentsView({ player }: { player: PlayerState }) {
               {featured && <FeaturedTournament t={featured} now={now} />}
               {!!otherEvents.length && (
                 <div className={lobby.eventGrid}>
-                  {otherEvents.map((t) => <TournamentCard key={t.id} t={t} now={now} />)}
+                  {otherEvents.slice(0, shown).map((t) => <TournamentCard key={t.id} t={t} now={now} />)}
                 </div>
+              )}
+              {hidden > 0 && (
+                <button type="button" className={lobby.more} onClick={() => setShown((n) => n + PAGE)}>
+                  Show more <span>{hidden}</span> <ChevronDown size={16} />
+                </button>
               )}
             </>
           )}
