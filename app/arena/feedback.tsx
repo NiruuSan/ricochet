@@ -109,7 +109,8 @@ export function useArrival(asset: Asset) {
     const timers = [setTimeout(() => setNow(Date.now()), Math.max(0, wait)), setTimeout(() => setNow(Date.now()), Math.max(0, wait) + 540)];
     return () => timers.forEach(clearTimeout);
   }, [at, asset]);
-  return now >= at[asset] && now < until;
+  // Nothing has landed yet: 0 is not an arrival, or the pill would glow from the first paint.
+  return at[asset] > 0 && now >= at[asset] && now < until;
 }
 
 /**
