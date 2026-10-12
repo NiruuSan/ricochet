@@ -191,12 +191,28 @@ try {
   if (left) await assert.rejects(() => quests.claimQuest(ANA, "weekly", left.id, NOW), (e) => e.status === 403);
   sqlite.prepare("DELETE FROM player_suspensions WHERE user_id = ?").run(ANA);
 
-  // 9. The badge the rest of the site shows is the board's own count.
+  // 9. Claim all: every finished rung on both boards, ladders included, each one
+  //    paid once on its own line — and nothing left to take afterwards.
+  for (let i = 0; i < 20; i++) played(BEN, { score: 1_500, clears: 2, won: true });
+  const benBoard = await quests.questBoard(BEN, NOW);
+  assert.ok(benBoard.ready > 0, "Ben has quests waiting");
+  const benBefore = gems(BEN);
+  const bulk = await quests.claimAllQuests(BEN, NOW);
+  assert.ok(bulk.count > benBoard.ready, "A quest whose next rung is already met is climbed too, not just the rung on screen");
+  assert.equal(gems(BEN) - benBefore, bulk.gems, "Every gem the claim reports is in the balance");
+  assert.equal(count("SELECT COUNT(*) AS n FROM ledger WHERE user_id = ? AND kind = 'quest_reward'", BEN), bulk.count, "One ledger line a rung");
+  assert.equal((await quests.questBoard(BEN, NOW)).ready, 0, "Nothing is left finished and unclaimed");
+  await assert.rejects(() => quests.claimAllQuests(BEN, NOW), /no finished quest/, "A second tap finds nothing to take");
+  sqlite.prepare("INSERT INTO player_suspensions(user_id, status, source, reason, evidence, created) VALUES(?, 'suspended', 'stats', 'review', '{}', 0)").run(BEN);
+  await assert.rejects(() => quests.claimAllQuests(BEN, NOW + DAY), (e) => e.status === 403, "A suspended account claims nothing in bulk either");
+  sqlite.prepare("DELETE FROM player_suspensions WHERE user_id = ?").run(BEN);
+
+  // 10. The badge the rest of the site shows is the board's own count.
   const snapshot = await playerSnapshot(ANA, "gems");
   assert.equal(snapshot.questsReady, (await quests.questBoard(ANA)).ready);
 
   console.log(
-    "PASS: quests (three a day and three a week, the same for everyone, stable within a period and rotating between them; the week asks more and pays more; a ladder whose every rung asks for more, pays more up to a ceiling and lands on a round number; progress read from finished runs only, ignoring practice, unjoined seats, cancelled matches and other players; yesterday counts for the week and not the day; claims refused before the target, on an unknown quest or scope, and from a suspended account; gems paid through the ledger, one line per rung, once, even from two taps at the same moment; a claimed quest coming back harder with the work already done still counting; the daily ladder back on the ground tomorrow and the weekly one next week; and the badge matching the board).",
+    "PASS: quests (three a day and three a week, the same for everyone, stable within a period and rotating between them; the week asks more and pays more; a ladder whose every rung asks for more, pays more up to a ceiling and lands on a round number; progress read from finished runs only, ignoring practice, unjoined seats, cancelled matches and other players; yesterday counts for the week and not the day; claims refused before the target, on an unknown quest or scope, and from a suspended account; gems paid through the ledger, one line per rung, once, even from two taps at the same moment; a claimed quest coming back harder with the work already done still counting; the daily ladder back on the ground tomorrow and the weekly one next week; claim all taking every finished rung and ladder at once, paid line by line, and refused when there is nothing left or the account is suspended; and the badge matching the board).",
   );
 } finally {
   close();

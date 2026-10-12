@@ -1049,8 +1049,22 @@ h3 {
   border: 0;
   color: inherit;
 }
-.success {
+/* An icon that just changed to say something happened (a copy, a save):
+   it pops in, instead of the page growing a line of text. */
+.pop-in {
   color: #c6f564;
+  animation: pop-in 0.42s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+@keyframes pop-in {
+  from {
+    transform: scale(0.2) rotate(-25deg);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-in {
+    animation: none;
+  }
 }
 .subpage {
   max-width: 1040px;

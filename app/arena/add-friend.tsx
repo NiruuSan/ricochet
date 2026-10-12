@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, MessageSquare, UserCheck, UserPlus } from "lucide-react";
 import type { Friendship } from "@/lib/api-types";
 import { request } from "./api";
+import { toast } from "./feedback";
 
 /**
  * What this player is to you, and the one thing worth doing about it. The
@@ -20,6 +21,7 @@ export function AddFriend({ name, standing }: { name: string; standing: Friendsh
     try {
       await request("/api/friends", { action, name });
       setState(done);
+      toast(done === "sent" ? "Friend request sent" : `You and ${name} are friends`, { detail: done === "sent" ? `${name} will see it next time they play.` : undefined });
     } catch (e) {
       setError((e as Error).message);
       setState("");

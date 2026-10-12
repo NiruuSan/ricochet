@@ -10,6 +10,7 @@ import type { PlayerState } from "../arena";
 import { ProfileDashboard } from "./profile-dashboard";
 import { AccountData } from "./account-data";
 import styles from "./profile-dashboard.module.css";
+import { toast } from "../feedback";
 
 const AVATAR_PX = 256;
 
@@ -37,17 +38,15 @@ export function ProfileView({ player }: { player: PlayerState }) {
   const [name, setName] = useState<string | null>(null);
   const [saving, setSaving] = useState<"" | "name" | "avatar">("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const save = async (kind: "name" | "avatar", body: Record<string, unknown>, done: string) => {
     setSaving(kind);
     setError("");
-    setNotice("");
     try {
       await request("/api/profile", body);
       await refresh();
-      setNotice(done);
+      toast(done);
       return true;
     } catch (e) {
       setError((e as Error).message);
@@ -89,7 +88,6 @@ export function ProfileView({ player }: { player: PlayerState }) {
   const openEditor = () => {
     setName(null);
     setError("");
-    setNotice("");
     setEditing(true);
   };
 
@@ -104,11 +102,6 @@ export function ProfileView({ player }: { player: PlayerState }) {
           {error && (
             <p className="error" role="alert">
               {error}
-            </p>
-          )}
-          {notice && (
-            <p className="success" role="status">
-              {notice}
             </p>
           )}
           <div className="profile-picture" style={{ marginTop: 6 }}>

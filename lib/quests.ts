@@ -267,3 +267,32 @@ export async function claimQuest(uid: string, scopeInput: unknown, questInput: u
   if (!claim.meta.changes) throw new GameError("You have already claimed this quest.", 409);
   return { quest: definition.id, scope, tier, reward, next: rung(definition, scope, tier + 1).target };
 }
+
+/**
+ * Every finished rung on both boards, in one go. Taking a rung can leave the
+ * one above it already met by the same play, so it goes round until nothing is
+ * left to take; each rung is still its own claim, paid once, on its own line.
+ */
+export async function claimAllQuests(uid: string, now = Date.now()) {
+  if (await isLockedOut(uid)) throw new GameError("Your account is suspended. Contact support if you think this is a mistake.", 403);
+  let count = 0;
+  let gems = 0;
+  // A ladder tops out at its ceiling, so this ends; the bound is only a seatbelt.
+  for (let round = 0; round < 40; round++) {
+    const board = await questBoard(uid, now);
+    const ready = [...board.daily, ...board.weekly].filter((quest) => quest.progress >= quest.target);
+    if (!ready.length) break;
+    for (const quest of ready) {
+      try {
+        const taken = await claimQuest(uid, quest.scope, quest.id, now);
+        count++;
+        gems += taken.reward;
+      } catch (e) {
+        // Taken by another tap in the meantime: it was paid, just not here.
+        if (!(e instanceof GameError && e.status === 409)) throw e;
+      }
+    }
+  }
+  if (!count) throw new GameError("There is no finished quest to claim.", 409);
+  return { count, gems };
+}

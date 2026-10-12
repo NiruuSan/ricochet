@@ -17,6 +17,7 @@ import { AddFriend } from "../add-friend";
 import { PlayerActions } from "../player-actions";
 import { TipButton } from "../tip-button";
 import styles from "./profile-dashboard.module.css";
+import { toast } from "../feedback";
 
 const RANGES = [["day", "1D", "Last 24 hours"], ["week", "1W", "Last 7 days"], ["month", "1M", "Last 30 days"], ["year", "1Y", "Last 365 days"], ["all", "ALL", "All time"]] as const;
 const number = (value: number, asset: Asset) => asset === "devnet" ? fullSol(value) : value.toLocaleString("en");
@@ -223,10 +224,9 @@ export function ProfileDashboard({
         <div className={styles.profileActions}>
           {own ? <><button className={styles.editButton} onClick={onEdit}><Settings2 size={15} />Edit profile</button><Link href={`/players/${encodeURIComponent(profile.name)}`}>Public profile <ArrowUpRight size={14} /></Link></> : profile.isYou ? <Link className={styles.editButton} href="/profile"><Settings2 size={15} />Manage profile</Link> : <><AddFriend name={profile.name} standing={profile.friendship} /><TipButton profile={profile} player={player} /><PlayerActions name={profile.name} /></>}
           <button className={styles.shareButton} aria-label="Copy public profile link" onClick={async () => {
-            try { await navigator.clipboard.writeText(`${window.location.origin}/players/${encodeURIComponent(profile.name)}`); setShared(true); setShareError(""); }
+            try { await navigator.clipboard.writeText(`${window.location.origin}/players/${encodeURIComponent(profile.name)}`); setShared(true); setTimeout(() => setShared(false), 1600); setShareError(""); toast("Profile link copied"); }
             catch { setShareError("Could not copy the link. Open the public profile to copy its address."); }
-          }}>{shared ? <Check size={15} /> : <Share2 size={15} />}{shared ? "Link copied" : "Share profile"}</button>
-          <span className={styles.srOnly} role="status">{shared ? "Public profile link copied" : ""}</span>
+          }}>{shared ? <Check size={15} className="pop-in" /> : <Share2 size={15} />}Share profile</button>
         </div>
       </div>
       <div className={styles.rankShowcase}>

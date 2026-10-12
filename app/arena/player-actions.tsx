@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import type { ReportKind } from "@/lib/api-types";
 import { request } from "./api";
+import { toast } from "./feedback";
 
 const KINDS: { value: ReportKind; label: string }[] = [
   { value: "cheating", label: "Cheating or automated play" },
@@ -27,7 +28,6 @@ export function PlayerActions({ name, onBlocked }: { name: string; onBlocked?: (
   const [detail, setDetail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const block = async () => {
     const sure = await dialog.confirm(
@@ -39,7 +39,7 @@ export function PlayerActions({ name, onBlocked }: { name: string; onBlocked?: (
     setError("");
     try {
       await request("/api/friends", { action: "block", name });
-      setNotice(`${name} is blocked.`);
+      toast(`${name} is blocked.`);
       onBlocked?.();
     } catch (e) {
       setError((e as Error).message);
@@ -55,7 +55,7 @@ export function PlayerActions({ name, onBlocked }: { name: string; onBlocked?: (
       await request("/api/friends", { action: "report", name, kind, detail });
       setReporting(false);
       setDetail("");
-      setNotice("Thank you. An administrator will look at this.");
+      toast("Thank you. An administrator will look at this.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -65,17 +65,12 @@ export function PlayerActions({ name, onBlocked }: { name: string; onBlocked?: (
 
   return (
     <>
-      <button className="btn" disabled={busy} onClick={() => (setError(""), setNotice(""), setReporting(true))}>
+      <button className="btn" disabled={busy} onClick={() => (setError(""), setReporting(true))}>
         <Flag size={15} /> Report
       </button>
       <button className="btn" disabled={busy} onClick={() => void block()}>
         <Ban size={15} /> Block
       </button>
-      {notice && (
-        <span className="fine" role="status" style={{ color: "#c6f564" }}>
-          {notice}
-        </span>
-      )}
       {error && !reporting && (
         <span className="fine" role="alert" style={{ color: "#ffb2bf" }}>
           {error}

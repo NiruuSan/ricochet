@@ -37,3 +37,24 @@
   .action :global(.btn) { width: 100%; }
   .reward { justify-content: center; }
 }
+
+/* Claim all: the one button for everything finished. */
+.claimAll { display: inline-flex; align-items: center; gap: 9px; flex-shrink: 0; white-space: nowrap; }
+.claimAllGems { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: #12170b2e; font-size: 13px; }
+
+/* A quest that just went up a rung: the row lifts, glows, and the new tier lands. */
+.raised { animation: raised 1.2s cubic-bezier(0.2, 1, 0.3, 1); }
+.raised .tier { animation: tierIn 0.6s 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+.raised .fill { transition-duration: 0.9s; }
+@keyframes raised {
+  0% { transform: none; box-shadow: none; }
+  25% { transform: translateY(-3px) scale(1.012); box-shadow: 0 0 0 1px #c6f56499, 0 14px 40px #c6f5641f; }
+  100% { transform: none; box-shadow: none; }
+}
+@keyframes tierIn { from { transform: scale(0.4); opacity: 0; } }
+@media (max-width: 620px) {
+  .claimAll { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .raised, .raised .tier { animation: none; }
+}

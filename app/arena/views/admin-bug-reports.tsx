@@ -5,6 +5,7 @@ import type { BugReport, BugReportPage } from "@/lib/bug-report-types";
 import { request } from "../api";
 import styles from "../bug-reports.module.css";
 import admin from "./admin.module.css";
+import { toast } from "../feedback";
 
 export function AdminBugReports() {
   const [offset, setOffset] = useState(0);
@@ -14,7 +15,6 @@ export function AdminBugReports() {
 function ReportPage({ offset, onPage }: { offset: number; onPage: (offset: number) => void }) {
   const [data, setData] = useState<BugReportPage | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const [revision, setRevision] = useState(0);
   useEffect(() => {
@@ -29,19 +29,18 @@ function ReportPage({ offset, onPage }: { offset: number; onPage: (offset: numbe
   }, [offset, revision]);
 
   const update = async (report: BugReport) => {
-    setBusy(report.id); setError(""); setNotice("");
+    setBusy(report.id); setError("");
     const status = report.status === "open" ? "resolved" : "open";
     try {
       await request("/api/admin/bug-reports", { id: report.id, status });
       setRevision((value) => value + 1);
-      setNotice(status === "resolved" ? "Bug report marked as resolved." : "Bug report reopened.");
+      toast(status === "resolved" ? "Bug report marked as resolved." : "Bug report reopened.");
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(""); }
   };
 
   return <>
     {error && <div className="error" role="alert"><span>{error}</span><button className="btn" onClick={() => setRevision((value) => value + 1)}>Retry</button></div>}
-    {notice && <p className="success" role="status">{notice}</p>}
     {!data ? !error && <p className={admin.loading}>Loading bug reports…</p> : <>
       <p className={admin.fine}>{data.total} {data.total === 1 ? "report" : "reports"}</p>
       {!data.reports.length && <p className={admin.empty}>{offset ? "No reports on this page." : "No bugs reported yet."}</p>}

@@ -10,6 +10,7 @@ import type { PlayerState } from "./arena";
 import { request, RequestError } from "./api";
 import { CodeInput } from "./two-factor-panel";
 import { exactSol } from "./format";
+import { toast } from "./feedback";
 
 type Operation = { id: string; recipient: string; amount: string };
 
@@ -19,7 +20,6 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
   const [review, setReview] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [receipt, setReceipt] = useState<TipReceipt | null>(null);
   const [operation, setOperation] = useState<Operation | null>(null);
   const [restoreFailed, setRestoreFailed] = useState(false);
   // Tips past the daily free allowance ask for the second factor, like a withdrawal.
@@ -29,7 +29,7 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
   const storageKey = `ricochet:tip:${player.data.player?.publicId}:${profile.publicId}`;
 
   const show = () => {
-    setError(""); setReceipt(null); setReview(!!operation); setRestoreFailed(false); setCode(""); setCodeNeeded(null);
+    setError(""); setReview(!!operation); setRestoreFailed(false); setCode(""); setCodeNeeded(null);
     try {
       const saved = sessionStorage.getItem(storageKey);
       if (saved) {
@@ -50,7 +50,9 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
       sessionStorage.setItem(storageKey, JSON.stringify(pending));
       setOperation(pending);
       const next = await request<TipReceipt>("/api/tips", { ...pending, code: code.trim() || undefined });
-      setReceipt(next);
+      // Sent: the dialog closes and a toast says so, rather than the dialog changing to say it.
+      setOpen(false);
+      toast("Tip sent", { detail: `${exactSol(next.amount)} devnet SOL to ${next.recipient}` });
       setCode(""); setCodeNeeded(null);
       setOperation(null);
       try { sessionStorage.removeItem(storageKey); } catch { /* Replaying a saved receipt is harmless. */ }
@@ -73,13 +75,10 @@ export function TipButton({ profile, player }: { profile: PublicPlayerProfile; p
     <button type="button" className="btn btn-primary" onClick={show}><Gift /> Tip</button>
     <Dialog open={open} onOpenChange={(value) => { if (!inFlight.current) setOpen(value); }}>
       <DialogContent className="dialog-dark">
-        <DialogTitle>{receipt ? "Tip sent" : `Tip ${profile.name}`}</DialogTitle>
+        <DialogTitle>{`Tip ${profile.name}`}</DialogTitle>
         <DialogDescription>Send devnet SOL from your available Bounce balance directly to this player’s balance. No tip fee. Test funds only.</DialogDescription>
         {error && <div className="error" role="alert">{error}</div>}
-        {receipt ? <>
-          <p className="success" role="status">Sent {exactSol(receipt.amount)} devnet SOL to {receipt.recipient}.</p>
-          <button className="btn btn-primary" onClick={() => setOpen(false)}>Done</button>
-        </> : restoreFailed ? <Link className="btn" href="/wallet">Check wallet activity</Link> : !player.loaded ? <p>Loading your wallet…</p> : !player.data.player ? <Link className="btn btn-primary" href={player.data.authenticated ? "/signup" : "/login"}>Sign in or create a player to tip</Link>
+        {restoreFailed ? <Link className="btn" href="/wallet">Check wallet activity</Link> : !player.loaded ? <p>Loading your wallet…</p> : !player.data.player ? <Link className="btn btn-primary" href={player.data.authenticated ? "/signup" : "/login"}>Sign in or create a player to tip</Link>
           : !player.data.launch?.configured ? <p>Devnet tipping is currently unavailable.</p> : <>
             <p className="fine">Available: {exactSol(player.data.cashBalance ?? 0)} devnet SOL. <Link className="lime" href="/wallet">Fund wallet</Link></p>
             {review ? <>

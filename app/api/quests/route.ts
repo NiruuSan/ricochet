@@ -1,7 +1,7 @@
 import { currentUser } from "@/lib/auth-user";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
-import { claimQuest, questBoard } from "@/lib/quests";
+import { claimAllQuests, claimQuest, questBoard } from "@/lib/quests";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export async function GET() {
   }
 }
 
-/** Takes the gems for one finished quest. */
+/** Takes the gems for one finished quest, or for every one that is finished. */
 export async function POST(req: Request) {
   try {
     if (!sameOrigin(req)) return json({ error: "Request origin rejected." }, 403);
@@ -29,9 +29,16 @@ export async function POST(req: Request) {
     if (await rateLimited("gameWrite", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
     const parsed = await readBody(req, 1024);
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
-    if (parsed.body.action !== "claim") return json({ error: "Unknown action." }, 400);
-    await claimQuest(user.userId, parsed.body.scope, parsed.body.quest);
-    return json(await questBoard(user.userId));
+    const { action, scope, quest } = parsed.body;
+    if (action === "claim") {
+      const taken = await claimQuest(user.userId, scope, quest);
+      return json({ board: await questBoard(user.userId), claimed: { count: 1, gems: taken.reward } });
+    }
+    if (action === "claimAll") {
+      const claimed = await claimAllQuests(user.userId);
+      return json({ board: await questBoard(user.userId), claimed });
+    }
+    return json({ error: "Unknown action." }, 400);
   } catch (e) {
     if (e instanceof GameError) return json({ error: e.message }, e.status);
     console.error(e);

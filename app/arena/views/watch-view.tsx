@@ -7,6 +7,7 @@ import { Avatar } from "../avatar";
 import { amount } from "../format";
 import { useSpectator } from "../use-spectator";
 import styles from "./watch.module.css";
+import { toast } from "../feedback";
 
 export function WatchView({ id }: { id: string }) {
   const { data, game, error, revision, flying, aiming, liveScore, replaying, speed, replay, goLive, toggleSpeed, attachCanvas } = useSpectator(id);
@@ -20,7 +21,8 @@ export function WatchView({ id }: { id: string }) {
       if (navigator.share) return await navigator.share({ title, url });
       await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setTimeout(() => setCopied(false), 1600);
+      toast("Link copied", { detail: "Anyone with it can watch this run." });
     } catch {
       // A share the viewer dismissed, or a browser without either: nothing to report.
     }
@@ -179,7 +181,7 @@ export function WatchView({ id }: { id: string }) {
               </button>
             )}
             <button className="btn" onClick={() => void share()}>
-              {copied ? <Check size={15} /> : <Share2 size={15} />} {copied ? "Link copied" : "Share this run"}
+              {copied ? <Check size={15} className="pop-in" /> : <Share2 size={15} />} Share this run
             </button>
           </div>
           {!data.replayable && data.revision > 0 && <p className={styles.note}>This run started before replays were recorded, so only new shots animate.</p>}

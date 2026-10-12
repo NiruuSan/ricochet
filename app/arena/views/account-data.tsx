@@ -7,6 +7,7 @@ import { signInWith, type SignInProvider } from "../../auth-actions";
 import { request, RequestError } from "../api";
 import type { PlayerState } from "../arena";
 import styles from "./profile-dashboard.module.css";
+import { toast } from "../feedback";
 
 /**
  * The two things a player can do with their own account beyond playing: take a
@@ -16,7 +17,6 @@ import styles from "./profile-dashboard.module.css";
 export function AccountData({ player }: { player: PlayerState }) {
   const [busy, setBusy] = useState<"" | "export" | "delete">("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [reauth, setReauth] = useState<SignInProvider | null>(null);
   const name = player.data.player?.name ?? "";
@@ -25,7 +25,6 @@ export function AccountData({ player }: { player: PlayerState }) {
   const download = async () => {
     setBusy("export");
     setError("");
-    setNotice("");
     try {
       const data = await request<Record<string, unknown>>("/api/profile", { action: "export" });
       const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
@@ -34,7 +33,7 @@ export function AccountData({ player }: { player: PlayerState }) {
       link.download = `bounce-${name || "account"}-${new Date().toISOString().slice(0, 10)}.json`;
       link.click();
       URL.revokeObjectURL(url);
-      setNotice("Your data was downloaded as a JSON file.");
+      toast("Your data was downloaded as a JSON file.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -49,7 +48,7 @@ export function AccountData({ player }: { player: PlayerState }) {
     try {
       await request("/api/profile", { action: "delete" });
       setConfirming(false);
-      setNotice("Your account is closed. Your name, picture and notifications are gone.");
+      toast("Your account is closed. Your name, picture and notifications are gone.");
       await player.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -71,11 +70,6 @@ export function AccountData({ player }: { player: PlayerState }) {
         </div>
         <span className={styles.statsScope}>Private to you</span>
       </div>
-      {notice && (
-        <p className={`success ${styles.accountNote}`} role="status">
-          {notice}
-        </p>
-      )}
       {error && !confirming && (
         <p className={`error ${styles.accountNote}`} role="alert">
           {error}
@@ -112,7 +106,7 @@ export function AccountData({ player }: { player: PlayerState }) {
           <button
             className="btn btn-danger"
             disabled={!!busy}
-            onClick={() => (setError(""), setNotice(""), setTyped(""), setConfirming(true))}
+            onClick={() => (setError(""), setTyped(""), setConfirming(true))}
           >
             <Trash2 /> Delete my account
           </button>

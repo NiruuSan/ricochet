@@ -7,6 +7,7 @@ import type { ReportRow } from "@/lib/api-types";
 import { request } from "../api";
 import { timeAgo } from "../format";
 import styles from "./admin.module.css";
+import { toast } from "../feedback";
 
 const REFRESH_MS = 30_000;
 const LABELS: Record<string, string> = {
@@ -24,7 +25,6 @@ export function AdminReports() {
   const dialog = useActionDialog();
   const [list, setList] = useState<ReportRow[] | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
 
   const load = useCallback(
@@ -49,11 +49,10 @@ export function AdminReports() {
     if (note === null) return;
     setBusy(report.id);
     setError("");
-    setNotice("");
     try {
       await request("/api/admin/reports", { action: "resolve", id: report.id, note });
       await load();
-      setNotice("Report closed.");
+      toast("Report closed.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -69,11 +68,6 @@ export function AdminReports() {
         <div className="error" role="alert">
           <span>{error}</span>
         </div>
-      )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
       )}
       {!list ? (
         <p className={styles.loading}>Loading reports…</p>

@@ -10,6 +10,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import { amount, timeAgo } from "../format";
 import styles from "./admin.module.css";
+import { toast } from "../feedback";
 
 const REFRESH_MS = 15_000;
 
@@ -26,7 +27,6 @@ export function AdminGames() {
   const dialog = useActionDialog();
   const [list, setList] = useState<AdminGame[] | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
@@ -54,11 +54,10 @@ export function AdminGames() {
     if (reason === null) return;
     setBusy(g.id);
     setError("");
-    setNotice("");
     try {
       const result = await request<{ refunded: number; players: number }>("/api/admin/games", { action: "cancel", id: g.id, reason });
       await load();
-      setNotice(`Match cancelled · ${amount(result.refunded, g.asset)} returned to ${result.players} ${result.players === 1 ? "player" : "players"}.`);
+      toast(`Match cancelled · ${amount(result.refunded, g.asset)} returned to ${result.players} ${result.players === 1 ? "player" : "players"}.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -72,11 +71,6 @@ export function AdminGames() {
         <div className="error" role="alert">
           <span>{error}</span>
         </div>
-      )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
       )}
       {!list ? (
         <p className={styles.loading}>Loading matches…</p>

@@ -13,7 +13,7 @@
 // does not exist on iOS at all — the taps below are an Android extra, never
 // something the game leans on.
 
-type Voice = "launch" | "hit" | "break" | "land" | "clear" | "over" | "win" | "lose";
+type Voice = "launch" | "hit" | "break" | "land" | "clear" | "over" | "win" | "lose" | "coin";
 
 const KEY = "bounce.sound";
 /** Master level. The game is played next to other tabs; it does not shout. */
@@ -223,6 +223,11 @@ export function playSound(voice: Voice, count = 1) {
       break;
     case "lose":
       [0, -3].forEach((note, i) => play({ at: i * 0.18, from: 146.83 * 2 ** (note / 12), length: 0.45, gain: 0.26 }));
+      break;
+    case "coin":
+      // Money landing in the balance: a quick climbing patter, one note a gem.
+      for (let i = 0; i < Math.min(count, 8); i++) play({ at: i * 0.04, from: 293.66 * 2 ** (STEPS[i] / 12), length: 0.14, gain: 0.16, shape: "triangle" });
+      play({ at: Math.min(count, 8) * 0.04, from: 587.33, length: 0.3, gain: 0.12 });
       break;
   }
 }

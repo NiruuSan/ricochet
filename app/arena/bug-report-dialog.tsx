@@ -8,6 +8,7 @@ import { Form } from "@/components/ui/form";
 import { BUG_ATTACHMENT_LIMITS, BUG_ATTACHMENT_TYPES, BUG_REPORT_LIMITS } from "@/lib/bug-report-types";
 import { request } from "./api";
 import styles from "./bug-reports.module.css";
+import { toast } from "./feedback";
 
 /**
  * The upload SDK reports every refusal from our own route as one opaque line,
@@ -38,11 +39,10 @@ export function BugReportDialog({ open, onOpenChange, signedIn, hasProfile }: {
   const [files, setFiles] = useState<{ id: string; file: File; uploaded: boolean }[]>([]);
   const [progress, setProgress] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const changeOpen = (next: boolean) => {
     if (busy) return;
-    if (!next) { setSent(false); setError(""); }
+    if (!next) setError("");
     onOpenChange(next);
   };
 
@@ -53,9 +53,6 @@ export function BugReportDialog({ open, onOpenChange, signedIn, hasProfile }: {
       {!hasProfile ? <div>
         <p>{signedIn ? "Create your player profile to send a report." : "Sign in to send a bug report."}</p>
         <Link className="btn btn-primary" style={{ marginTop: 16 }} href={signedIn ? "/signup" : "/login"}>{signedIn ? "Create profile" : "Sign in"}</Link>
-      </div> : sent ? <div>
-        <p role="status">Bug report sent. Thanks for helping us improve Bounce.</p>
-        <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => changeOpen(false)}>Done</button>
       </div> : <Form onSubmit={async (event) => {
         event.preventDefault();
         if (busy) return;
@@ -79,7 +76,10 @@ export function BugReportDialog({ open, onOpenChange, signedIn, hasProfile }: {
           }
           setProgress("Sending report…");
           await request("/api/bug-reports", { title, description, attachments: files.map((file) => file.id), page: window.location.pathname });
-          setSent(true); setTitle(""); setDescription(""); setFiles([]);
+          setTitle(""); setDescription(""); setFiles([]);
+          // Sent: the dialog closes and a toast says so.
+          onOpenChange(false);
+          toast("Bug report sent", { detail: "Thanks for helping us improve Bounce." });
         } catch (e) { setError((e as Error).message); }
         finally { setBusy(false); setProgress(""); }
       }}>

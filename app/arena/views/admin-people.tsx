@@ -9,6 +9,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import { amount, assetName, fullSol, timeAgo } from "../format";
 import styles from "./admin.module.css";
+import { toast } from "../feedback";
 
 const REFRESH_MS = 30_000;
 
@@ -22,7 +23,6 @@ export function AdminPeople() {
   const [list, setList] = useState<AdminPlayer[] | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
 
   const load = useCallback(
@@ -49,11 +49,10 @@ export function AdminPeople() {
     if (!answer) return;
     setBusy(player.name);
     setError("");
-    setNotice("");
     try {
       const done = await request<{ name: string; swept: number }>("/api/admin/players", { action: "delete", name: player.name, reason: answer.reason, code: answer.code });
       await load();
-      setNotice(done.swept > 0 ? `${done.name} deleted · ${amount(done.swept, "devnet")} moved to the treasury.` : `${done.name} deleted.`);
+      toast(done.swept > 0 ? `${done.name} deleted · ${amount(done.swept, "devnet")} moved to the treasury.` : `${done.name} deleted.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -73,11 +72,10 @@ Balances, wallets and the ledger are untouched. Write the reason; it is recorded
     if (reason === null) return;
     setBusy(player.name);
     setError("");
-    setNotice("");
     try {
       const done = await request<{ name: string; matches: number; entries: number }>("/api/admin/players", { action: "reset", name: player.name, reason });
       await load();
-      setNotice(`${done.name}'s statistics reset · ${done.matches} ${done.matches === 1 ? "match" : "matches"} and ${done.entries} tournament ${done.entries === 1 ? "entry" : "entries"} removed.`);
+      toast(`${done.name}'s statistics reset · ${done.matches} ${done.matches === 1 ? "match" : "matches"} and ${done.entries} tournament ${done.entries === 1 ? "entry" : "entries"} removed.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -93,11 +91,6 @@ Balances, wallets and the ledger are untouched. Write the reason; it is recorded
         <div className="error" role="alert">
           <span>{error}</span>
         </div>
-      )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
       )}
       <div className={styles.search}>
         <Search size={16} />

@@ -7,6 +7,7 @@ import { RankEmblem } from "../rank-badge";
 import { request } from "../api";
 import { amount, assetName, currency, units } from "../format";
 import type { PlayerState } from "../arena";
+import { reward as payOut } from "../feedback";
 import styles from "./cashback.module.css";
 
 // What the player gets back, and the grid it came from. The money side of it is
@@ -45,7 +46,6 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
   const [board, setBoard] = useState<Board | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const load = useCallback(
     () => request<Board>("/api/rewards").then(setBoard, (e: Error) => setError(e.message)),
@@ -57,13 +57,12 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
 
   if (!player.data.player) return null;
 
-  const claim = async (reward: Reward) => {
+  const claim = async (reward: Reward, from: Element) => {
     setBusy(reward.scope);
     setError("");
-    setNotice("");
     try {
       setBoard(await request<Board>("/api/rewards", { action: "claim", scope: reward.scope }));
-      setNotice(`${value(reward)} back. That is yours.`);
+      payOut(reward.asset, reward.amount, from, `${reward.scope === "weekly" ? "Weekly" : "Monthly"} cashback`);
       await player.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -96,11 +95,6 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
           <span>{error}</span>
         </div>
       )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
-      )}
 
       {!board ? (
         <p className="muted">Loading your cashback…</p>
@@ -125,7 +119,7 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
                 <strong className={reward.asset === "gems" ? styles.gems : undefined}>
                   {reward.asset === "gems" ? <Gem size={15} /> : <Coins size={15} />} {value(reward)}
                 </strong>
-                <button className="btn btn-primary" disabled={reward.claimed || busy === reward.scope} onClick={() => void claim(reward)}>
+                <button className="btn btn-primary" disabled={reward.claimed || busy === reward.scope} onClick={(e) => void claim(reward, e.currentTarget)}>
                   {reward.claimed ? "Claimed" : busy === reward.scope ? "Claiming…" : "Claim"}
                 </button>
               </div>

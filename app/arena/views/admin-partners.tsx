@@ -8,6 +8,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import styles from "./admin.module.css";
 import { currency, fullSol } from "../format";
+import { toast } from "../feedback";
 
 const REFRESH_MS = 30_000;
 
@@ -21,7 +22,6 @@ export function AdminPartners() {
   const [list, setList] = useState<AdminReferral[] | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
 
   const load = useCallback(
@@ -48,12 +48,11 @@ export function AdminPartners() {
     if (reason === null) return;
     setBusy(player);
     setError("");
-    setNotice("");
     try {
       const done = await request<{ name: string; level: number }>("/api/admin/referrals", { action: "level", name: player, level, reason });
       await load();
       setName("");
-      setNotice(done.level === 2 ? `${done.name} is now a partner.` : `${done.name} is no longer a partner.`);
+      toast(done.level === 2 ? `${done.name} is now a partner.` : `${done.name} is no longer a partner.`);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -67,11 +66,6 @@ export function AdminPartners() {
         <div className="error" role="alert">
           <span>{error}</span>
         </div>
-      )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
       )}
 
       <Form

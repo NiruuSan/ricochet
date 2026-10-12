@@ -7,6 +7,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import { amount, units } from "../format";
 import styles from "./admin.module.css";
+import { toast } from "../feedback";
 
 /** What the house still owes: runs in matches, runs in cups, and cups ahead. */
 type Work = { matches: number; cupRuns: number; cupsAhead: number };
@@ -29,7 +30,6 @@ export function AdminBots() {
   const dialog = useActionDialog();
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
 
   const load = useCallback(
@@ -49,12 +49,11 @@ export function AdminBots() {
   const send = async (body: Record<string, unknown>, said?: string) => {
     setBusy(String(body.action));
     setError("");
-    setNotice("");
     try {
       const next = await request<Partial<Board> & Record<string, unknown>>("/api/admin/bots", body);
       if (next.config && next.bots) setBoard({ config: next.config, bots: next.bots, work: next.work ?? board?.work ?? { matches: 0, cupRuns: 0, cupsAhead: 0 } });
       else await load();
-      if (said) setNotice(said);
+      if (said) toast(said);
       return next;
     } catch (e) {
       setError((e as Error).message);
@@ -78,7 +77,7 @@ export function AdminBots() {
     );
     if (!ok) return;
     const done = await send({ action: "remove" });
-    if (done) setNotice(`${done.retired} retired · ${amount(Number(done.swept ?? 0), "devnet")} back in the treasury.`);
+    if (done) toast(`${done.retired} retired · ${amount(Number(done.swept ?? 0), "devnet")} back in the treasury.`);
   };
 
   if (!board) return <p className={styles.loading}>{error || "Loading the house players…"}</p>;
@@ -90,11 +89,6 @@ export function AdminBots() {
         <div className="error" role="alert">
           <span>{error}</span>
         </div>
-      )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
       )}
 
       <section className={styles.panel}>
@@ -182,7 +176,7 @@ export function AdminBots() {
                 done.joined ? `${done.joined} ${done.joined === 1 ? "seat" : "seats"} taken` : "",
                 done.entered ? `${done.entered} ${done.entered === 1 ? "cup" : "cups"} entered` : "",
               ].filter(Boolean);
-              setNotice(said.length ? `${said.join(" · ")}.` : "Nothing was waiting for them.");
+              toast(said.length ? `${said.join(" · ")}.` : "Nothing was waiting for them.");
             }}
           >
             <Play size={15} /> Play everything waiting

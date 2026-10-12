@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { Flag, Link2, LogOut } from "lucide-react";
+import { Check, Flag, Link2, LogOut } from "lucide-react";
 import type { Asset, MatchRecap, Run, TournamentDetail } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -14,6 +14,7 @@ import { ResultScreen, type ResultTarget } from "./result-screen";
 import { TournamentResult } from "./tournament-result";
 import { themeStyle } from "../theme";
 import styles from "./screens.module.css";
+import { toast } from "../feedback";
 
 type Props = {
   player: PlayerState;
@@ -214,8 +215,16 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
                     vs <Avatar name={currentMatch.opponent} src={currentMatch.opponent_avatar} size={26} /> <b>{currentMatch.opponent}</b>
                   </>
                 ) : run.invite ? (
-                  <button className={styles.hudLink} onClick={() => void shareChallenge(run.invite!).then((copied) => copied && setLinkCopied(true))}>
-                    <Link2 size={14} /> {linkCopied ? "Link copied" : "Copy the challenge link"}
+                  <button className={styles.hudLink} onClick={() =>
+                      void shareChallenge(run.invite!).then((copied) => {
+                        if (!copied) return;
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 1600);
+                        toast("Challenge link copied", { detail: "Whoever opens it takes the seat opposite you." });
+                      })
+                    }
+                  >
+                    {linkCopied ? <Check size={14} className="pop-in" /> : <Link2 size={14} />} Copy the challenge link
                   </button>
                 ) : (
                   "Seat open · you set the score"

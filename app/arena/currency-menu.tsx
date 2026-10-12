@@ -6,6 +6,8 @@ import { Check, ChevronDown, Wallet } from "lucide-react";
 import { SolanaMark } from "./solana-mark";
 import { units } from "./format";
 import { DISPLAYS, moneySnapshot, setMoney, subscribeMoney, type Display } from "./money";
+import { RollingBalance, useArrival } from "./feedback";
+import feedback from "./feedback.module.css";
 import styles from "./currency-menu.module.css";
 
 // The balance in the top bar, and the two questions behind it: which network the
@@ -29,12 +31,15 @@ export function CurrencyMenu({ lamports }: { lamports: number }) {
   const { choice, rate } = useMoney();
   // Without a rate there is nothing to convert to, so the balance stays in SOL.
   const reading = choice === "sol" || !rate ? "sol" : choice;
+  const landing = useArrival("devnet");
 
   return (
     <Primitive.Root>
-      <Primitive.Trigger className={styles.trigger} aria-label="Balance and currency">
+      <Primitive.Trigger className={`${styles.trigger} ${landing ? feedback.pulse : ""}`} aria-label="Balance and currency" data-balance="devnet">
         {reading === "sol" ? <SolanaMark size={17} /> : <span className={styles.sign}>{NAMES[reading].sign}</span>}
-        <b>{units(lamports, "devnet")}</b>
+        <b>
+          <RollingBalance asset="devnet" value={lamports} format={(n) => units(n, "devnet")} />
+        </b>
         <ChevronDown size={14} className={styles.chevron} />
       </Primitive.Trigger>
       <Primitive.Portal>

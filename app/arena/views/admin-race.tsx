@@ -11,6 +11,7 @@ import { request } from "../api";
 import { amount, units } from "../format";
 import styles from "./admin.module.css";
 import { prizeLabel } from "./weekly-race";
+import { toast } from "../feedback";
 
 type AdminRaces = { prizes: RacePrize[]; weeks: AdminRaceWeek[] };
 type PrizeInput = { sol: string; gems: string };
@@ -23,17 +24,15 @@ function PrizeSettings({ prizes, onSaved }: { prizes: RacePrize[]; onSaved: () =
   const [values, setValues] = useState<PrizeInput[]>(() => toInput(prizes));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const set = (i: number, key: keyof PrizeInput, value: string) => setValues((current) => current.map((v, j) => (j === i ? { ...v, [key]: value } : v)));
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError("");
-    setNotice("");
     try {
       await request("/api/admin/race", { action: "prizes", prizes: values.map((v) => ({ sol: v.sol.trim(), gems: Number(v.gems) })) });
-      setNotice("Prizes saved. They apply to the next payout.");
+      toast("Prizes saved. They apply to the next payout.");
       onSaved();
     } catch (err) {
       setError((err as Error).message);
@@ -51,11 +50,6 @@ function PrizeSettings({ prizes, onSaved }: { prizes: RacePrize[]; onSaved: () =
       {error && (
         <p className="error" role="alert">
           {error}
-        </p>
-      )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
         </p>
       )}
       <div className={styles.form}>

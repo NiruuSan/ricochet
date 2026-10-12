@@ -4,6 +4,7 @@ import { ShieldAlert, Send, Check } from "lucide-react";
 import { MAX_APPEAL } from "@/lib/api-types";
 import { request } from "./api";
 import type { PlayerState } from "./arena";
+import { toast } from "./feedback";
 
 /**
  * What a player sees when a case is open on their account.
@@ -31,6 +32,7 @@ export function SuspensionNotice({ player }: { player: PlayerState }) {
     try {
       await request("/api/profile", { action: "appeal", text });
       setSent(true);
+      toast("Appeal sent", { detail: "An administrator will review it." });
       void player.refresh();
     } catch (e) {
       setError((e as Error).message);

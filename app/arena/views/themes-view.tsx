@@ -10,6 +10,7 @@ import type { PlayerState } from "../arena";
 import { drawBoard } from "../board-canvas";
 import { themeStyle } from "../theme";
 import styles from "./themes.module.css";
+import { toast } from "../feedback";
 
 type Store = { themes: Theme[]; owned: ThemeId[]; equipped: ThemeId };
 
@@ -61,7 +62,6 @@ export function ThemesView({ player }: { player: PlayerState }) {
   const [store, setStore] = useState<Store | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const load = useCallback(
     () => request<Store>("/api/themes").then((next) => setStore(next), (e: Error) => setError(e.message)),
@@ -72,11 +72,10 @@ export function ThemesView({ player }: { player: PlayerState }) {
   const act = async (theme: Theme, action: "buy" | "equip") => {
     setBusy(theme.id);
     setError("");
-    setNotice("");
     try {
       const next = await request<Store>("/api/themes", { action, theme: theme.id });
       setStore((current) => (current ? { ...current, ...next } : current));
-      setNotice(action === "buy" ? `${theme.name} is yours, and on the board.` : `${theme.name} it is.`);
+      toast(action === "buy" ? `${theme.name} is yours, and on the board.` : `${theme.name} it is.`);
       await player.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -106,11 +105,6 @@ export function ThemesView({ player }: { player: PlayerState }) {
         <div className="error" role="alert">
           <span>{error}</span>
         </div>
-      )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
       )}
 
       {!player.data.player ? (

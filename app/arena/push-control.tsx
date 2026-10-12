@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { request } from "./api";
+import { toast } from "./feedback";
 
 export function PushControl() {
   const [key, setKey] = useState<string | null>(null);
@@ -48,11 +49,13 @@ export function PushControl() {
           await sub.unsubscribe();
         }
         setSubscribed(false);
+        toast("Push notifications off", { tone: "info" });
       } else {
         const applicationServerKey = Uint8Array.from(atob(key!.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0));
         sub ??= await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey });
         await request("/api/push", { action: "subscribe", subscription: sub.toJSON() });
         setSubscribed(true);
+        toast("Push notifications on", { detail: "You will hear when your opponent finishes." });
       }
     } catch (e) { setMessage(e instanceof Error ? e.message : "Unable to update push notifications."); }
     finally { setBusy(false); }

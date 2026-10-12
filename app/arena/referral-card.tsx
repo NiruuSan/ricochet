@@ -6,6 +6,7 @@ import { REFERRAL_FEES, type ReferralSummary } from "@/lib/api-types";
 import { request } from "./api";
 import styles from "./wallet.module.css";
 import { currency, fullSol } from "./format";
+import { reward, toast } from "./feedback";
 
 const hoursLeft = (until: number) => Math.max(1, Math.round((until - Date.now()) / 3_600_000));
 
@@ -22,7 +23,6 @@ export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [claiming, setClaiming] = useState(false);
-  const [claimed, setClaimed] = useState(0);
   useEffect(() => {
     let active = true;
     request<ReferralSummary>("/api/referrals").then(
@@ -46,6 +46,7 @@ export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
       setData({ ...data, code: saved.code });
       setDraft(null);
       setCopied("");
+      toast("Referral code saved", { detail: saved.code });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -54,12 +55,12 @@ export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
   };
 
   /** Takes everything the partnership has earned into the spendable balance. */
-  const claim = async () => {
+  const claim = async (from: Element) => {
     setClaiming(true);
     setError("");
     try {
       const { claimed: amount } = await request<{ claimed: number }>("/api/referrals", { action: "claim" });
-      setClaimed(amount);
+      reward("devnet", amount, from, "Partner earnings");
       setData({ ...data, pending: 0 });
       onClaimed?.();
     } catch (e) {
@@ -73,6 +74,8 @@ export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(what);
+      setTimeout(() => setCopied(""), 1600);
+      toast(what === "code" ? "Code copied" : "Invite link copied");
     } catch {
       setError("Select the code and copy it by hand.");
     }
@@ -99,11 +102,11 @@ export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
         <div className={styles.referralRow}>
           <button type="button" className={styles.referralCode} onClick={() => void copy(data.code, "code")} aria-label="Copy your referral code">
             <span>{data.code}</span>
-            {copied === "code" ? <Check size={15} /> : <Copy size={15} />}
+            {copied === "code" ? <Check size={15} className="pop-in" /> : <Copy size={15} />}
           </button>
           <button className="btn" onClick={() => void copy(link, "link")}>
-            {copied === "link" ? <Check /> : <Share2 />}
-            {copied === "link" ? "Link copied" : "Copy invite link"}
+            {copied === "link" ? <Check className="pop-in" /> : <Share2 />}
+            Copy invite link
           </button>
           <button className="btn" onClick={() => (setError(""), setDraft(data.code))}>
             <Pencil /> Change code
@@ -162,14 +165,12 @@ export function ReferralCard({ onClaimed }: { onClaimed?: () => void } = {}) {
               <small>{currency("devnet")}</small>
             </b>
             <p className={styles.claimNote}>
-              {claimed > 0
-                ? `${fullSol(claimed)} ${currency("devnet")} is in your balance.`
-                : data.pending > 0
+              {data.pending > 0
                   ? "Your share of every match your players play, waiting for you."
                   : "Your share gathers here as your players play. Come back and take it."}
             </p>
           </div>
-          <button className="btn btn-primary" disabled={claiming || data.pending <= 0} onClick={() => void claim()}>
+          <button className="btn btn-primary" disabled={claiming || data.pending <= 0} onClick={(e) => void claim(e.currentTarget)}>
             <HandCoins size={15} /> {claiming ? "Claiming…" : "Claim earnings"}
           </button>
         </div>

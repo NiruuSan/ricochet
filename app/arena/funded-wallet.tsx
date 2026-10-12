@@ -14,6 +14,7 @@ import { ReferralCard } from "./referral-card";
 import { currency, exactSol, fullSol, shortDate } from "./format";
 import { CurrencyPicker } from "./currency-menu";
 import styles from "./wallet.module.css";
+import { reward, toast } from "./feedback";
 
 type WalletData = {
   configured: boolean;
@@ -43,7 +44,6 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
   const unit = currency("devnet");
   const [data, setData] = useState<WalletData | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   // Withdrawals need the second factor; this is the code typed for the current one.
   const twoFactor = useTwoFactor();
   const [code, setCode] = useState("");
@@ -77,7 +77,6 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
   const act = async (body: Record<string, unknown>) => {
     setBusy(true);
     setError("");
-    setNotice("");
     try {
       const result = await request<Record<string, unknown>>(path, body);
       await load();
@@ -155,6 +154,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
     // A code is single-use: whatever happened, the next attempt needs a new one.
     setCode("");
     if (sent) {
+      toast("Withdrawal on its way", { detail: `${amount} devnet SOL · it confirms in about a minute` });
       setDialogOpen(false);
       setStage("edit");
       withdrawalId.current = null;
@@ -165,10 +165,24 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
 
   const recheckAll = async () => {
     const result = (await act({ action: "reconcile_all" })) as { checked: number; resolved: number; failed: number } | null;
-    if (result) setNotice(`Checked ${result.checked} open transfer(s): ${result.resolved} resolved, ${result.failed} could not be checked.`);
+    if (result) toast(`Checked ${result.checked} open transfer(s)`, { detail: `${result.resolved} resolved, ${result.failed} could not be checked.`, tone: result.failed ? "info" : "ok" });
   };
 
   const incoming = data?.transfers.find((t) => t.kind === "deposit" && isOpen(t));
+  // A deposit that was confirming and is now credited: the SOL flies from the
+  // deposit card into the balance, the way claimed gems do.
+  const depositCard = useRef<HTMLElement | null>(null);
+  const seen = useRef<Map<string, string> | null>(null);
+  useEffect(() => {
+    if (!data || treasury) return;
+    const before = seen.current;
+    seen.current = new Map(data.transfers.map((t) => [t.id, t.status]));
+    if (!before) return;
+    for (const t of data.transfers) {
+      const was = before.get(t.id);
+      if (t.kind === "deposit" && t.status === "finalized" && was && OPEN_STATUSES.includes(was)) reward("devnet", t.amount, depositCard.current, "Deposit credited");
+    }
+  }, [data, treasury]);
   const visibleTransfers = data?.transfers.filter((t) => treasury || transferFilter === "all" || t.kind === transferFilter) ?? [];
   const openWithdrawal = () => {
     setDialogOpen(true);
@@ -187,11 +201,6 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
       {error && (
         <p className="error" role="alert" style={{ marginTop: 15 }}>
           {error}
-        </p>
-      )}
-      {notice && (
-        <p className="fine" role="status" style={{ marginTop: 15 }}>
-          {notice}
         </p>
       )}
       {!data ? (
@@ -273,7 +282,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
             </div>
           )}
           <div className={treasury ? undefined : styles.fundingGrid}>
-          <section className={treasury ? undefined : styles.deposit} id={treasury ? undefined : "wallet-deposit"}>
+          <section ref={depositCard} className={treasury ? undefined : styles.deposit} id={treasury ? undefined : "wallet-deposit"}>
           {!treasury && <div className={styles.cardHeading}><ArrowDownToLine size={18} /><div><h2>Add devnet SOL</h2><p>Your personal deposit address</p></div><span className={styles.network}>DEVNET ONLY</span></div>}
           {!treasury && !data.address && <p className={styles.depositNote}>Your deposit address isn’t available yet. It will appear here when your wallet is ready.</p>}
           {data.address && (
@@ -309,13 +318,15 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
                   try {
                     await navigator.clipboard.writeText(data.address!);
                     setCopied(true);
+                    setTimeout(() => setCopied(false), 1600);
+                    toast("Address copied");
                   } catch {
                     setError("Select and copy the address above.");
                   }
                 }}
               >
-                {copied ? <Check /> : <Copy />}
-                {copied ? "Copied" : "Copy address"}
+                {copied ? <Check className="pop-in" /> : <Copy />}
+                Copy address
               </button>
             )}
             {treasury && <button

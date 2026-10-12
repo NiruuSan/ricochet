@@ -13,6 +13,8 @@ import { CurrencyMenu, useMoney } from "./currency-menu";
 import { startMoney } from "./money";
 import { units } from "./format";
 import { Notifications } from "./notifications";
+import { FeedbackHost, RollingBalance, useArrival } from "./feedback";
+import feedback from "./feedback.module.css";
 import { SuspensionNotice } from "./suspension-notice";
 import { useGameSession } from "./use-game-session";
 import type { View } from "./views";
@@ -41,6 +43,17 @@ const WalletView = dynamic(() => import("./views/wallet-view").then((m) => m.Wal
 const WelcomeView = dynamic(() => import("./views/welcome-view").then((m) => m.WelcomeView));
 
 export type PlayerState = ReturnType<typeof usePlayerData>;
+
+/** The gems in the top bar: where claimed gems fly, counting up as they land. */
+function GemBalance({ value }: { value: number }) {
+  const landing = useArrival("gems");
+  return (
+    <Link className={`pill-part ${landing ? feedback.pulse : ""}`} href="/wallet" aria-label="Your gems" data-balance="gems">
+      <GemIcon />
+      <RollingBalance asset="gems" value={value} format={(n) => units(n, "gems")} />
+    </Link>
+  );
+}
 
 // `short` is what the phone tab bar shows under each icon.
 const NAVIGATION = [
@@ -171,10 +184,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
               />
               <span className="balance-pill">
                 {data.launch?.configured && <CurrencyMenu lamports={data.cashBalance ?? 0} />}
-                <Link className="pill-part" href="/wallet" aria-label="Your gems">
-                  <GemIcon />
-                  {units(data.player.balance, "gems")}
-                </Link>
+                <GemBalance value={data.player.balance} />
               </span>
               {/* The account menu: where the profile, the wallet and the way out live. */}
               {/* The rank is the one mark of standing that has to be played
@@ -183,7 +193,12 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
               <Menu
                 label="Your account"
                 triggerClassName="avatar-link"
-                trigger={<Avatar name={data.player.name} src={data.player.avatar} />}
+                trigger={
+                  // Where money flies when the balance pill is hidden on a narrow screen.
+                  <span data-balance-fallback>
+                    <Avatar name={data.player.name} src={data.player.avatar} />
+                  </span>
+                }
                 items={[
                   { label: "Your profile", href: "/profile", icon: <UserRound /> },
                   { label: friendAlerts ? `Friends · ${friendAlerts}` : "Friends", href: "/friends", icon: <Users /> },
@@ -251,6 +266,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
           </div>
         </footer>
       </main>
+      <FeedbackHost />
       <BugReportDialog open={reportBug} onOpenChange={setReportBug} signedIn={!!data.authenticated} hasProfile={!!data.player} />
       <Dialog open={confirmForfeit} onOpenChange={setConfirmForfeit}>
         <DialogContent className="dialog-dark">

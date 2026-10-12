@@ -4,6 +4,7 @@ import { Gem, Check } from "lucide-react";
 import type { DailyGems } from "@/lib/api-types";
 import { request } from "../api";
 import { units } from "../format";
+import { reward } from "../feedback";
 import type { PlayerState } from "../arena";
 import styles from "./daily-gems.module.css";
 
@@ -34,11 +35,13 @@ export function DailyGemsCard({ player }: { player: PlayerState }) {
 
   if (!data.player || !daily) return null;
   const state = claimed ?? daily;
-  const claim = async () => {
+  const claim = async (from: Element) => {
     setBusy(true);
     setError("");
     try {
+      const taken = state.amount;
       setClaimed(await request<DailyGems>("/api/daily", { action: "claim" }));
+      reward("gems", taken, from, state.streak > 1 ? `Day ${state.streak} in a row` : undefined);
       await refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -69,7 +72,7 @@ export function DailyGemsCard({ player }: { player: PlayerState }) {
       </div>
       <div className={styles.action}>
         {state.ready ? (
-          <button className="btn btn-primary" disabled={busy} onClick={() => void claim()}>
+          <button className="btn btn-primary" disabled={busy} onClick={(e) => void claim(e.currentTarget)}>
             {busy ? "Claiming…" : `Claim ${units(state.amount, "gems")} gems`}
           </button>
         ) : (

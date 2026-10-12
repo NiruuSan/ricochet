@@ -9,6 +9,7 @@ import { signInWith, type SignInProvider } from "../../auth-actions";
 import { request, RequestError } from "../api";
 import { CodeInput } from "../two-factor-panel";
 import styles from "./admin.module.css";
+import { toast } from "../feedback";
 
 const date = (value: number | null) => (value === null ? "None" : new Date(value).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }));
 
@@ -21,7 +22,6 @@ export function AdminSecurity() {
   const [verified, setVerified] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [reauth, setReauth] = useState<SignInProvider | null>(null);
 
   useEffect(() => {
@@ -46,11 +46,6 @@ export function AdminSecurity() {
           {error}
         </p>
       )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
-      )}
 
       <Form
         className={styles.panel}
@@ -58,7 +53,6 @@ export function AdminSecurity() {
           e.preventDefault();
           setBusy(true);
           setError("");
-          setNotice("");
           setCode("");
           setReason("");
           setVerified(false);
@@ -129,11 +123,10 @@ export function AdminSecurity() {
               const target = data.player.name;
               setBusy(true);
               setError("");
-              setNotice("");
               setReauth(null);
               try {
                 const result = await request<{ withdrawalHoldUntil: number }>("/api/admin/security", { action: "reset", name: target, reason, code });
-                setNotice(`${target}'s two-factor authentication was reset. Withdrawals are paused until ${date(result.withdrawalHoldUntil)}.`);
+                toast(`${target}'s two-factor authentication was reset. Withdrawals are paused until ${date(result.withdrawalHoldUntil)}.`);
                 setReason("");
                 setVerified(false);
                 await lookup(target);

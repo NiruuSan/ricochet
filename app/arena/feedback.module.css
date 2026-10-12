@@ -1,0 +1,204 @@
+/* Toasts drop in under the top of the screen, clear of the notification toasts
+   (bottom right) and of the phone tab bar (bottom). */
+.toasts {
+  position: fixed;
+  /* Just under the top bar, so it never covers the navigation. */
+  top: calc(98px + env(safe-area-inset-top));
+  left: 50%;
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(440px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  max-width: 100%;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid #334055;
+  border-radius: 999px;
+  background: #182131f2;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 14px 40px #0009;
+  color: #f6f8fd;
+  pointer-events: auto;
+  animation: drop 0.42s cubic-bezier(0.2, 1.35, 0.4, 1) both;
+}
+.mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.ok .mark {
+  background: #c6f564;
+  color: #12170b;
+  animation: tick 0.5s 0.12s cubic-bezier(0.2, 1.6, 0.4, 1) both;
+}
+.info .mark {
+  background: #283446;
+  color: #9fccfc;
+}
+.error {
+  border-color: #8a3d48;
+}
+.error .mark {
+  background: #ff8091;
+  color: #2a0d12;
+}
+.copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-right: 4px;
+}
+.copy b {
+  font-size: 14px;
+  line-height: 1.3;
+}
+.copy small {
+  color: #a5b0c5;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.close {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #93a1b8;
+}
+.close:hover {
+  background: #ffffff14;
+  color: #fff;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Money in flight. */
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: 450;
+  pointer-events: none;
+  overflow: hidden;
+}
+.particle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: grid;
+  place-items: center;
+  will-change: transform, opacity;
+}
+.gem {
+  color: #7fd6ff;
+  filter: drop-shadow(0 0 8px #7fd6ffaa);
+}
+.sol {
+  filter: drop-shadow(0 0 8px #14f19588);
+}
+.amount {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 6px 9px;
+  border-radius: 999px;
+  background: #12170b;
+  border: 1px solid #c6f56466;
+  color: #c6f564;
+  font-size: 17px;
+  font-weight: 800;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  animation: rise 1.2s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+.amount svg {
+  width: 17px;
+  height: 17px;
+  color: #7fd6ff;
+}
+
+/* The balance that receives it. */
+.pulse {
+  animation: pulse 0.52s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+.pulse svg {
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.94);
+  }
+}
+@keyframes tick {
+  from {
+    transform: scale(0.3) rotate(-30deg);
+  }
+}
+@keyframes rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -30%) scale(0.6);
+  }
+  18% {
+    opacity: 1;
+    transform: translate(-50%, -110%) scale(1.08);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -150%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -190%) scale(0.96);
+  }
+}
+@keyframes pulse {
+  40% {
+    transform: scale(1.14);
+    color: #c6f564;
+  }
+}
+
+/* Between 621 and 1120px the navigation wraps under the logo, so the bar is taller. */
+@media (max-width: 1120px) {
+  .toasts {
+    top: calc(136px + env(safe-area-inset-top));
+  }
+}
+/* On a phone the bar is short again: the navigation moved to the bottom. */
+@media (max-width: 620px) {
+  .toasts {
+    top: calc(70px + env(safe-area-inset-top));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .ok .mark {
+    animation: none;
+  }
+}

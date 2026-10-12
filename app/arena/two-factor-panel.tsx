@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import type { SecurityStatus } from "@/lib/api-types";
 import { signInWith, signOutToLogin, type SignInProvider } from "../auth-actions";
 import { request, RequestError } from "./api";
+import { toast } from "./feedback";
 
 type Setup = { secret: string; uri: string; qr: string };
 type Mode = null | "setup" | "codes" | "disable" | "regenerate" | "signout";
@@ -102,6 +103,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
     try {
       await navigator.clipboard.writeText(text);
       setCopied(what);
+      toast(what === "secret" ? "Key copied" : "Recovery codes copied");
     } catch {
       setError("Select the text and copy it manually.");
     }
@@ -206,7 +208,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
                 Can&apos;t scan? Enter this key manually:
               </p>
               <button type="button" className="btn full" onClick={() => void copy(setup.secret.replaceAll(" ", ""), "secret")} style={{ fontFamily: "monospace", letterSpacing: 1, overflowWrap: "anywhere" }}>
-                {copied === "secret" ? <Check /> : <Copy />} {setup.secret}
+                {copied === "secret" ? <Check className="pop-in" /> : <Copy />} {setup.secret}
               </button>
               <Form
                 onSubmit={async (e) => {
@@ -246,7 +248,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
               </ol>
               <div className="row-actions">
                 <button className="btn" onClick={() => void copy(codes.join("\n"), "codes")}>
-                  {copied === "codes" ? <Check /> : <Copy />} {copied === "codes" ? "Copied" : "Copy codes"}
+                  {copied === "codes" ? <Check className="pop-in" /> : <Copy />} Copy codes
                 </button>
                 <button className="btn btn-primary" onClick={() => (setCodes([]), close())}>
                   I saved them

@@ -13,6 +13,7 @@ import { request } from "../api";
 import { timeAgo } from "../format";
 import type { PlayerState } from "../arena";
 import styles from "./friends.module.css";
+import { toast } from "../feedback";
 
 /** How often the list behind the conversation is refreshed. */
 const LIST_MS = 10_000;
@@ -47,7 +48,6 @@ export function FriendsView({ player }: { player: PlayerState }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   // The thread poller outlives any one render: what it needs lives in refs.
   const openRef = useRef<string | null>(null);
@@ -158,11 +158,10 @@ export function FriendsView({ player }: { player: PlayerState }) {
   const act = async (body: Record<string, unknown>, who: string, done?: string) => {
     setBusy(who);
     setError("");
-    setNotice("");
     try {
       await request("/api/friends", body);
       await Promise.all([load(), player.refresh()]);
-      if (done) setNotice(done);
+      if (done) toast(done);
       return true;
     } catch (e) {
       setError((e as Error).message);
@@ -179,7 +178,6 @@ export function FriendsView({ player }: { player: PlayerState }) {
     setMessages(null);
     setDraft("");
     setError("");
-    setNotice("");
     setOpen(who);
   };
 
@@ -304,11 +302,6 @@ export function FriendsView({ player }: { player: PlayerState }) {
         <div className="error" role="alert">
           <span>{error}</span>
         </div>
-      )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
       )}
 
       <div className={styles.layout}>

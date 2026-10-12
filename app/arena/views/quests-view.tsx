@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronsUp, Gem, Target } from "lucide-react";
+import { ChevronsUp, Gem, Sparkles, Target } from "lucide-react";
 import type { Quest, QuestBoard } from "@/lib/api-types";
 import { request } from "../api";
 import { units } from "../format";
+import { reward } from "../feedback";
 import type { PlayerState } from "../arena";
 import styles from "./quests.module.css";
 
@@ -25,8 +26,9 @@ export function closesIn(at: number, now: number) {
 export function QuestsView({ player }: { player: PlayerState }) {
   const [board, setBoard] = useState<QuestBoard | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
+  // The rows that just went up a rung, so they can show it.
+  const [raised, setRaised] = useState<string[]>([]);
   const [now, setNow] = useState(() => Date.now());
 
   const load = useCallback(
@@ -58,13 +60,18 @@ export function QuestsView({ player }: { player: PlayerState }) {
     );
   }
 
-  const claim = async (quest: Quest) => {
-    setBusy(`${quest.scope}:${quest.id}`);
+  // One quest, or every finished one. Either way the gems fly from the button
+  // that took them into the balance in the top bar.
+  const take = async (key: string, body: Record<string, unknown>, from: Element) => {
+    setBusy(key);
     setError("");
-    setNotice("");
     try {
-      setBoard(await request<QuestBoard>("/api/quests", { action: "claim", scope: quest.scope, quest: quest.id }));
-      setNotice(`+${units(quest.reward, "gems")} gems. ${quest.title} is now worth more, and asks for more.`);
+      const next = await request<{ board: QuestBoard; claimed: { count: number; gems: number } }>("/api/quests", body);
+      const was = new Map([...(board?.daily ?? []), ...(board?.weekly ?? [])].map((q) => [`${q.scope}:${q.id}`, q.tier]));
+      setRaised([...next.board.daily, ...next.board.weekly].filter((q) => q.tier > (was.get(`${q.scope}:${q.id}`) ?? q.tier)).map((q) => `${q.scope}:${q.id}`));
+      setTimeout(() => setRaised([]), 1400);
+      setBoard(next.board);
+      reward("gems", next.claimed.gems, from, next.claimed.count > 1 ? `${next.claimed.count} quests claimed` : undefined);
       await player.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -73,12 +80,13 @@ export function QuestsView({ player }: { player: PlayerState }) {
       setBusy("");
     }
   };
+  const ready = board ? [...board.daily, ...board.weekly].filter((q) => q.progress >= q.target) : [];
 
   const row = (quest: Quest) => {
     const finished = quest.progress >= quest.target;
     const key = `${quest.scope}:${quest.id}`;
     return (
-      <div key={key} className={`${styles.quest} ${finished ? styles.done : ""}`}>
+      <div key={key} className={`${styles.quest} ${finished ? styles.done : ""} ${raised.includes(key) ? styles.raised : ""}`}>
         <span className={styles.icon} aria-hidden>
           {quest.tier > 0 ? <ChevronsUp size={20} /> : <Target size={20} />}
         </span>
@@ -101,7 +109,11 @@ export function QuestsView({ player }: { player: PlayerState }) {
           <span className={styles.reward}>
             <Gem size={15} /> {units(quest.reward, "gems")}
           </span>
-          <button className="btn btn-primary" disabled={!finished || busy === key} onClick={() => void claim(quest)}>
+          <button
+            className="btn btn-primary"
+            disabled={!finished || !!busy}
+            onClick={(e) => void take(key, { action: "claim", scope: quest.scope, quest: quest.id }, e.currentTarget)}
+          >
             {busy === key ? "Claiming…" : finished ? "Claim" : "Keep playing"}
           </button>
         </div>
@@ -120,6 +132,15 @@ export function QuestsView({ player }: { player: PlayerState }) {
             Claim one and it comes back asking for more, worth more — until the day or the week turns over and the board starts again.
           </p>
         </div>
+        {ready.length > 1 && (
+          <button className={`btn btn-primary ${styles.claimAll}`} disabled={!!busy} onClick={(e) => void take("all", { action: "claimAll" }, e.currentTarget)}>
+            <Sparkles size={16} />
+            {busy === "all" ? "Claiming…" : `Claim all · ${ready.length}`}
+            <span className={styles.claimAllGems}>
+              <Gem size={14} /> {units(ready.reduce((sum, q) => sum + q.reward, 0), "gems")}+
+            </span>
+          </button>
+        )}
       </div>
 
       {error && (
@@ -127,12 +148,6 @@ export function QuestsView({ player }: { player: PlayerState }) {
           <span>{error}</span>
         </div>
       )}
-      {notice && (
-        <p className="success" role="status">
-          {notice}
-        </p>
-      )}
-
       {!board ? (
         <p className="muted">Loading your quests…</p>
       ) : (

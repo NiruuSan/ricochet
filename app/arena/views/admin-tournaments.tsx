@@ -11,6 +11,7 @@ import { amount } from "../format";
 import { entryLabel, ordinal, PAYOUT_LABELS, STATUS_LABELS, timing } from "../tournament-format";
 import cup from "./tournaments.module.css";
 import styles from "./admin.module.css";
+import { toast } from "../feedback";
 
 const HOUR = 3_600_000;
 
@@ -43,7 +44,6 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
   const [endsAt, setEndsAt] = useState(() => localInput(Date.now() + 25 * HOUR));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const seats = Number(places);
   const pool = entry === "paid" ? Math.floor((toUnits(fee, asset) * (seats || 0) * (100 - TOURNAMENT_FEE_PERCENT[asset])) / 100) : toUnits(prize, asset);
@@ -53,7 +53,6 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
     e.preventDefault();
     setBusy(true);
     setError("");
-    setNotice("");
     try {
       await request("/api/admin/tournaments", {
         action: "create",
@@ -67,7 +66,7 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
         startsAt: new Date(startsAt).getTime(),
         endsAt: new Date(endsAt).getTime(),
       });
-      setNotice(`“${name}” is scheduled.`);
+      toast(`“${name}” is scheduled.`);
       setName("");
       onCreated();
     } catch (err) {
@@ -88,11 +87,6 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
         {error && (
           <p className={`error ${styles.full}`} role="alert">
             {error}
-          </p>
-        )}
-        {notice && (
-          <p className={`success ${styles.full}`} role="status">
-            {notice}
           </p>
         )}
         <label className={`field ${styles.full}`}>
@@ -188,7 +182,6 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
   const dialog = useActionDialog();
   const [list, setList] = useState<AdminTournament[] | null>(null);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState("");
   const [now, setNow] = useState(() => Date.now());
 
@@ -221,7 +214,7 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
     try {
       const done = await request<{ filled: number; entrants: number; places: number }>("/api/admin/bots", { action: "fill", id: t.id });
       await load();
-      setNotice(done.filled ? `${done.filled} house ${done.filled === 1 ? "player" : "players"} entered · ${done.entrants}/${done.places} seats taken.` : "No house player was free to enter.");
+      toast(done.filled ? `${done.filled} house ${done.filled === 1 ? "player" : "players"} entered · ${done.entrants}/${done.places} seats taken.` : "No house player was free to enter.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -262,11 +255,6 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
           <div className="error" role="alert">
             <span>{error}</span>
           </div>
-        )}
-        {notice && (
-          <p className="success" role="status">
-            {notice}
-          </p>
         )}
         {!list ? (
           <p className={styles.loading}>Loading tournaments…</p>
