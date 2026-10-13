@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Download, ShieldCheck, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { signInWith, type SignInProvider } from "../../auth-actions";
+import { reauthenticate, reauthFrom, type Reauth } from "../reauth";
 import { request, RequestError } from "../api";
 import type { PlayerState } from "../arena";
 import styles from "./profile-dashboard.module.css";
@@ -18,7 +18,7 @@ export function AccountData({ player }: { player: PlayerState }) {
   const [busy, setBusy] = useState<"" | "export" | "delete">("");
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
-  const [reauth, setReauth] = useState<SignInProvider | null>(null);
+  const [reauth, setReauth] = useState<Reauth | null>(null);
   const name = player.data.player?.name ?? "";
   const [typed, setTyped] = useState("");
 
@@ -52,7 +52,7 @@ export function AccountData({ player }: { player: PlayerState }) {
       await player.refresh();
     } catch (e) {
       setError((e as Error).message);
-      if (e instanceof RequestError && e.code === "REAUTH_REQUIRED") setReauth((e.details?.provider as SignInProvider) ?? "github");
+      if (e instanceof RequestError && e.code === "REAUTH_REQUIRED") setReauth(reauthFrom(e));
     } finally {
       setBusy("");
     }
@@ -76,7 +76,7 @@ export function AccountData({ player }: { player: PlayerState }) {
         </p>
       )}
       {reauth && !confirming && (
-        <button className={`btn ${styles.accountNote}`} onClick={() => void signInWith(reauth, window.location.pathname)}>
+        <button className={`btn ${styles.accountNote}`} onClick={() => void reauthenticate(reauth).then((reason) => reason && setError(reason))}>
           <ShieldCheck /> Confirm it is you
         </button>
       )}
@@ -132,7 +132,7 @@ export function AccountData({ player }: { player: PlayerState }) {
             </p>
           )}
           {reauth && (
-            <button className="btn" onClick={() => void signInWith(reauth, window.location.pathname)}>
+            <button className="btn" onClick={() => void reauthenticate(reauth).then((reason) => reason && setError(reason))}>
               <ShieldCheck /> Confirm it is you
             </button>
           )}

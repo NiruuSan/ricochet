@@ -200,7 +200,16 @@ export async function watchRun(viewer: string | null, watchIdInput: unknown, sin
 }
 
 /** What a run shows to anyone with its link: enough for a share card, nothing more. */
-export type RunCard = { name: string; score: number; kind: "match" | "tournament"; context: string; asset: Asset; done: boolean };
+export type RunCard = {
+  name: string;
+  score: number;
+  kind: "match" | "tournament";
+  context: string;
+  asset: Asset;
+  done: boolean;
+  /** A settled match, from this run's side: who it was against, what they scored, and how it ended. */
+  versus: { opponent: string; score: number; result: "win" | "loss" | "draw"; stake: number } | null;
+};
 
 /**
  * The public face of a run, or null when the link is not open to visitors (a
@@ -214,13 +223,31 @@ export async function runCard(watchIdInput: unknown): Promise<RunCard | null> {
   if (parsed[1] === "m") {
     const row = await db
       .prepare(
-        `SELECT p.name, r.score, r.done, m.asset, m.stake, (SELECT o.name FROM players o WHERE o.id = CASE WHEN m.p1 = r.user_id THEN m.p2 ELSE m.p1 END) AS opponent
+        `SELECT p.name, r.score, r.done, r.user_id, m.asset, m.stake, m.settled, m.cancelled, m.winner, op.name AS opponent, o.score AS opponent_score
          FROM runs r JOIN matches m ON m.id = r.match_id JOIN players p ON p.id = r.user_id
+         LEFT JOIN players op ON op.id = CASE WHEN m.p1 = r.user_id THEN m.p2 ELSE m.p1 END
+         LEFT JOIN runs o ON o.match_id = m.id AND o.user_id = op.id
          WHERE r.id = ? AND (m.p2 IS NOT NULL OR m.settled = 1)`,
       )
       .bind(parsed[2])
-      .first<{ name: string; score: number; done: number; asset: Asset; stake: number; opponent: string | null }>();
-    return row && { name: row.name, score: row.score, kind: "match", context: row.opponent ? `vs ${row.opponent}` : "1v1 match", asset: row.asset, done: !!row.done };
+      .first<{
+        name: string; score: number; done: number; user_id: string; asset: Asset; stake: number;
+        settled: number; cancelled: number; winner: string | null; opponent: string | null; opponent_score: number | null;
+      }>();
+    if (!row) return null;
+    // The other side's score is only told once the match is over, as everywhere else.
+    const ended = !!row.settled && !row.cancelled && row.opponent !== null && row.opponent_score !== null;
+    return {
+      name: row.name,
+      score: row.score,
+      kind: "match",
+      context: row.opponent ? `vs ${row.opponent}` : "1v1 match",
+      asset: row.asset,
+      done: !!row.done,
+      versus: ended
+        ? { opponent: row.opponent!, score: row.opponent_score!, result: row.winner === null ? "draw" : row.winner === row.user_id ? "win" : "loss", stake: row.stake }
+        : null,
+    };
   }
   const row = await db
     .prepare(
@@ -230,7 +257,7 @@ export async function runCard(watchIdInput: unknown): Promise<RunCard | null> {
     )
     .bind(parsed[2])
     .first<{ name: string; score: number; done: number; asset: Asset; tournament: string }>();
-  return row && { name: row.name, score: row.score, kind: "tournament", context: row.tournament, asset: row.asset, done: !!row.done };
+  return row && { name: row.name, score: row.score, kind: "tournament", context: row.tournament, asset: row.asset, done: !!row.done, versus: null };
 }
 
 type LiveRow = {

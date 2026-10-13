@@ -15,6 +15,7 @@ import { currency, exactSol, fullSol, shortDate } from "./format";
 import { CurrencyPicker } from "./currency-menu";
 import styles from "./wallet.module.css";
 import { reward, toast } from "./feedback";
+import { FillFromWallet, WalletDeposit } from "./wallet-deposit";
 
 type WalletData = {
   configured: boolean;
@@ -34,8 +35,12 @@ export const explorer = (kind: "address" | "tx", id: string) => `https://explore
 const TRANSFER_LABELS: Record<string, string> = { deposit: "Deposit", withdrawal: "Withdrawal", treasury: "Treasury withdrawal" };
 const STATUS_LABELS: Record<string, string> = { pending: "Confirming…", review: "Confirming…", finalized: "Confirmed", failed: "Failed", expired: "Expired · refunded" };
 
-/** Poll faster while a transfer is confirming, so balances update without clicking. */
-const pollMs = (data: WalletData | null, treasury: boolean) => (data?.transfers.some(isOpen) || data?.open?.length ? 5_000 : treasury ? 10_000 : 15_000);
+/** Poll faster while a transfer is confirming or a deposit was just sent, so balances update without clicking. */
+const pollMs = (data: WalletData | null, treasury: boolean, expecting: boolean) =>
+  expecting || data?.transfers.some(isOpen) || data?.open?.length ? 5_000 : treasury ? 10_000 : 15_000;
+
+/** How long to keep looking closely after a deposit leaves the player's wallet. */
+const EXPECT_MS = 3 * 60_000;
 
 export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolean; gems?: number }) {
   const path = treasury ? "/api/treasury" : "/api/wallet";
@@ -58,6 +63,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
   const withdrawalId = useRef<string | null>(null);
   const depositId = useRef<string | null>(null);
   const autoRef = useRef(false);
+  const expectingUntil = useRef(0);
 
   const load = useCallback(
     () =>
@@ -139,7 +145,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
       const next = await load();
       if (!active) return;
       if (next && !document.hidden) await autoStep(next);
-      if (active) timer = setTimeout(tick, pollMs(next, treasury));
+      if (active) timer = setTimeout(tick, pollMs(next, treasury, Date.now() < expectingUntil.current));
     };
     void tick();
     return () => {
@@ -345,6 +351,14 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
               </button>
             )}
           </div>
+          {!treasury && data.address && (
+            <WalletDeposit
+              onSent={() => {
+                expectingUntil.current = Date.now() + EXPECT_MS;
+                void load();
+              }}
+            />
+          )}
           {!treasury && <p className={styles.depositNote}>Send only Solana devnet SOL to this address. Minimum deposit: {exactSol(MIN_DEPOSIT)} SOL.</p>}
           </section>
           <section className={treasury ? undefined : styles.security}>
@@ -450,6 +464,7 @@ export function FundedWallet({ treasury = false, gems = 0 }: { treasury?: boolea
                 setStage("confirm");
               }}
             >
+              {!treasury && <FillFromWallet onAddress={setDestination} />}
               <label className="field">
                 Destination address
                 <input

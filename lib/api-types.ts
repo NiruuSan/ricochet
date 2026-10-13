@@ -173,6 +173,8 @@ export type MatchRecap = {
   /** Lamports the house gave back on a reduced fee, win or lose. */
   rebate: number;
   you: RecapSide;
+  /** The player's own run, as a replay link (`/watch/<watchId>`): what a shared result points to. */
+  watchId: string;
   /** The opponent's stats appear only once the match has settled; scores stay hidden until both finish. */
   opponent: { name: string; avatar: string | null; level: PlayerLevel; stats: RecapSide | null } | null;
 };
@@ -338,6 +340,13 @@ export type ReferralSummary = {
 
 /** A private match opened for one player: its link is the code. */
 export type ChallengeNotification = { matchId: string; invite: string; asset: Asset; stake: number; from: string };
+
+/**
+ * What a challenge link shows before its seat is taken, to anyone holding it:
+ * who sent it and for how much. `open` is false once someone took the seat;
+ * `direct` when it was sent to one player by name.
+ */
+export type ChallengePreview = { from: string; avatar: string | null; level: PlayerLevel; asset: Asset; stake: number; open: boolean; direct: boolean };
 
 export type Snapshot = {
   /** Friend requests waiting for an answer, and messages waiting to be read. */

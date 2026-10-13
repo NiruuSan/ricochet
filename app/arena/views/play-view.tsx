@@ -12,6 +12,7 @@ import { Lobby, type LobbyChoice } from "./lobby";
 import { MatchIntro, type IntroStage } from "./match-intro";
 import { ResultScreen, type ResultTarget } from "./result-screen";
 import { TournamentResult } from "./tournament-result";
+import { ChallengeInvite } from "./challenge-invite";
 import { themeStyle } from "../theme";
 import styles from "./screens.module.css";
 import { toast } from "../feedback";
@@ -40,7 +41,7 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * game itself, and the end-of-run screen.
  */
 export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMatchId, tournamentId, clearTournament, invite, clearInvite }: Props) {
-  const { data, setAsset, setError, refresh } = player;
+  const { data, loaded, setAsset, setError, refresh } = player;
   const { game, run, started, flying, syncing, clears } = session;
   // Waiting for the server's next row counts as busy: no shot or forfeit until it lands.
   const busy = session.busy || session.awaitingRow;
@@ -140,9 +141,12 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
   };
 
   // A challenge link: take the seat, then play the same intro as any other match.
+  // Someone without a player yet is shown who is waiting instead, and the way in.
   const { joinChallenge } = session;
+  const hasPlayer = !!data.player;
+  const guestInvite = invite && loaded && !hasPlayer ? invite : null;
   useEffect(() => {
-    if (!invite) return;
+    if (!invite || !loaded || !hasPlayer) return;
     let active = true;
     void (async () => {
       const joined = await joinChallenge(invite);
@@ -155,7 +159,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
     return () => {
       active = false;
     };
-  }, [clearInvite, invite, joinChallenge, refresh, setAsset]);
+  }, [clearInvite, hasPlayer, invite, joinChallenge, loaded, refresh, setAsset]);
 
   const closeResult = useCallback(() => {
     setRecapMatchId(null);
@@ -246,6 +250,16 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           <Board session={session} />
         </section>
       )}
+      {guestInvite && (
+        <ChallengeInvite
+          code={guestInvite}
+          authenticated={!!data.authenticated}
+          onClose={() => {
+            clearInvite();
+            if (!started) session.startPractice();
+          }}
+        />
+      )}
       {intro && <MatchIntro asset={intro.asset} stake={intro.stake} stage={intro.stage} opponent={intro.opponent} tournament={intro.tournament} theme={data.theme} />}
       {run?.tournamentId && started && game.over && !intro && (
         <TournamentResult tournamentId={run.tournamentId} ready={!syncing} board={game} onClose={closeResult} theme={data.theme} />
@@ -259,6 +273,7 @@ export function PlayView({ player, session, onForfeit, recapMatchId, setRecapMat
           onClose={closeResult}
           onSettled={onSettled}
           theme={data.theme}
+          guest={loaded && !data.player}
         />
       )}
     </>

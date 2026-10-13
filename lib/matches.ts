@@ -6,7 +6,7 @@ import { inspectShot, reportMessage, type AimTrail, type Finding, type ShotProof
 import { shotKeyFor, validSignature } from "./shot-key";
 import { parseTrap, planTrap, presentRun } from "./ghost-trap";
 import { analyzeShot, ANTI_CHEAT_ON_SQL, assertCanPlay, lockedOutSql, signalInsert, suspendedSql, suspensionMessage } from "./anti-cheat";
-import type { ChallengeNotification, Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
+import type { ChallengeNotification, ChallengePreview, Asset, Leader, MatchNotification, MatchRecap, MatchResult, MatchSummary, Profile, RecapSide, Run, Snapshot } from "./api-types";
 import { cancelRefund, isStake, SOL_WIN_GEM_BONUS, winnerFee, winnerPayout } from "./api-types";
 import { referralCredits } from "./referrals";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
@@ -427,6 +427,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
 }
 
 type RecapRow = {
+  run_id: string;
   stake: number;
   asset: Asset;
   p2: string | null;
@@ -470,7 +471,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
     db
       .prepare(
         `SELECT m.stake, m.asset, m.p2, m.settled, m.cancelled, m.winner, m.fee,
-           r.user_id AS me, r.state, r.clears, r.done, r.forfeit, p.name, p.avatar,
+           r.id AS run_id, r.user_id AS me, r.state, r.clears, r.done, r.forfeit, p.name, p.avatar,
            o.state AS other_state, o.clears AS other_clears, o.done AS other_done, o.forfeit AS other_forfeit,
            op.name AS other_name, op.avatar AS other_avatar,
            ${wageredSql("p.id")} AS wagered, ${wageredSql("op.id")} AS other_wagered,
@@ -505,6 +506,7 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
     bonusGems: row.bonus ?? 0,
     rebate: row.rebate ?? 0,
     you: { ...recapSide(row.name, row.avatar, row.state, row.clears, row.forfeit), level: levelFor(experienceFromWagered(row.wagered)) },
+    watchId: `m-${row.run_id}`,
     opponent: row.other_name
       ? {
           name: row.other_name,
@@ -643,6 +645,33 @@ export async function createChallenge(uid: string, stakeInput: unknown, assetInp
     await db.batch([notificationInsert(db, `challenge:${run.match_id}`, invited.id, "challenge", data, Date.now())]);
   }
   return run;
+}
+
+/**
+ * The face of a challenge link, for a visitor who has to sign in before taking
+ * the seat. Only the link's holder can ask, and it says nothing of the board.
+ */
+export async function challengePreview(codeInput: unknown): Promise<ChallengePreview | null> {
+  const code = String(codeInput ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9]{4,32}$/.test(code)) return null;
+  const row = await database()
+    .prepare(
+      `SELECT m.stake, m.asset, m.p2, m.invited, p.name, p.avatar, ${wageredSql("p.id")} AS wagered
+       FROM matches m JOIN players p ON p.id = m.p1
+       WHERE m.invite = ? AND m.settled = 0 AND p.deleted IS NULL`,
+    )
+    .bind(code)
+    .first<{ stake: number; asset: Asset; p2: string | null; invited: string | null; name: string; avatar: string | null; wagered: number }>();
+  if (!row) return null;
+  return {
+    from: row.name,
+    avatar: avatarUrl(row.avatar),
+    level: levelFor(experienceFromWagered(row.wagered)),
+    asset: row.asset,
+    stake: row.stake,
+    open: !row.p2,
+    direct: !!row.invited,
+  };
 }
 
 /** Takes the seat of a private match from its link. */

@@ -1,0 +1,42 @@
+.wallets {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.walletButton {
+  border-color: #6d55c9;
+  background: linear-gradient(120deg, #2a2350, #1b2132);
+}
+.walletButton:hover:not(:disabled) {
+  border-color: #9a84ff;
+}
+.walletButton img {
+  border-radius: 5px;
+}
+.walletHint {
+  font-size: 13px;
+  color: #a7b3c9;
+  line-height: 1.45;
+}
+.walletApps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.or {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0;
+  color: #6f7c93;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.or::before,
+.or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #293345;
+}

@@ -16,6 +16,8 @@ import { Notifications } from "./notifications";
 import { FeedbackHost, RollingBalance, useArrival } from "./feedback";
 import feedback from "./feedback.module.css";
 import { SuspensionNotice } from "./suspension-notice";
+import { InAppNotice } from "./in-app-notice";
+import { rememberReferral } from "./referral-link";
 import { useGameSession } from "./use-game-session";
 import type { View } from "./views";
 import { usePlayerData } from "./use-player-data";
@@ -74,6 +76,8 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
   // matches the HTML the server sent; from then on every amount follows it.
   useMoney();
   useEffect(() => startMoney(), []);
+  // A shared replay or score carries its sharer's referral code: keep it for sign-up, whatever page it opened.
+  useEffect(() => rememberReferral(new URLSearchParams(window.location.search).get("ref")), []);
   const { asset, setAsset, data, error, setError, refresh } = player;
   const onSaved = useCallback(() => void refresh(), [refresh]);
   // The skin the player wears follows them onto the board and its screens.
@@ -221,6 +225,8 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
       </header>
       <main className="shell">
         {data.suspension && <SuspensionNotice player={player} />}
+        {/* The sign-in page has its own, firmer version; a board being played is left alone. */}
+        {view !== "login" && view !== "signup" && !playing && <InAppNotice />}
         {error && (
           <div className="error" role="alert">
             <span>{error}</span>

@@ -4,7 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, KeyRound, LockKeyhole, LogOut, ShieldCheck, ShieldOff } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type { SecurityStatus } from "@/lib/api-types";
-import { signInWith, signOutToLogin, type SignInProvider } from "../auth-actions";
+import { signOutToLogin } from "../auth-actions";
+import { reauthenticate, reauthFrom, type Reauth } from "./reauth";
 import { request, RequestError } from "./api";
 import { toast } from "./feedback";
 
@@ -63,7 +64,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [reauth, setReauth] = useState<SignInProvider | null>(null);
+  const [reauth, setReauth] = useState<Reauth | null>(null);
   const [copied, setCopied] = useState<"" | "secret" | "codes">("");
 
   const call = async <T,>(body: Record<string, unknown>): Promise<T | null> => {
@@ -74,7 +75,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
       return await request<T>("/api/security", body);
     } catch (e) {
       setError((e as Error).message);
-      if (e instanceof RequestError && e.code === "REAUTH_REQUIRED") setReauth((e.details?.provider as SignInProvider) ?? "github");
+      if (e instanceof RequestError && e.code === "REAUTH_REQUIRED") setReauth(reauthFrom(e));
       return null;
     } finally {
       setBusy(false);
@@ -138,7 +139,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
           </p>
         )}
         {reauth && !mode && (
-          <button className="btn" style={{ marginTop: 10 }} onClick={() => void signInWith(reauth, window.location.pathname)}>
+          <button className="btn" style={{ marginTop: 10 }} onClick={() => void reauthenticate(reauth).then((reason) => reason && setError(reason))}>
             <ShieldCheck /> Confirm it is you
           </button>
         )}
@@ -291,7 +292,7 @@ export function TwoFactorPanel({ twoFactor }: { twoFactor: ReturnType<typeof use
                   </p>
                 )}
                 {reauth && (
-                  <button type="button" className="btn full" onClick={() => void signInWith(reauth, window.location.pathname)}>
+                  <button type="button" className="btn full" onClick={() => void reauthenticate(reauth).then((reason) => reason && setError(reason))}>
                     <ShieldCheck /> Confirm it is you, then try again
                   </button>
                 )}

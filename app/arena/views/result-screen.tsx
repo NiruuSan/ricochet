@@ -1,8 +1,9 @@
 "use client";
 import { RankBadge } from "../rank-badge";
 import { useEffect, useRef, useState } from "react";
-import { Swords, ArrowRight } from "lucide-react";
-import type { Asset, MatchRecap, RecapSide, PlayerLevel } from "@/lib/api-types";
+import Link from "next/link";
+import { Swords, ArrowRight, Share2 } from "lucide-react";
+import { STARTING_GEMS, type Asset, type MatchRecap, type RecapSide, type PlayerLevel } from "@/lib/api-types";
 import type { Game } from "@/lib/engine";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -10,6 +11,7 @@ import { drawBoard } from "../board-canvas";
 import { currency, signedAmount, units, amount } from "../format";
 import { themeStyle, themeById } from "../theme";
 import { playSound } from "../sound";
+import { sharedLink, shareResult, useReferralCode } from "../share";
 import styles from "./screens.module.css";
 
 const POLL_MS = 4_000;
@@ -29,7 +31,20 @@ type Props = {
   onSettled?: () => void;
   /** The player's skin, worn by the screen and by the final boards on it. */
   theme?: string | null;
+  /** A visitor without a player: practice ends on the way in rather than a share. */
+  guest?: boolean;
 };
+
+/** What a shared result says, in the sharer's own words. */
+function shareText(recap: MatchRecap | null, score: number) {
+  const mine = score.toLocaleString("en");
+  if (!recap) return `I scored ${mine} on Bounce. Same board for you: beat it.`;
+  const opponent = recap.opponent?.name ?? "my rival";
+  const theirs = (recap.opponent?.stats?.score ?? 0).toLocaleString("en");
+  if (recap.result === "win") return `I beat ${opponent} ${mine} to ${theirs} on Bounce. Watch how.`;
+  if (recap.result === "draw") return `${mine} each: a dead heat with ${opponent} on Bounce.`;
+  return `${opponent} edged me ${theirs} to ${mine} on Bounce. Rematch incoming.`;
+}
 
 function useCountUp(value: number, duration = 900) {
   const [shown, setShown] = useState(0);
@@ -157,8 +172,10 @@ function PracticeDetails({ you, theme }: { you: RecapSide; theme?: string | null
   );
 }
 
-export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettled, theme }: Props) {
+export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettled, theme, guest = false }: Props) {
   const { recap, error } = useRecap(target, onSettled);
+  // Asked for as the screen opens, so the share sheet opens straight from the tap.
+  const code = useReferralCode(!guest);
   // One rematch per result screen, so a double tap does not open two matches.
   const [rematched, setRematched] = useState(false);
 
@@ -234,6 +251,14 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
   const again = recap ? { asset: recap.asset, stake: recap.stake } : null;
   const missing = !opponent || result === "cancelled" ? "—" : "?";
   const net = recap?.net ?? 0;
+  // A settled match points to the replay, whose card shows both scores; practice is not saved, so it invites to the site.
+  const shareable = practice ? !guest : settled && result !== "cancelled";
+  const share = () =>
+    void shareResult(
+      practice ? "My Bounce score" : title.join(" "),
+      shareText(practice ? null : recap, you.score),
+      sharedLink(practice ? "/" : `/watch/${recap!.watchId}`, code),
+    );
 
   return (
     <div className={`${styles.result} ${styles[tone]}`} style={themeStyle(theme)} role="dialog" aria-modal="true" aria-label={title.join(" ")}>
@@ -291,8 +316,18 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
                 <Swords size={14} /> {rematched ? `${opponent.name} has been challenged` : `Rematch ${opponent.name}`}
               </button>
             )}
+            {shareable && (
+              <button className={styles.rematch} onClick={share}>
+                <Share2 size={14} /> {practice ? "Share your score" : result === "win" ? "Share the win" : "Share the result"}
+              </button>
+            )}
           </div>
         </div>
+        {practice && guest && (
+          <Link className={`btn btn-primary ${styles.guestCta}`} href="/signup">
+            Play a real rival · {STARTING_GEMS.toLocaleString("en")} free gems <ArrowRight />
+          </Link>
+        )}
         <button className={styles.backLink} onClick={onClose}>
           Back to lobby
         </button>

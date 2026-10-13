@@ -157,3 +157,21 @@
   .historyEmpty { align-items: flex-start; gap: 12px; padding: 24px 20px; }
 }
 
+
+/* Paying in from a wallet in this browser. */
+.walletDeposit { margin-top: 20px; padding: 16px; border: 1px solid #3c3570; border-radius: 14px; background: linear-gradient(130deg, #211d3d, #151c29 75%); }
+.walletDepositHead { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: #cfc6ff; font-size: 13px; }
+.walletDepositHead span { color: #8e9cb1; font-size: 11px; margin-left: auto; }
+.walletAmounts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.walletAmounts button { padding: 8px 12px; border: 1px solid #344058; border-radius: 9px; background: #101723; color: #cdd8e8; font-size: 12px; font-weight: 700; cursor: pointer; }
+.walletAmounts button[aria-pressed="true"] { border-color: #c6f564; color: #c6f564; }
+.walletAmountInput { width: 110px; padding: 8px 10px; border: 1px solid #344058; border-radius: 9px; background: #0d141f; color: #fff; font-size: 12px; }
+.walletDepositActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.walletDepositActions :global(.btn) { min-height: 40px; padding: 10px 14px; font-size: 12px; gap: 8px; }
+.walletDepositActions img, .fillFromWallet img { border-radius: 4px; }
+.fillFromWallet { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 12px; }
+.fillFromWallet :global(.btn) { padding: 8px 12px; font-size: 12px; gap: 8px; }
+@media (max-width: 620px) {
+  .walletDepositHead span { margin-left: 0; width: 100%; }
+  .walletDepositActions :global(.btn) { flex: 1; justify-content: center; }
+}

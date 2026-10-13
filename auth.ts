@@ -1,14 +1,30 @@
 import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
 import Discord from "next-auth/providers/discord";
 import GitHub from "next-auth/providers/github";
 import Google from "next-auth/providers/google";
 
+// A Solana wallet signs a one-time challenge instead of going through a
+// provider's page: the account is the wallet's address (lib/wallet-sign-in.ts).
+const Solana = Credentials({
+  id: "solana",
+  name: "Solana wallet",
+  credentials: { message: {}, signature: {} },
+  async authorize(credentials) {
+    const { verifyWalletSignIn } = await import("@/lib/wallet-sign-in");
+    const address = await verifyWalletSignIn(credentials?.message, credentials?.signature);
+    return address ? { id: address, name: `${address.slice(0, 4)}…${address.slice(-4)}` } : null;
+  },
+});
+
 // Sessions are stateless JWTs. Auth.js reads AUTH_SECRET and each provider's
-// AUTH_<PROVIDER>_ID / AUTH_<PROVIDER>_SECRET automatically. GitHub is always on;
-// Google and Discord appear only once their credentials are configured, so a
-// half-configured provider never shows a sign-in button that cannot work.
+// AUTH_<PROVIDER>_ID / AUTH_<PROVIDER>_SECRET automatically. GitHub and Solana
+// wallets are always on; Google and Discord appear only once their credentials
+// are configured, so a half-configured provider never shows a sign-in button
+// that cannot work.
 const providers = [
   GitHub,
+  Solana,
   ...(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET ? [Google] : []),
   ...(process.env.AUTH_DISCORD_ID && process.env.AUTH_DISCORD_SECRET ? [Discord] : []),
 ];
@@ -24,7 +40,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     jwt({ token, account }) {
       // The provider-qualified account ID is the player's permanent identity
-      // (`github:123`, `google:456`, `discord:789`). It is stable even if the
+      // (`github:123`, `google:456`, `discord:789`, `solana:<address>`). It is stable even if the
       // username or email changes. Each provider is a separate player account:
       // accounts are never merged by email.
       if (account) {

@@ -368,6 +368,18 @@ export const adminElevations = sqliteTable(
   (t) => [index("admin_elevation_user").on(t.userId)],
 );
 
+// One-time challenges for signing in with a Solana wallet (lib/wallet-sign-in.ts):
+// each is spent by the sign-in that uses it, and dies after five minutes.
+export const walletChallenges = sqliteTable(
+  "wallet_challenges",
+  {
+    nonce: text("nonce").primaryKey(),
+    domain: text("domain").notNull(),
+    expires: integer("expires").notNull(),
+  },
+  (t) => [index("wallet_challenge_expiry").on(t.expires)],
+);
+
 // Single-use recovery codes, stored as keyed hashes only.
 export const twoFactorRecovery = sqliteTable(
   "two_factor_recovery",

@@ -1,7 +1,7 @@
 import { assertCanMoveMoney } from "../anti-cheat";
 import { PaymentError } from "./errors";
 import { assertWithdrawalsAllowed } from "../security-holds";
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Keypair, PublicKey, SystemInstruction, SystemProgram, Transaction } from "@solana/web3.js";
 import { database } from "../../db/raw";
 import { notificationInsert } from "../notifications";
 import { MIN_DEPOSIT, type TreasurySnapshot } from "../api-types";
@@ -181,6 +181,71 @@ export async function beginDeposit(uid: string, idInput: unknown) {
   signer.secretKey.fill(0);
   await insertTransfer({ id, uid, account, kind: "deposit", source: wallet.address, destination: pool.address, ...prepared }, false);
   return reconcileTransfer(id, uid);
+}
+
+/**
+ * Depositing straight from the player's own wallet: an unsigned transfer from
+ * `from` to their deposit address, for the wallet to sign. The server never
+ * holds that wallet's key; it only picks a fresh blockhash on the network it
+ * is configured for, so the transfer cannot land anywhere else.
+ */
+export async function fundingTransaction(uid: string, fromInput: unknown, amountInput: unknown) {
+  const s = settings();
+  const network = requireDevnet(s);
+  const from = recipientAddress(fromInput);
+  const amount = parseSol(amountInput);
+  if (amount < MIN_DEPOSIT) throw new PaymentError("Deposits must be at least 0.001 SOL.");
+  const wallet = await ensureWallet(uid);
+  if (from.toBase58() === wallet.address) throw new PaymentError("That is your Bounce deposit address. Connect the wallet you are paying from.");
+  const connection = await devnetConnection(s.SOLANA_RPC_URL!);
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
+  const transaction = new Transaction({ feePayer: from, blockhash, lastValidBlockHeight }).add(
+    SystemProgram.transfer({ fromPubkey: from, toPubkey: new PublicKey(wallet.address), lamports: amount }),
+  );
+  return { transaction: transaction.serialize({ requireAllSignatures: false, verifySignatures: false }).toString("base64"), chain: `solana:${network}` };
+}
+
+/**
+ * Sends a deposit the player's wallet signed. Only a transaction that pays this
+ * player's own deposit address, signed by every account it names, is relayed:
+ * the server is not a general-purpose sender. Wallets may add their own
+ * instructions (a priority fee, a safety check), which is why the rest is left
+ * as the player signed it. The deposit is credited the usual way once final.
+ */
+export async function sendFunding(uid: string, wireInput: unknown) {
+  const s = settings();
+  requireDevnet(s);
+  if (typeof wireInput !== "string" || wireInput.length > 2000) throw new PaymentError("The signed transfer is missing.");
+  let transaction: Transaction;
+  try {
+    transaction = Transaction.from(Buffer.from(wireInput, "base64"));
+  } catch {
+    throw new PaymentError("The signed transfer could not be read.");
+  }
+  const wallet = await ensureWallet(uid);
+  const deposit = new PublicKey(wallet.address);
+  const pays = transaction.instructions.some((ix) => {
+    if (!ix.programId.equals(SystemProgram.programId)) return false;
+    try {
+      if (SystemInstruction.decodeInstructionType(ix) !== "Transfer") return false;
+      const transfer = SystemInstruction.decodeTransfer(ix);
+      return transfer.toPubkey.equals(deposit) && transfer.lamports >= BigInt(MIN_DEPOSIT);
+    } catch {
+      return false;
+    }
+  });
+  if (!pays) throw new PaymentError("This transfer does not pay your deposit address.");
+  if (!transaction.signatures.length || !transaction.verifySignatures()) throw new PaymentError("Your wallet did not sign this transfer.");
+  const connection = await devnetConnection(s.SOLANA_RPC_URL!);
+  try {
+    const signature = await connection.sendRawTransaction(transaction.serialize(), { preflightCommitment: "confirmed", maxRetries: 3 });
+    return { signature };
+  } catch (e) {
+    const reason = String((e as Error)?.message ?? "");
+    if (/insufficient|0x1\b/i.test(reason)) throw new PaymentError("Your wallet does not hold enough SOL for this deposit and its network fee.");
+    if (/blockhash/i.test(reason)) throw new PaymentError("The transfer took too long to sign. Try again.");
+    throw new PaymentError("The network refused this transfer. Nothing was sent.");
+  }
 }
 
 export async function beginWithdrawal(uid: string, idInput: unknown, destinationInput: unknown, amountInput: unknown, treasury = false) {

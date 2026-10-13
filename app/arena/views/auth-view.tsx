@@ -1,13 +1,17 @@
 "use client";
 import { Form } from "@/components/ui/form";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Wallet } from "lucide-react";
 import { STARTING_GEMS } from "@/lib/api-types";
 import { signInWith, type SignInProvider } from "../../auth-actions";
 import { gameAction } from "../api";
 import type { PlayerState } from "../arena";
+import { InAppNotice, useInApp } from "../in-app-notice";
+import { forgetNext, forgetReferral, rememberedNext, rememberedReferral, rememberReferral, safeNext } from "../referral-link";
+import { signInWithWallet, useSolanaWallets, walletAppLinks, type SolanaWallet } from "../solana-wallet";
+import styles from "./auth.module.css";
 
 const LOGOS: Record<SignInProvider, ReactNode> = {
   google: (
@@ -60,37 +64,89 @@ function useSignInProviders() {
  * the trip to the sign-in provider and back, and it only counts when the
  * profile is created (lib/referrals.ts).
  */
-const REFERRAL_KEY = "ricochet:ref";
-const remembered = (fallback = "") => {
-  try {
-    return localStorage.getItem(REFERRAL_KEY) ?? fallback;
-  } catch {
-    return fallback;
-  }
-};
 function useReferralCode() {
   // The link's code is what the sign-in buttons carry back; the stored one is
   // what survives a trip that dropped the query string.
   const code = useSearchParams().get("ref") ?? "";
-  useEffect(() => {
-    try {
-      if (code) localStorage.setItem(REFERRAL_KEY, code);
-    } catch {
-      // Without storage the code still works, as long as the link's query survives.
-    }
-  }, [code]);
+  useEffect(() => rememberReferral(code), [code]);
   return {
     code,
     /** The code to sign up with: the one in hand, or the one from the link that started this. */
-    take: () => code || remembered(),
-    clear: () => {
-      try {
-        localStorage.removeItem(REFERRAL_KEY);
-      } catch {
-        // Forgetting a code that has been used is a convenience, not a requirement.
-      }
-    },
+    take: () => code || rememberedReferral() || "",
+    clear: forgetReferral,
   };
+}
+
+/**
+ * Where to go once signed in: a challenge seat or another page the visitor was
+ * on when they were asked to sign in. It rides along in the address, and in
+ * the browser for trips that drop it.
+ */
+const noSubscription = () => () => {};
+function useNext() {
+  const fromLink = safeNext(useSearchParams().get("next"));
+  const stored = useSyncExternalStore(noSubscription, rememberedNext, () => null);
+  return fromLink ?? stored;
+}
+
+/** The address the sign-in comes back to: profile creation, carrying the referral code and the destination. */
+function signupPath(ref: string, next: string | null) {
+  const query = new URLSearchParams();
+  if (ref) query.set("ref", ref);
+  if (next) query.set("next", next);
+  const text = query.toString();
+  return text ? `/signup?${text}` : "/signup";
+}
+
+/** Signing in with a Solana wallet: the extension here, or the wallet app's own browser on a phone. */
+function WalletSignIn({ returnTo }: { returnTo: string }) {
+  const wallets = useSolanaWallets();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const href = useSyncExternalStore(noSubscription, () => window.location.href, () => "");
+  const phone = useSyncExternalStore(noSubscription, () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent), () => false);
+
+  const go = async (wallet: SolanaWallet) => {
+    setBusy(wallet.name);
+    setError("");
+    const failed = await signInWithWallet(wallet, returnTo);
+    // A good sign-in navigates away; anything that comes back is a reason.
+    if (failed) setError(failed);
+    setBusy(null);
+  };
+
+  return (
+    <div className={styles.wallets}>
+      {wallets.length ? (
+        wallets.map((wallet) => (
+          <button key={wallet.name} type="button" className={`btn full provider-button ${styles.walletButton}`} disabled={!!busy} onClick={() => void go(wallet)}>
+            <img src={wallet.icon} alt="" width={20} height={20} />
+            {busy === wallet.name ? "Check your wallet…" : `Continue with ${wallet.name}`}
+          </button>
+        ))
+      ) : phone && href ? (
+        <>
+          <p className={styles.walletHint}>Your wallet lives in its app. Open Bounce there to sign in with it:</p>
+          <div className={styles.walletApps}>
+            {walletAppLinks(href).map((app) => (
+              <a key={app.name} className="btn provider-button" href={app.href}>
+                <Wallet size={18} /> Open in {app.name}
+              </a>
+            ))}
+          </div>
+        </>
+      ) : (
+        <a className="btn full provider-button" href="https://phantom.app/download" target="_blank" rel="noreferrer">
+          <Wallet size={18} /> Get a Solana wallet
+        </a>
+      )}
+      {error && (
+        <p className="error" role="alert" style={{ marginTop: 4 }}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function AuthView({ player, signup }: { player: PlayerState; signup: boolean }) {
@@ -99,6 +155,19 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
   const [saving, setSaving] = useState(false);
   const providers = useSignInProviders();
   const referral = useReferralCode();
+  const next = useNext();
+  const inApp = useInApp();
+  // Google turns embedded browsers away outright, so its button is not offered there.
+  const shown = inApp ? providers.filter((p) => p !== "google") : providers;
+  const returnTo = signupPath(referral.code, next);
+
+  // Already in, with somewhere to be: go straight there.
+  const hasProfile = !!data.player;
+  useEffect(() => {
+    if (!hasProfile || !next) return;
+    forgetNext();
+    window.location.replace(next);
+  }, [hasProfile, next]);
 
   const createProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +175,8 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
     try {
       await gameAction({ action: "signup", name, ref: referral.take() || undefined });
       referral.clear();
-      window.location.href = "/";
+      forgetNext();
+      window.location.href = next ?? "/";
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -126,14 +196,19 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
           Checking your account…
         </p>
       ) : data.player ? (
-        <Link href="/" className="btn btn-primary full">
-          Back to the arena <ArrowRight />
+        <Link href={next ?? "/"} className="btn btn-primary full" style={{ marginTop: 25 }}>
+          {next ? "Carry on" : "Back to the arena"} <ArrowRight />
         </Link>
       ) : !data.authenticated ? (
         <>
+          <InAppNotice firm />
           <div className="provider-buttons">
-            {providers.map((provider) => (
-              <Form key={provider} action={signInWith.bind(null, provider, referral.code ? `/signup?ref=${encodeURIComponent(referral.code)}` : "/signup")}>
+            <WalletSignIn returnTo={returnTo} />
+            <div className={styles.or}>
+              <span>or</span>
+            </div>
+            {shown.map((provider) => (
+              <Form key={provider} action={signInWith.bind(null, provider, returnTo)}>
                 <button className="btn full provider-button">
                   {LOGOS[provider]}
                   Continue with {LABELS[provider]}
@@ -142,7 +217,8 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
             ))}
           </div>
           <p className="fine center" style={{ marginTop: 20 }}>
-            Only your account ID and display name are used. Each sign-in method is a separate player account.
+            Only your account ID and display name are used. A wallet only signs a message: it costs nothing and moves no funds. Each sign-in method is a
+            separate player account.
           </p>
         </>
       ) : (

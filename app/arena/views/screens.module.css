@@ -1450,3 +1450,21 @@
   border-color: #c6f564;
   color: #c6f564;
 }
+
+/* A visitor's practice ends on the way in: the free gems and a real opponent. */
+.guestCta {
+  align-self: flex-start;
+  margin-top: clamp(12px, 2.4vh, 22px);
+  animation: guestCtaIn 0.5s 0.6s ease-out both;
+}
+@keyframes guestCtaIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guestCta {
+    animation: none;
+  }
+}

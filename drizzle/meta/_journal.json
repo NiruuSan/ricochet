@@ -246,6 +246,13 @@
       "when": 1791890829418,
       "tag": "0034_security",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1792063629418,
+      "tag": "0035_wallet_sign_in",
+      "breakpoints": true
     }
   ]
 }

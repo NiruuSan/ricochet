@@ -17,6 +17,8 @@ export const LIMITS = {
   tournamentWrite: 30,
   /** Two-factor setup and changes; wrong codes are also locked out after five tries. */
   securityWrite: 20,
+  /** Wallet sign-in challenges, per visitor: one per attempt, each good for five minutes. */
+  walletSignIn: 20,
   /** Public pages polled by visitors and players: arena, spectating, tournaments, profiles. */
   publicRead: 300,
 } as const;
