@@ -4,11 +4,19 @@ import { createDatabase } from "./helpers/test-env.mjs";
 
 const { sqlite, close } = await createDatabase();
 globalThis.bugReportUser = null;
+// Administrator changes need a confirmed session (lib/admin-guard.ts); the test opens and shuts it.
+globalThis.bugReportElevated = true;
 const hook = registerHooks({
   resolve(specifier, context, next) {
+    if (specifier === "@/lib/admin-guard") return { url: "test:bug-report-guard", shortCircuit: true };
     return specifier === "@/lib/auth-user" ? { url: "test:bug-report-auth", shortCircuit: true } : next(specifier, context);
   },
   load(url, context, next) {
+    if (url === "test:bug-report-guard") return { format: "module", shortCircuit: true, source: `
+      export async function elevationRequired() {
+        return globalThis.bugReportElevated ? null : Response.json({ error: "Confirm.", code: "ADMIN_ELEVATION_REQUIRED" }, { status: 403 });
+      }
+    ` };
     return url === "test:bug-report-auth" ? { format: "module", shortCircuit: true, source: `
       export async function currentUser() { return globalThis.bugReportUser; }
       export async function administrator() { const u = globalThis.bugReportUser; return u?.userId === 'admin' ? u : null; }
@@ -62,6 +70,11 @@ try {
   assert.equal(inbox.headers.get("cache-control"), "no-store");
   assert.equal((await inbox.json()).total, 2);
   assert.equal((await post(admin, { id, status: "resolved" }, "https://evil.test")).status, 403);
+  globalThis.bugReportElevated = false;
+  const unconfirmed = await post(admin, { id, status: "resolved" });
+  assert.equal(unconfirmed.status, 403, "Without a confirmed session the administrator changes nothing");
+  assert.equal((await unconfirmed.json()).code, "ADMIN_ELEVATION_REQUIRED", "and the page is told to ask for a code");
+  globalThis.bugReportElevated = true;
   assert.equal((await post(admin, { id, status: "resolved" })).status, 200);
   assert.equal((await listBugReports()).reports.find((r) => r.id === id).status, "resolved");
   assert.equal((await post(admin, { id, status: "open" })).status, 200);

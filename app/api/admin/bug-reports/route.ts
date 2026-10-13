@@ -1,3 +1,4 @@
+import { elevationRequired } from "@/lib/admin-guard";
 import { administrator } from "@/lib/auth-user";
 import { listBugReports, updateBugReport } from "@/lib/bug-reports";
 import { json, readBody, sameOrigin } from "@/lib/http";
@@ -25,6 +26,9 @@ export async function POST(req: Request) {
     const user = await administrator();
     if (!user) return json({ error: "Administrator access required." }, 403);
     if (await rateLimited("securityWrite", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
+    // Every administrator change needs a fresh authenticator code on this session (lib/admin-guard.ts).
+    const locked = await elevationRequired(user.userId);
+    if (locked) return locked;
     const parsed = await readBody(req, 1024);
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
     return json(await updateBugReport(user.userId, parsed.body.id, parsed.body.status));

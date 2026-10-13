@@ -1,3 +1,4 @@
+import { elevationRequired } from "@/lib/admin-guard";
 import { administrator } from "@/lib/auth-user";
 import { adminPlayers, purgePlayer, resetPlayerStats } from "@/lib/admin-players";
 import { json, readBody, sameOrigin } from "@/lib/http";
@@ -26,6 +27,11 @@ export async function POST(req: Request) {
     const parsed = await readBody(req, 2048);
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
     const b = parsed.body;
+    // Deleting an account asks for its own code below; anything else needs the window.
+    if (b.action !== "delete") {
+      const locked = await elevationRequired(user.userId);
+      if (locked) return locked;
+    }
     // Development-phase tool: removes an account and everything attached to it.
     if (b.action === "delete") return json(await purgePlayer(user.userId, b.name, b.code, b.reason));
     if (b.action === "reset") return json(await resetPlayerStats(user.userId, b.name, b.reason));

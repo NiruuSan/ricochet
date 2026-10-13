@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import { dispatchPush } from "@/lib/push";
 import { sweepStaleMatches } from "@/lib/expiry";
 import { json } from "@/lib/http";
@@ -7,6 +8,13 @@ import { tickBots } from "@/lib/bots";
 
 export const dynamic = "force-dynamic";
 
+/** Compared in constant time, so response timing says nothing about how much of a guess was right. */
+function sameSecret(given: string, expected: string) {
+  const a = createHash("sha256").update(given).digest();
+  const b = createHash("sha256").update(expected).digest();
+  return timingSafeEqual(a, b) && given.length === expected.length;
+}
+
 /**
  * The scheduled sweep (vercel.json): ends runs nobody came back to, closes seats
  * nobody took and pays out tournaments that have ended. Vercel Cron sends
@@ -15,7 +23,7 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) return json({ error: "Not found." }, 404);
+  if (!secret || !sameSecret(req.headers.get("authorization") ?? "", `Bearer ${secret}`)) return json({ error: "Not found." }, 404);
   try {
     const swept = await sweepStaleMatches();
     await settleDueTournaments();

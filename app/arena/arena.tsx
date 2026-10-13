@@ -23,6 +23,8 @@ import { themeById } from "./theme";
 // Each page only downloads the view it shows; the others load when you navigate to them.
 const AdminView = dynamic(() => import("./views/admin-view").then((m) => m.AdminView));
 const BugReportDialog = dynamic(() => import("./bug-report-dialog").then((m) => m.BugReportDialog));
+// Only the administrator ever downloads the code prompt for administrator changes.
+const AdminConfirm = dynamic(() => import("./admin-confirm").then((m) => m.AdminConfirm));
 const AdminCaseView = dynamic(() => import("./views/admin-case-view").then((m) => m.AdminCaseView));
 const AuthView = dynamic(() => import("./views/auth-view").then((m) => m.AuthView));
 const LeaderboardView = dynamic(() => import("./views/leaderboard-view").then((m) => m.LeaderboardView));
@@ -267,6 +269,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         </footer>
       </main>
       <FeedbackHost />
+      {data.isAdmin && <AdminConfirm />}
       <BugReportDialog open={reportBug} onOpenChange={setReportBug} signedIn={!!data.authenticated} hasProfile={!!data.player} />
       <Dialog open={confirmForfeit} onOpenChange={setConfirmForfeit}>
         <DialogContent className="dialog-dark">

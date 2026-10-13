@@ -49,6 +49,8 @@ export async function signOutEverywhere(uid: string, now = Date.now()) {
       )
       .bind(uid, now, now),
     notificationInsert(db, `signed-out:${now}`, uid, "security_alert", { event: "signed_out_everywhere" }, now),
+    // Any administrator window open on another device closes with its session.
+    db.prepare("DELETE FROM admin_elevations WHERE user_id = ?").bind(uid),
   ]);
   cache.set(uid, { invalidBefore: now, at: now });
   return { signedOutAt: now };

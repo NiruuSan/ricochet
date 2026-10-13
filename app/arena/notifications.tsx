@@ -21,6 +21,8 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
     if (event === "withdrawal_started") return { tone: "security", title: "A withdrawal was started", detail: `${money(amount ?? 0, "devnet")} to ${to ? `${to.slice(0, 6)}…${to.slice(-4)}` : "an external wallet"}. If this was not you, contact support now.` };
     if (event === "tip_sent") return { tone: "security", title: `You tipped ${to ?? "a player"}`, detail: `−${money(amount ?? 0, "devnet")} left your balance. If this was not you, contact support now.` };
     if (event === "two_factor_disabled") return { tone: "security", title: "Two-factor authentication was turned off", detail: "Withdrawals and larger tips are blocked until you turn it back on. If this was not you, sign out everywhere and contact support." };
+    if (event === "two_factor_locked") return { tone: "security", title: "Wrong codes locked your two-factor", detail: "Five wrong authentication codes in a row. Codes are refused for a while, longer each time. If this was not you, sign out everywhere: someone may be using your session." };
+    if (event === "admin_elevated") return { tone: "security", title: "Administrator access confirmed", detail: "A second-factor code unlocked administrator changes for 15 minutes on one device. If this was not you, sign out everywhere now." };
     if (event === "signed_out_everywhere") return { tone: "security", title: "You signed out everywhere", detail: "Every other session was ended. Sign in again on your other devices." };
     return { tone: "security", title: "Your recovery codes were replaced", detail: "The previous codes no longer work. If this was not you, sign out everywhere and contact support." };
   }

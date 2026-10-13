@@ -267,7 +267,7 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
  * are the events a player must see even when they did not cause them.
  */
 export type SecurityAlertNotification = {
-  event: "two_factor_disabled" | "recovery_codes_replaced" | "withdrawal_started" | "tip_sent" | "signed_out_everywhere";
+  event: "two_factor_disabled" | "recovery_codes_replaced" | "withdrawal_started" | "tip_sent" | "signed_out_everywhere" | "two_factor_locked" | "admin_elevated";
   /** Lamports, for the events that moved money. */
   amount?: number;
   /** The player or address the money went to. */

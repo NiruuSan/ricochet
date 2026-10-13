@@ -57,6 +57,8 @@ export function AdminBots() {
       return next;
     } catch (e) {
       setError((e as Error).message);
+      // The switch moved before the answer came back: put it back to what is true.
+      void load();
       return null;
     } finally {
       setBusy("");

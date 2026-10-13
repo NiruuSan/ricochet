@@ -1,3 +1,4 @@
+import { elevationRequired } from "@/lib/admin-guard";
 import { administrator } from "@/lib/auth-user";
 import { database } from "@/db/raw";
 import { json, readBody, sameOrigin } from "@/lib/http";
@@ -27,6 +28,11 @@ export async function POST(req: Request) {
     const parsed = await readBody(req, 2048);
     if ("error" in parsed) return json({ error: parsed.error }, parsed.status);
     const b = parsed.body;
+    // A withdrawal asks for its own code below; anything else needs the window.
+    if (b.action !== "withdraw") {
+      const locked = await elevationRequired(user.userId);
+      if (locked) return locked;
+    }
     // Treasury deposits sweep the house deposit address into the pool and credit the house account.
     if (b.action === "deposit") return json(await beginDeposit(HOUSE, b.id));
     if (b.action === "withdraw") {

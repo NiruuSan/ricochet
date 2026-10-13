@@ -12,7 +12,10 @@ import { PaymentError } from "./payments/errors";
 // - The TOTP secret is encrypted with AES-256-GCM under a key derived from the
 //   wallet vault key, and bound to the user ID.
 // - A code is accepted at most once: the highest time step used is recorded.
-// - Five wrong codes lock verification for 15 minutes.
+// - Five wrong codes lock verification for 15 minutes, and each lock in a row
+//   lasts twice as long as the one before (up to 16 hours). Every attempt is
+//   counted before its code is checked, so codes sent in parallel cannot all be
+//   judged against the same unlocked state.
 // - Recovery codes are stored as keyed hashes (HMAC), never in clear.
 
 const STEP_SECONDS = 30;
@@ -150,7 +153,7 @@ function qrDataUrl(text: string) {
   return `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`;
 }
 
-type Row = { user_id: string; secret: string; enabled: number; last_step: number; failures: number; locked_until: number };
+type Row = { user_id: string; secret: string; enabled: number; last_step: number; failures: number; locked_until: number; lockouts: number };
 
 const load = (uid: string) => database().prepare("SELECT * FROM two_factor WHERE user_id = ?").bind(uid).first<Row>();
 
@@ -195,41 +198,67 @@ export async function beginTwoFactorSetup(uid: string, accountName: string, now 
   return { secret: key.match(/.{1,4}/g)!.join(" "), uri, qr: qrDataUrl(uri) };
 }
 
-async function registerFailure(uid: string, now: number) {
-  // Count the failure; the fifth in a row locks verification and resets the count.
-  await database()
-    .prepare(
-      `UPDATE two_factor SET
-         locked_until = CASE WHEN failures + 1 >= ? THEN ? ELSE locked_until END,
-         failures = CASE WHEN failures + 1 >= ? THEN 0 ELSE failures + 1 END
-       WHERE user_id = ?`,
-    )
-    .bind(MAX_FAILURES, now + LOCK_MS, MAX_FAILURES, uid)
-    .run();
+/** How long the next lock lasts: 15 minutes, then twice as long each time in a row, up to 16 hours. */
+export const lockFor = (lockouts: number) => LOCK_MS * 2 ** Math.min(Math.max(0, lockouts), 6);
+
+const lockedError = (until: number, now: number) => {
+  const minutes = Math.max(1, Math.ceil((until - now) / 60_000));
+  const wait = minutes >= 120 ? `${Math.round(minutes / 60)} hours` : `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  return new TwoFactorError(`Too many wrong codes. Try again in ${wait}.`, "TWO_FACTOR_LOCKED");
+};
+
+type Attempt = { failures: number; lockouts: number };
+
+/**
+ * Spends one of the five tries before the code is looked at. Counting and
+ * checking the lock are one conditional write, so twenty requests fired at
+ * once get five tries between them, not twenty: the rest are refused here.
+ */
+async function takeAttempt(uid: string, enabled: 0 | 1, now: number): Promise<Attempt> {
+  const taken = await database()
+    .prepare("UPDATE two_factor SET failures = failures + 1 WHERE user_id = ? AND enabled = ? AND locked_until <= ? AND failures < ? RETURNING failures, lockouts")
+    .bind(uid, enabled, now, MAX_FAILURES)
+    .first<Attempt>();
+  if (taken) return taken;
+  const row = await load(uid);
+  if (!row || row.enabled !== enabled) {
+    throw enabled
+      ? new TwoFactorError("Turn on two-factor authentication first: this needs a code from your app.", "TWO_FACTOR_REQUIRED")
+      : new TwoFactorError("Start the two-factor setup again.", "TWO_FACTOR_STATE");
+  }
+  // Locked, or the last tries are being judged right now and will lock it if they are wrong.
+  throw lockedError(row.locked_until > now ? row.locked_until : now + lockFor(row.lockouts), now);
 }
 
-function assertUnlocked(row: Row, now: number) {
-  if (row.locked_until > now) {
-    const minutes = Math.ceil((row.locked_until - now) / 60_000);
-    throw new TwoFactorError(`Too many wrong codes. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`, "TWO_FACTOR_LOCKED");
-  }
+/** Not a guess after all (the right code, already spent): the try is given back. */
+const attemptReturned = (uid: string) => database().prepare("UPDATE two_factor SET failures = MAX(failures - 1, 0) WHERE user_id = ?").bind(uid).run();
+
+/** A wrong code. The fifth in a row locks, for longer each time, and tells the owner. */
+async function attemptFailed(uid: string, attempt: Attempt, now: number) {
+  if (attempt.failures < MAX_FAILURES) return;
+  const until = now + lockFor(attempt.lockouts);
+  const db = database();
+  await db.batch([
+    db.prepare("UPDATE two_factor SET failures = 0, lockouts = lockouts + 1, locked_until = ? WHERE user_id = ?").bind(until, uid),
+    notificationInsert(db, `security:two_factor_locked:${now}`, uid, "security_alert", { event: "two_factor_locked", until }, now),
+  ]);
 }
 
 /** Finishes enrolment with a code from the app, and returns the recovery codes (shown once). */
 export async function confirmTwoFactorSetup(uid: string, codeInput: unknown, now = Date.now()) {
+  const attempt = await takeAttempt(uid, 0, now);
   const row = await load(uid);
   if (!row || row.enabled) throw new TwoFactorError("Start the two-factor setup again.", "TWO_FACTOR_STATE");
-  assertUnlocked(row, now);
   const code = typeof codeInput === "string" ? codeInput.replace(/\s/g, "") : "";
   const step = /^\d{6}$/.test(code) ? matchingStep(decryptSecret(row.secret, uid), code, row.last_step, now) : null;
   if (step === null) {
-    await registerFailure(uid, now);
+    await attemptFailed(uid, attempt, now);
     throw new TwoFactorError("That code is not valid. Check the time on your phone and enter the current code.", "TWO_FACTOR_INVALID");
   }
   const codes = newRecoveryCodes();
   const db = database();
   const [enabled] = await db.batch([
-    db.prepare("UPDATE two_factor SET enabled = 1, enabled_at = ?, last_step = ?, failures = 0 WHERE user_id = ? AND enabled = 0").bind(now, step, uid),
+    db.prepare("UPDATE two_factor SET enabled = 1, enabled_at = ?, last_step = ?, failures = 0, lockouts = 0 WHERE user_id = ? AND enabled = 0").bind(now, step, uid),
     db.prepare("DELETE FROM two_factor_recovery WHERE user_id = ?").bind(uid),
     ...codes.map((c) => db.prepare("INSERT INTO two_factor_recovery(code_hash, user_id) VALUES(?, ?)").bind(hashRecovery(c), uid)),
   ]);
@@ -242,10 +271,10 @@ export async function confirmTwoFactorSetup(uid: string, codeInput: unknown, now
  * factor. Each code works once. Throws a TwoFactorError otherwise.
  */
 export async function verifySecondFactor(uid: string, codeInput: unknown, now = Date.now()) {
+  // Withdrawals, large tips, administrator actions and closing an account all land here.
+  const attempt = await takeAttempt(uid, 1, now);
   const row = await load(uid);
-  // Withdrawals, large tips and an administrator closing an account all land here.
   if (!row?.enabled) throw new TwoFactorError("Turn on two-factor authentication first: this needs a code from your app.", "TWO_FACTOR_REQUIRED");
-  assertUnlocked(row, now);
   const db = database();
   const code = typeof codeInput === "string" ? codeInput.trim() : "";
   if (/^\d{3}\s?\d{3}$/.test(code)) {
@@ -254,21 +283,22 @@ export async function verifySecondFactor(uid: string, codeInput: unknown, now = 
     const step = matchingStep(secret, digits, row.last_step, now);
     // Conditional on the step, so two requests racing with the same code cannot both pass.
     if (step !== null) {
-      const used = await db.prepare("UPDATE two_factor SET last_step = ?, failures = 0 WHERE user_id = ? AND enabled = 1 AND last_step < ?").bind(step, uid, step).run();
+      const used = await db.prepare("UPDATE two_factor SET last_step = ?, failures = 0, lockouts = 0 WHERE user_id = ? AND enabled = 1 AND last_step < ?").bind(step, uid, step).run();
       if (used.meta.changes) return "totp" as const;
     }
     // The right code, but already spent (for example to turn 2FA on a moment ago): not a guess.
     if (matchingStep(secret, digits, -1, now) !== null) {
+      await attemptReturned(uid);
       throw new TwoFactorError("This code was already used. Wait for the next code in your app (they change every 30 seconds).", "TWO_FACTOR_INVALID");
     }
   } else if (normalizeRecovery(code).length === 10) {
     const used = await db.prepare("UPDATE two_factor_recovery SET used_at = ? WHERE code_hash = ? AND user_id = ? AND used_at IS NULL").bind(now, hashRecovery(code), uid).run();
     if (used.meta.changes) {
-      await db.prepare("UPDATE two_factor SET failures = 0 WHERE user_id = ?").bind(uid).run();
+      await db.prepare("UPDATE two_factor SET failures = 0, lockouts = 0 WHERE user_id = ?").bind(uid).run();
       return "recovery" as const;
     }
   }
-  await registerFailure(uid, now);
+  await attemptFailed(uid, attempt, now);
   throw new TwoFactorError("That authentication code is not valid or was already used.", "TWO_FACTOR_INVALID");
 }
 

@@ -27,6 +27,38 @@ export const RENT_EXEMPT_MINIMUM = 890_880;
 export { MIN_DEPOSIT };
 const OPEN = "('pending', 'review')";
 
+const DAY_MS = 86_400_000;
+/** Default ceiling on what one player can send off the site in any 24 hours. */
+export const DEFAULT_DAILY_WITHDRAWAL_SOL = 50;
+
+/** The 24-hour ceiling in lamports, from WITHDRAWAL_DAILY_LIMIT_SOL when it is set to a sane number. */
+export function dailyWithdrawalLimit() {
+  const configured = Number(settings().WITHDRAWAL_DAILY_LIMIT_SOL);
+  const sol = Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_DAILY_WITHDRAWAL_SOL;
+  return Math.round(sol * 1_000_000_000);
+}
+
+/**
+ * A ceiling on money leaving one account in any 24 hours. A stolen account with
+ * a stolen phone can still only take so much before the owner notices the
+ * alert that every withdrawal sends — and a failed or expired transfer gave its
+ * money back, so it does not count.
+ */
+async function assertUnderDailyLimit(uid: string, amount: number, now = Date.now()) {
+  const sent = await database()
+    .prepare("SELECT COALESCE(SUM(amount), 0) AS sent FROM cash_transfers WHERE user_id = ? AND kind = 'withdrawal' AND status NOT IN ('failed', 'expired') AND created > ?")
+    .bind(uid, now - DAY_MS)
+    .first<{ sent: number }>();
+  const limit = dailyWithdrawalLimit();
+  const already = Number(sent?.sent ?? 0);
+  if (already + amount > limit) {
+    const left = Math.max(0, limit - already) / 1_000_000_000;
+    throw new PaymentError(
+      `Withdrawals are limited to ${limit / 1_000_000_000} SOL in any 24 hours. You can still send ${left.toLocaleString("en", { maximumFractionDigits: 9 })} SOL today.`,
+    );
+  }
+}
+
 type Wallet = { id: string; network: string; owner: string; address: string; encrypted_key: string };
 export type Transfer = {
   id: string;
@@ -93,6 +125,8 @@ export async function precheckWithdrawal(uid: string, destinationInput: unknown,
   }
   const available = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(treasury ? HOUSE : uid)).first<{ balance: number }>();
   if (!available || available.balance < amount) throw new PaymentError("Insufficient available balance, including the network fee.");
+  // Only once the money is there: a player short of funds is told that, not about the ceiling.
+  if (!treasury) await assertUnderDailyLimit(uid, amount, now);
 }
 
 /** Whether this operation ID already started a transfer for the user (a retry moves no money twice). */
@@ -177,6 +211,8 @@ export async function beginWithdrawal(uid: string, idInput: unknown, destination
   if (remaining > 0 && remaining < RENT_EXEMPT_MINIMUM) {
     throw new PaymentError("This amount would leave the pool wallet below Solana's rent minimum. Withdraw slightly less. No withdrawal was submitted.");
   }
+  // The ceiling is checked last, right before the transfer is written: every other reason to refuse comes first.
+  if (!treasury) await assertUnderDailyLimit(uid, amount);
   await insertTransfer({ id, uid, account, kind, source: pool.address, destination, ...prepared }, true);
   return reconcileTransfer(id, uid);
 }

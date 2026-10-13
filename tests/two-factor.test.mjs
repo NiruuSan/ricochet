@@ -87,15 +87,34 @@ try {
   sqlite.prepare("INSERT INTO two_factor(user_id, secret, enabled, last_step, failures, locked_until, created) SELECT 'github:thief', secret, 1, 0, 0, 0, 0 FROM two_factor WHERE user_id = ?").run(UID);
   await assert.rejects(() => tf.verifySecondFactor("github:thief", codeAt(setup.secret, regenAt + 30_000), regenAt + 30_000));
 
+  // Brute force: codes fired in parallel get five tries between them, not one each.
+  const burstAt = regenAt + 60_000;
+  const burst = await Promise.allSettled(Array.from({ length: 20 }, () => tf.verifySecondFactor(UID, "000000", burstAt)));
+  assert.equal(burst.filter((o) => o.reason?.code === "TWO_FACTOR_INVALID").length, tf.MAX_FAILURES, "Only five of twenty parallel codes are even checked");
+  assert.equal(burst.filter((o) => o.reason?.code === "TWO_FACTOR_LOCKED").length, 20 - tf.MAX_FAILURES, "The other fifteen are refused unread");
+  await assert.rejects(() => tf.verifySecondFactor(UID, codeAt(setup.secret, burstAt), burstAt), (e) => e.code === "TWO_FACTOR_LOCKED", "Even the right code waits out the lock");
+  assert.equal((await tf.twoFactorStatus(UID, burstAt)).lockedUntil, burstAt + tf.LOCK_MS, "The first lock in a row is the short one");
+  assert.ok(sqlite.prepare("SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND data LIKE '%two_factor_locked%'").get(UID).n >= 1, "The owner is told their codes are being guessed");
+  // The next lock in a row is twice as long, and so on: a day of guessing gets a handful of tries.
+  const again = burstAt + tf.LOCK_MS + 1000;
+  for (let i = 0; i < tf.MAX_FAILURES; i++) await assert.rejects(() => tf.verifySecondFactor(UID, "000000", again), (e) => e.code === "TWO_FACTOR_INVALID");
+  assert.equal((await tf.twoFactorStatus(UID, again)).lockedUntil, again + tf.lockFor(1), "The second lock is longer");
+  assert.equal(tf.lockFor(1), 2 * tf.LOCK_MS);
+  assert.equal(tf.lockFor(99), 64 * tf.LOCK_MS, "and it stops growing at 16 hours");
+  // A right code clears the streak.
+  const cleared = again + tf.lockFor(1) + 1000;
+  assert.equal(await tf.verifySecondFactor(UID, codeAt(setup.secret, cleared), cleared), "totp");
+  assert.equal(sqlite.prepare("SELECT lockouts FROM two_factor WHERE user_id = ?").get(UID).lockouts, 0, "A right code starts the locks from the short one again");
+
   // Turning it off needs a valid code and removes everything.
-  const offAt = regenAt + 60_000;
+  const offAt = cleared + 60_000;
   await assert.rejects(() => tf.disableTwoFactor(UID, "111111", offAt));
   const offAfterFailure = offAt + 30_000;
   await tf.disableTwoFactor(UID, codeAt(setup.secret, offAfterFailure), offAfterFailure);
   assert.deepEqual(await tf.twoFactorStatus(UID, offAfterFailure), { enabled: false, recoveryCodesLeft: 0, lockedUntil: null });
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM two_factor_recovery WHERE user_id = ?").get(UID).n, 0);
 
-  console.log("PASS: two-factor (RFC 6238 vectors, encrypted owner-bound secrets, confirmed enrolment, single-use and race-safe codes, clock drift, lockout, hashed single-use recovery codes, regeneration, disabling).");
+  console.log("PASS: two-factor (RFC 6238 vectors, encrypted owner-bound secrets, confirmed enrolment, single-use and race-safe codes, clock drift, lockout that parallel requests cannot outrun and that doubles with every lock in a row, an alert to the owner, hashed single-use recovery codes, regeneration, disabling).");
 } finally {
   close();
 }

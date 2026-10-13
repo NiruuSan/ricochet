@@ -348,9 +348,25 @@ export const twoFactor = sqliteTable("two_factor", {
   lastStep: integer("last_step").notNull().default(0),
   failures: integer("failures").notNull().default(0),
   lockedUntil: integer("locked_until").notNull().default(0),
+  // How many times in a row the codes ran out: each lock is twice as long as the last.
+  lockouts: integer("lockouts").notNull().default(0),
   created: integer("created").notNull(),
   enabledAt: integer("enabled_at"),
 });
+
+// Sudo mode for the administrator: a fresh second-factor code opens a short
+// window in which this one session (keyed by a hash of its cookie) may change
+// things. A stolen administrator cookie alone changes nothing.
+export const adminElevations = sqliteTable(
+  "admin_elevations",
+  {
+    session: text("session").primaryKey(),
+    userId: text("user_id").notNull(),
+    until: integer("until").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [index("admin_elevation_user").on(t.userId)],
+);
 
 // Single-use recovery codes, stored as keyed hashes only.
 export const twoFactorRecovery = sqliteTable(
