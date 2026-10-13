@@ -27,3 +27,7 @@ overrides:
   browserslist@<4.28.7: 4.28.9
   baseline-browser-mapping@<2.11.0: 2.11.21
   "@babel/core@<7.29.1": 7.29.7
+  # sharp (via next, image optimisation): librsvg vulnerability CVE-2026-96889.
+  sharp@<0.35.5: 0.35.5
+  # source-map-js (via postcss): event-loop DoS through indexed source-map offsets.
+  source-map-js@<1.2.2: 1.2.2
