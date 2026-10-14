@@ -9,6 +9,7 @@ import { gameAction } from "./api";
 import { drawBoard } from "./board-canvas";
 import { playSound, resetCombo } from "./sound";
 import { clearEffects, emitBounce, emitBreak, emitClear, hasEffects } from "./board-effects";
+import { isAnimated } from "./board-scenes";
 import { brickColours } from "./board-canvas";
 import { themeById, type Theme } from "@/lib/themes";
 
@@ -188,6 +189,24 @@ export function useGameSession({ onSaved, onError, theme: themeInput }: Options)
       cancelAnimationFrame(glowRef.current);
     };
   }, []);
+
+  // A scene that moves (stars, snow, the aurora) keeps moving while the player
+  // aims: about thirty frames a second, never while a shot is already painting
+  // every frame, never in a hidden tab, and not at all for someone who asked
+  // their system for less motion.
+  useEffect(() => {
+    if (!isAnimated(theme) || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let frame = 0;
+    let last = 0;
+    const loop = (now: number) => {
+      frame = requestAnimationFrame(loop);
+      if (document.hidden || flightRef.current || now - last < 33) return;
+      last = now;
+      draw();
+    };
+    frame = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(frame);
+  }, [draw, theme]);
 
   // Closing the tab would drop shots that are not saved yet.
   useEffect(() => {

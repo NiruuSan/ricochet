@@ -1,6 +1,7 @@
 import { brickRect, GROUND, H, W, type Flight, type Game } from "@/lib/engine";
 import { themeById, type Theme } from "@/lib/themes";
 import { drawEffects, hasEffects } from "./board-effects";
+import { drawScene, drawStyledBrick, orbFill } from "./board-scenes";
 
 // The board, painted in whatever skin the player wears (lib/themes.ts). Only
 // the look comes from the theme: every position on screen is computed from the
@@ -29,18 +30,27 @@ function fitToDisplay(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) 
 /** The colour pair a brick is painted in: its column and the round, as before. */
 export const brickColours = (theme: Theme, col: number, round: number) => theme.board.bricks[(col + round - 1) % theme.board.bricks.length];
 
-/** Paints the board: the live flight while a shot animates, otherwise the aim guide (none for spectators: `angle` null). */
-export function drawBoard(canvas: HTMLCanvasElement, flight: Flight | null, game: Game, angle: number | null, skin?: Theme | string | null) {
+/**
+ * Paints the board: the live flight while a shot animates, otherwise the aim
+ * guide (none for spectators: `angle` null). `time` is what a moving scene is
+ * painted at, in seconds.
+ */
+export function drawBoard(canvas: HTMLCanvasElement, flight: Flight | null, game: Game, angle: number | null, skin?: Theme | string | null, time = performance.now() / 1000) {
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   const theme = typeof skin === "object" && skin ? skin : themeById(typeof skin === "string" ? skin : null);
   fitToDisplay(canvas, ctx);
   const g = flight?.game ?? game;
-  drawBackground(ctx, theme);
+  drawBackground(ctx, theme, time);
   for (const b of g.bricks) {
     const r = brickRect(b);
     const [face, shade] = brickColours(theme, b.col, g.round);
     const radius = theme.board.radius;
+    if (theme.board.brick && theme.board.brick !== "flat") {
+      const label = drawStyledBrick(ctx, theme, r, face, shade, time);
+      writeLabel(ctx, theme, b.hp, r, label, theme.board.brick === "neon" ? face : null);
+      continue;
+    }
     ctx.fillStyle = shade;
     ctx.beginPath();
     ctx.roundRect(r.x, r.y + 4, r.w, r.h, radius);
@@ -58,15 +68,25 @@ export function drawBoard(canvas: HTMLCanvasElement, flight: Flight | null, game
       ctx.fillStyle = theme.board.shine;
       ctx.fillRect(r.x + 8, r.y + 5, r.w - 16, 2);
     }
-    ctx.fillStyle = theme.board.label;
-    ctx.font = `800 21px ${labelFont(theme)}`;
-    ctx.textBaseline = "middle";
-    ctx.fillText(String(b.hp), r.x + r.w / 2, r.y + r.h / 2 - 1);
-    ctx.textBaseline = "alphabetic";
+    writeLabel(ctx, theme, b.hp, r, theme.board.label, null);
   }
   if (flight) drawFlight(ctx, flight, theme);
   else if (!g.over) drawAim(ctx, g, angle, theme);
   if (hasEffects()) drawEffects(ctx, performance.now());
+}
+
+/** The hits a brick has left, in the middle of it; `glow` lights it up for bricks drawn in light. */
+function writeLabel(ctx: CanvasRenderingContext2D, theme: Theme, hp: number, r: { x: number; y: number; w: number; h: number }, colour: string, glow: string | null) {
+  ctx.fillStyle = colour;
+  ctx.font = `800 21px ${labelFont(theme)}`;
+  ctx.textBaseline = "middle";
+  if (glow) {
+    ctx.shadowColor = glow;
+    ctx.shadowBlur = 10;
+  }
+  ctx.fillText(String(hp), r.x + r.w / 2, r.y + r.h / 2 - 1);
+  ctx.shadowBlur = 0;
+  ctx.textBaseline = "alphabetic";
 }
 
 /** The number on a brick follows the theme's typeface, but never at a size that hides it. */
@@ -83,7 +103,7 @@ function labelFont(theme: Theme) {
   }
 }
 
-function drawBackground(ctx: CanvasRenderingContext2D, theme: Theme) {
+function drawBackground(ctx: CanvasRenderingContext2D, theme: Theme, time: number) {
   const [top, bottom] = theme.board.sky;
   ctx.clearRect(0, 0, W, H);
   if (top === bottom) {
@@ -95,6 +115,10 @@ function drawBackground(ctx: CanvasRenderingContext2D, theme: Theme) {
     ctx.fillStyle = sky;
   }
   ctx.fillRect(0, 0, W, H);
+  // The floor goes down first, so a scene may paint across it (a road, a drift of snow).
+  ctx.fillStyle = theme.board.floor;
+  ctx.fillRect(0, GROUND + 1, W, H - GROUND);
+  if (theme.board.scene) drawScene(ctx, theme, time);
   if (theme.board.dots) {
     ctx.fillStyle = theme.board.dots;
     for (let x = 18; x < W; x += 23) {
@@ -112,8 +136,6 @@ function drawBackground(ctx: CanvasRenderingContext2D, theme: Theme) {
   ctx.moveTo(0, GROUND);
   ctx.lineTo(W, GROUND);
   ctx.stroke();
-  ctx.fillStyle = theme.board.floor;
-  ctx.fillRect(0, GROUND + 1, W, H - GROUND);
 }
 
 function drawFlight(ctx: CanvasRenderingContext2D, flight: Flight, theme: Theme) {
@@ -132,7 +154,7 @@ function drawFlight(ctx: CanvasRenderingContext2D, flight: Flight, theme: Theme)
     }
     ctx.beginPath();
     ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
-    ctx.fillStyle = theme.board.ball;
+    ctx.fillStyle = theme.board.orb ? orbFill(ctx, theme, b.x, b.y, 5) : theme.board.ball;
     ctx.shadowColor = theme.board.glow;
     ctx.shadowBlur = 9;
     ctx.fill();
@@ -153,7 +175,7 @@ function drawAim(ctx: CanvasRenderingContext2D, g: Game, angle: number | null, t
   // same size, with the theme's glow behind it when it has one.
   ctx.beginPath();
   ctx.arc(g.x, GROUND - 6, 6, 0, Math.PI * 2);
-  ctx.fillStyle = theme.board.ball;
+  ctx.fillStyle = theme.board.orb ? orbFill(ctx, theme, g.x, GROUND - 6, 6) : theme.board.ball;
   ctx.shadowBlur = 18;
   ctx.shadowColor = theme.board.glow;
   ctx.fill();

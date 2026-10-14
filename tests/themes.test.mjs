@@ -29,9 +29,9 @@ const count = (sql, ...args) => sqlite.prepare(sql).get(...args).n;
 
 try {
   // --- The catalogue --------------------------------------------------------
-  assert.equal(THEMES.length, 10, "Ten themes");
-  assert.equal(new Set(THEMES.map((t) => t.id)).size, 10, "No two share an id");
-  assert.equal(new Set(THEMES.map((t) => t.name)).size, 10, "Nor a name");
+  assert.equal(THEMES.length, 18, "Eighteen themes");
+  assert.equal(new Set(THEMES.map((t) => t.id)).size, 18, "No two share an id");
+  assert.equal(new Set(THEMES.map((t) => t.name)).size, 18, "Nor a name");
   assert.deepEqual(THEMES.filter((t) => t.price === null).map((t) => t.id), [DEFAULT_THEME], "One free theme, and it is the default");
   for (const theme of THEMES) {
     assert.ok(theme.board.bricks.length >= 4, `${theme.id} has a palette`);
@@ -44,8 +44,16 @@ try {
     }
   }
   const paid = THEMES.filter((t) => t.price);
-  assert.equal(paid.filter((t) => t.price.asset === "gems").length, 6, "Six bought with gems");
-  assert.equal(paid.filter((t) => t.price.asset === "devnet").length, 3, "Three bought with devnet SOL");
+  assert.equal(paid.filter((t) => t.price.asset === "gems").length, 11, "Eleven bought with gems");
+  assert.equal(paid.filter((t) => t.price.asset === "devnet").length, 6, "Six bought with devnet SOL");
+  // A scene or a brick style is paint too: only names the painter knows.
+  const SCENES = ["stars", "aurora", "outrun", "ink", "snow", "cave", "felt", "pulse", "candy"];
+  const STYLES = ["flat", "glossy", "gem", "glass", "neon", "chip", "ink", "gradient"];
+  for (const theme of THEMES) {
+    if (theme.board.scene) assert.ok(SCENES.includes(theme.board.scene), `${theme.id} has a known scene`);
+    if (theme.board.brick) assert.ok(STYLES.includes(theme.board.brick), `${theme.id} has a known brick style`);
+    for (const [face, shade] of theme.board.bricks) assert.match(face + shade, /^#[0-9a-f]{6,8}#[0-9a-f]{6,8}$/i, `${theme.id} colours are hex`);
+  }
   assert.ok(
     paid.filter((t) => t.price.asset === "gems").every((t) => t.price.amount >= 1_000 && t.price.amount <= 50_000),
     "Gem prices stay within a day or two of play",
@@ -121,13 +129,13 @@ try {
 
   // --- The store as the page sees it ---------------------------------------
   const page = await store.themeStore(ANA);
-  assert.equal(page.themes.length, 10);
+  assert.equal(page.themes.length, 18);
   assert.deepEqual(page.owned.sort(), [DEFAULT_THEME, "neon", "obsidian", "paper"].sort());
   const visitor = await store.themeStore(null);
   assert.deepEqual(visitor.owned, [DEFAULT_THEME], "A visitor owns the free one");
 
   console.log(
-    "PASS: themes (catalogue of ten with one free and nothing the engine reads, gem purchase through the ledger, the receipt as the lock, a second tap free, an empty wallet refused, devnet SOL to the house, wearing only what is owned, a skin the player lost falling back, the snapshot, and the shop under an open case).",
+    "PASS: themes (catalogue of eighteen with one free and nothing the engine reads, gem purchase through the ledger, the receipt as the lock, a second tap free, an empty wallet refused, devnet SOL to the house, wearing only what is owned, a skin the player lost falling back, the snapshot, and the shop under an open case).",
   );
 } finally {
   close();

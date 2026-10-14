@@ -141,3 +141,134 @@
     gap: 14px;
   }
 }
+
+/* The board on each card is a button: it opens the theme playing itself. */
+.previewButton {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.previewButton:focus-visible {
+  outline: 2px solid var(--t-accent, #c6f564);
+  outline-offset: -2px;
+}
+.play {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: rgba(8, 10, 16, 0.72);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s, transform 0.2s;
+}
+.card:hover .play,
+.previewButton:focus-visible .play {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: none) {
+  .play {
+    opacity: 1;
+    transform: none;
+  }
+}
+.newBadge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--t-accent, #c6f564);
+  color: #0b0f17;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--t-accent, #c6f564) 45%, transparent);
+}
+/* The ones bought with SOL wear a thin rim of their own colour. */
+.premium {
+  border-color: color-mix(in srgb, var(--t-accent, #c6f564) 38%, #2b3546);
+  background:
+    radial-gradient(120% 60% at 100% 0%, color-mix(in srgb, var(--t-accent, #c6f564) 10%, transparent), transparent 60%),
+    linear-gradient(135deg, #161e2b, #111925);
+}
+.card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+@media (hover: hover) {
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+  }
+}
+
+/* The theme at full size, playing itself. */
+.showcase {
+  display: grid;
+  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: center;
+  width: min(760px, calc(100% - 2rem));
+  max-width: min(760px, calc(100% - 2rem)) !important;
+}
+.showcaseBoard {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  border: 1px solid #2b3546;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+.showcaseSide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.showcaseTitle {
+  font-family: var(--t-display, inherit);
+  font-size: 28px !important;
+  color: var(--t-accent, #fff);
+}
+.showcasePrice {
+  margin-top: 4px;
+  color: #fff !important;
+  font-weight: 800;
+}
+.showcaseSide :global(.btn) {
+  justify-content: center;
+}
+@media (max-width: 620px) {
+  .showcase {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    /* Room for the close button above the board. */
+    padding-top: 52px !important;
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+  }
+  .showcaseBoard {
+    width: min(100%, 300px);
+    margin: 0 auto;
+  }
+  .showcaseTitle {
+    font-size: 22px !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .play {
+    transition: none;
+  }
+}

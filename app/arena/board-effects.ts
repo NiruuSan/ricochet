@@ -9,7 +9,7 @@ import type { Theme } from "@/lib/themes";
 // forty-ball shot on a full board costs the same as a single one — a phone
 // mid-match is the worst place to allocate.
 
-type Kind = Theme["effects"]["burst"] | Theme["effects"]["bounce"];
+type Kind = Theme["effects"]["burst"] | Theme["effects"]["bounce"] | "blot" | "firework";
 
 type Particle = {
   kind: Kind;
@@ -43,7 +43,11 @@ function add(p: Particle) {
 /** A brick has gone: throw something out of the cell it stood in. */
 export function emitBreak(theme: Theme, x: number, y: number, colour: string) {
   const burst = theme.effects.burst;
-  const count = burst === "pixels" ? 10 : burst === "dust" ? 14 : 8;
+  const count = burst === "pixels" ? 10 : burst === "dust" ? 14 : burst === "coins" ? 6 : burst === "sprinkles" ? 12 : 8;
+  if (burst === "ink") {
+    // One blot that spreads where the brick stood, and drops flicked off it.
+    add({ kind: "blot", x, y, vx: 0, vy: 0, age: 0, life: 0.9, size: 8, colour, spin: 0, turn: 0 });
+  }
   for (let i = 0; i < count; i++) {
     const angle = rand(0, Math.PI * 2);
     const speed = rand(30, 130);
@@ -75,6 +79,26 @@ export function emitBreak(theme: Theme, x: number, y: number, colour: string) {
       case "scraps":
         add({ kind: burst, x, y, vx: rand(-55, 55), vy: rand(-70, -10), age: 0, life: rand(0.9, 1.5), size: rand(4, 8), colour, spin: rand(-5, 5), turn: rand(0, 6) });
         break;
+      case "crystals":
+        add({ kind: burst, x, y, vx: Math.cos(angle) * speed * 1.1, vy: Math.sin(angle) * speed - 70, age: 0, life: rand(0.55, 0.95), size: rand(4, 8), colour, spin: rand(-9, 9), turn: rand(0, 6) });
+        break;
+      case "stars":
+        add({ kind: burst, x, y, vx: Math.cos(angle) * speed * 0.6, vy: Math.sin(angle) * speed * 0.6 - 25, age: 0, life: rand(0.7, 1.3), size: rand(3, 6.5), colour: i % 3 ? colour : "#ffffff", spin: rand(4, 9), turn: rand(0, 6) });
+        break;
+      case "snow":
+        add({ kind: burst, x: x + rand(-18, 18), y: y + rand(-12, 12), vx: rand(-30, 30), vy: rand(-40, 10), age: 0, life: rand(1, 1.8), size: rand(1.2, 3), colour: "#ffffff", spin: rand(1, 2.5), turn: rand(0, 6) });
+        break;
+      case "ink":
+        add({ kind: burst, x, y, vx: Math.cos(angle) * speed * 1.2, vy: Math.sin(angle) * speed - 30, age: 0, life: rand(0.4, 0.8), size: rand(1.5, 4), colour, spin: 0, turn: 0 });
+        break;
+      case "coins":
+        add({ kind: burst, x, y, vx: rand(-70, 70), vy: rand(-190, -110), age: 0, life: rand(0.9, 1.3), size: rand(4.5, 6.5), colour: "#f2c94c", spin: rand(8, 14), turn: rand(0, 6) });
+        break;
+      case "sprinkles": {
+        const [face] = theme.board.bricks[i % theme.board.bricks.length];
+        add({ kind: burst, x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 60, age: 0, life: rand(0.7, 1.2), size: rand(4, 6), colour: face, spin: rand(-12, 12), turn: rand(0, 6) });
+        break;
+      }
     }
   }
 }
@@ -106,6 +130,27 @@ export function emitClear(theme: Theme) {
   }
   if (clear === "shockwave") {
     add({ kind: "ring", x: W / 2, y: GROUND / 2, vx: 0, vy: 0, age: 0, life: 0.7, size: 10, colour: theme.board.glow, spin: 0, turn: 0 });
+    return;
+  }
+  if (clear === "fireworks") {
+    // Three shells, one after another, each in a colour of the board.
+    for (let shell = 0; shell < 3; shell++) {
+      const cx = rand(W * 0.2, W * 0.8);
+      const cy = rand(GROUND * 0.15, GROUND * 0.55);
+      const [face] = theme.board.bricks[(shell * 2) % theme.board.bricks.length];
+      for (let i = 0; i < 26; i++) {
+        const angle = (i / 26) * Math.PI * 2 + rand(-0.05, 0.05);
+        const speed = rand(150, 230);
+        add({ kind: "firework", x: cx, y: cy, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, age: -shell * 0.28, life: rand(0.9, 1.25), size: rand(1.6, 2.6), colour: i % 4 ? face : "#ffffff", spin: 0, turn: 0 });
+      }
+    }
+    return;
+  }
+  if (clear === "jackpot") {
+    for (let i = 0; i < 46; i++) {
+      add({ kind: "coins", x: rand(0, W), y: rand(-160, -10), vx: rand(-20, 20), vy: rand(60, 160), age: 0, life: rand(1.6, 2.4), size: rand(5, 8), colour: "#f2c94c", spin: rand(6, 12), turn: rand(0, 6) });
+    }
+    add({ kind: "ring", x: W / 2, y: GROUND / 2, vx: 0, vy: 0, age: 0, life: 0.8, size: 12, colour: theme.board.glow, spin: 0, turn: 0 });
     return;
   }
   if (clear === "rays") {
@@ -142,6 +187,8 @@ export function drawEffects(ctx: CanvasRenderingContext2D, now: number) {
       particles.splice(i, 1);
       continue;
     }
+    // A particle may wait its turn (the second and third shells of a firework).
+    if (p.age < 0) continue;
     const fade = 1 - p.age / p.life;
     // Each kind moves the way the thing it stands for would.
     switch (p.kind) {
@@ -160,6 +207,42 @@ export function drawEffects(ctx: CanvasRenderingContext2D, now: number) {
       case "dust":
         p.x += p.vx * dt;
         p.y += p.vy * dt;
+        break;
+      case "snow":
+        p.turn += dt * p.spin;
+        p.x += (p.vx + Math.sin(p.turn) * 18) * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.97;
+        p.vy = Math.min(45, p.vy + 60 * dt);
+        break;
+      case "stars":
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.96;
+        p.vy = p.vy * 0.96 + 18 * dt;
+        p.turn += dt * p.spin;
+        break;
+      case "blot":
+        p.size += (22 - p.size) * Math.min(1, dt * 7);
+        break;
+      case "firework":
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.955;
+        p.vy = p.vy * 0.955 + 60 * dt;
+        break;
+      case "coins":
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 380 * dt;
+        p.turn += p.spin * dt;
+        break;
+      case "sprinkles":
+        p.turn += dt * p.spin;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= 0.98;
+        p.vy += 260 * dt;
         break;
       case "petals":
       case "scraps":
@@ -229,6 +312,81 @@ export function drawEffects(ctx: CanvasRenderingContext2D, now: number) {
         ctx.rotate(p.turn);
         ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
         ctx.restore();
+        break;
+      case "crystals":
+        // A long diamond, lit along one edge.
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.turn);
+        ctx.beginPath();
+        ctx.moveTo(0, -p.size);
+        ctx.lineTo(p.size * 0.45, 0);
+        ctx.lineTo(0, p.size);
+        ctx.lineTo(-p.size * 0.45, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.8)";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        ctx.restore();
+        break;
+      case "stars": {
+        const r = p.size * (0.65 + 0.35 * Math.sin(p.turn));
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - r);
+        ctx.quadraticCurveTo(p.x, p.y, p.x + r, p.y);
+        ctx.quadraticCurveTo(p.x, p.y, p.x, p.y + r);
+        ctx.quadraticCurveTo(p.x, p.y, p.x - r, p.y);
+        ctx.quadraticCurveTo(p.x, p.y, p.x, p.y - r);
+        ctx.fill();
+        break;
+      }
+      case "blot":
+        ctx.globalAlpha = Math.max(0, Math.min(0.55, fade * 0.7));
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      case "coins": {
+        // A coin turning over: as wide as it is tall face-on, a sliver edge-on.
+        const face = Math.abs(Math.cos(p.turn));
+        ctx.fillStyle = face > 0.35 ? "#f2c94c" : "#b8860b";
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, Math.max(0.8, p.size * face), p.size, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#8a6510";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+        if (face > 0.6) {
+          ctx.fillStyle = "rgba(255,248,214,0.85)";
+          ctx.beginPath();
+          ctx.ellipse(p.x - p.size * face * 0.3, p.y - p.size * 0.3, p.size * face * 0.25, p.size * 0.22, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        break;
+      }
+      case "sprinkles":
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.turn);
+        ctx.lineCap = "round";
+        ctx.lineWidth = 2.6;
+        ctx.beginPath();
+        ctx.moveTo(-p.size / 2, 0);
+        ctx.lineTo(p.size / 2, 0);
+        ctx.stroke();
+        ctx.restore();
+        break;
+      case "firework":
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (0.5 + fade * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha *= 0.35;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 0.05, p.y - p.vy * 0.05);
+        ctx.lineWidth = p.size;
+        ctx.stroke();
         break;
       default:
         ctx.beginPath();
