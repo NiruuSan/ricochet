@@ -239,7 +239,59 @@ try {
   const late = await bots.tickBots(NOW + 43 * 60_000, { immediate: true, seconds: -1 });
   assert.equal(late.more, true, "a turn with no time left says so, and the screen asks again");
 
-  console.log("PASS: bots (off by default, funded by the treasury, taking open seats after a pause, playing through the engine with replayable shots, skill that shows, filling a cup on the button, stopping on the switch, giving the treasury its money back at launch, a roster past twenty with names of their own, an amount per bot the administrator sets and the treasury can always refuse, and a button with no cap on how much it plays, only a clock)");
+  // Launch day with a hundred of them: two whose retired names used to clash
+  // (KestrelMoth and KestrelMarten), a cup they all entered that has not
+  // started, and a seat one of them took and has not played yet. One press
+  // takes every one of them off; nothing they were part of is left hanging.
+  run("INSERT INTO cash_ledger VALUES('house-launch', ?, 'fixture', ?, 'fixture', ?)", cashAccountId(HOUSE), 400 * SOL, NOW);
+  await bots.setBotConfig(ADMIN, { enabled: true, count: 100, topUp: SOL, floor: SOL / 2 }, NOW + 50 * 60_000);
+  const hundred = await bots.bots();
+  assert.equal(hundred.length, 100, "a hundred on the site");
+  assert.ok(hundred.some((bot) => bot.name === "KestrelMoth") && hundred.some((bot) => bot.name === "KestrelMarten"), "both Kestrels among them");
+  const launchCup = await createTournament(
+    { name: "Launch Cup", asset: "devnet", entry: "paid", entryFee: "0.05", prize: "0", payout: "top3", places: 200, startsAt: NOW + 6 * 3_600_000, endsAt: NOW + 9 * 3_600_000 },
+    NOW + 50 * 60_000,
+  );
+  const entered = (await bots.fillTournament(ADMIN, launchCup, NOW + 50 * 60_000)).filled;
+  assert.ok(entered > 90, `the cup filled with them, saw ${entered}`);
+  const escrow = () => cash(`escrow:tournament:${launchCup}`);
+  assert.equal(escrow(), entered * 0.05 * SOL);
+  run("INSERT INTO players(id, name, balance, created) VALUES('github:launch', 'Launcher', 5000, ?)", NOW - 9e8);
+  const launchSeat = await startMatch("github:launch", "25", "gems");
+  await bots.tickBots(NOW + 51 * 60_000, { immediate: true });
+  const launchMatch = sqlite.prepare("SELECT match_id FROM runs WHERE id = ?").get(launchSeat.id).match_id;
+  const sitter = sqlite.prepare("SELECT p2 FROM matches WHERE id = ?").get(launchMatch).p2;
+  assert.ok(sitter?.startsWith("bot:"), "a bot took the seat");
+  assert.equal(Number(sqlite.prepare("SELECT done FROM runs WHERE match_id = ? AND user_id = ?").get(launchMatch, sitter).done), 0, "and has not played it yet");
+
+  const houseBeforeLaunch = cash(HOUSE);
+  const launch = await bots.removeBots(ADMIN, NOW + 52 * 60_000);
+  assert.equal(launch.retired, 100, "every one of the hundred retired, in one press");
+  assert.equal((await bots.bots()).length, 0, "none left on the site");
+  assert.equal(launch.withdrawn, entered, "they gave back every place in the cup");
+  assert.equal(Number(sqlite.prepare("SELECT COUNT(*) AS n FROM tournament_entries WHERE tournament_id = ?").get(launchCup).n), 0, "which is empty for people again");
+  assert.equal(escrow(), 0, "with its escrow emptied");
+  assert.ok(launch.ended >= 1, "the run nobody played was ended");
+  assert.equal(Number(sqlite.prepare("SELECT done FROM runs WHERE match_id = ? AND user_id = ?").get(launchMatch, sitter).done), 1);
+  assert.equal(
+    sqlite.prepare("SELECT COUNT(*) AS n FROM players WHERE bot = 1 AND deleted IS NOT NULL AND (name = 'retired_kestrelmoth' OR name = 'retired_kestrelmarten')").get().n,
+    2,
+    "and the two Kestrels retired under names of their own",
+  );
+  const left = Number(sqlite.prepare("SELECT COALESCE(SUM(a.balance), 0) AS n FROM cash_accounts a JOIN players p ON a.id = 'devnet:' || p.id WHERE p.bot = 1").get().n);
+  assert.equal(left, 0, "no bot holds a lamport");
+  assert.equal(cash(HOUSE) - houseBeforeLaunch, launch.swept, "everything they held, refunds included, went to the treasury");
+  assert.equal((await bots.botConfig()).enabled, false);
+
+  // The match settles when its person finishes; a draw hands the bot its entry
+  // back, and the next press collects it from the retired wallet.
+  await playShot("github:launch", launchSeat.id, launchSeat.revision, "forfeit");
+  assert.equal(Number(sqlite.prepare("SELECT settled FROM matches WHERE id = ?").get(launchMatch).settled), 1, "the match settled");
+  const again2 = await bots.removeBots(ADMIN, NOW + 53 * 60_000);
+  assert.equal(again2.retired, 0, "a second press finds nobody left to retire");
+  assert.equal(Number(sqlite.prepare("SELECT COALESCE(SUM(a.balance), 0) AS n FROM cash_accounts a JOIN players p ON a.id = 'devnet:' || p.id WHERE p.bot = 1").get().n), 0);
+
+  console.log("PASS: bots (off by default, funded by the treasury, taking open seats after a pause, playing through the engine with replayable shots, skill that shows, filling a cup on the button, stopping on the switch, giving the treasury its money back at launch, a roster past twenty with names of their own, an amount per bot the administrator sets and the treasury can always refuse, a button with no cap on how much it plays, only a clock, and a hundred of them retired in one press, cup places and unplayed runs included)");
 } catch (e) {
   console.error(e);
   process.exitCode = 1;

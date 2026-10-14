@@ -3,7 +3,7 @@ import { initial, simulate, simulateShot, ShotError, type Game } from "./engine"
 import { GameError, settle, startMatch } from "./matches";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
 import { rowsFor } from "./secret-rows";
-import { endIfEveryoneFinished, registerForTournament, tournamentStatus } from "./tournaments";
+import { endIfEveryoneFinished, escrowOwner, registerForTournament, tournamentStatus } from "./tournaments";
 
 // The house's practice opponents.
 //
@@ -578,39 +578,128 @@ export async function fillTournament(adminUid: string, idInput: unknown, now = D
   return { filled, entrants: cup.entrants + filled, places: cup.places };
 }
 
+/** Runs `make` over `items` a few dozen at a time, one round trip a chunk. */
+async function inChunks<T>(items: T[], make: (item: T) => Statement[]) {
+  const db = database();
+  for (let start = 0; start < items.length; start += 40) {
+    const ops = items.slice(start, start + 40).flatMap(make);
+    if (ops.length) await db.batch(ops);
+  }
+}
+
 /**
  * Launch day: takes the house's players off the site. Their rows stay, because
- * the matches they played are their opponents' history too, but they are closed,
- * their names are freed and whatever they hold goes back to the treasury.
+ * the matches they played are their opponents' history too, but nothing they
+ * were part of is left hanging, in this order:
+ *
+ * 1. a match run they had not played yet ends where it is — as the 24-hour
+ *    sweep would end it — and the match settles once its player is done;
+ * 2. they leave every tournament that has not started, with their entry given
+ *    back, so the places are free for people;
+ * 3. whatever they hold goes back to the treasury;
+ * 4. each row is closed under a retired name of its own, so their names are
+ *    free again.
+ *
+ * Every step can be run again: a press that stopped half-way is finished by
+ * the next one. A roster of hundreds goes a few dozen at a time.
  */
 export async function removeBots(adminUid: string, now = Date.now()) {
   const db = database();
-  const { results } = await db
+  // The switch goes off first, so no turn starts anything new while they leave.
+  await setBotConfig(adminUid, { enabled: false, count: 0 }, now);
+
+  // 1. Runs owed in 1v1 matches.
+  const { results: owed } = await db
+    .prepare(
+      `SELECT r.id, r.match_id FROM runs r JOIN matches m ON m.id = r.match_id JOIN players p ON p.id = r.user_id
+       WHERE p.bot = 1 AND r.done = 0 AND m.settled = 0`,
+    )
+    .all<{ id: string; match_id: string }>();
+  await inChunks(owed, (run) => [db.prepare("UPDATE runs SET done = 1, forfeit = 1, finished = COALESCE(finished, ?) WHERE id = ? AND done = 0").bind(now, run.id)]);
+  for (const run of owed) await settle(run.match_id).catch((e) => console.error("A retired bot's match could not settle yet", e));
+
+  // 2. Places in tournaments that have not started, entry refunded. The refund
+  // is only written while the entry is still there, so a second press refunds nothing twice.
+  const { results: entries } = await db
+    .prepare(
+      `SELECT e.id, e.user_id, e.tournament_id, t.asset, t.entry_fee FROM tournament_entries e
+       JOIN tournaments t ON t.id = e.tournament_id JOIN players p ON p.id = e.user_id
+       WHERE p.bot = 1 AND t.status = 'scheduled' AND t.starts_at > ?`,
+    )
+    .bind(now)
+    .all<{ id: string; user_id: string; tournament_id: string; asset: string; entry_fee: number }>();
+  const stillThere = "FROM tournament_entries WHERE id = ?";
+  await inChunks(entries, (e) => {
+    const fee = Number(e.entry_fee);
+    const refund: Statement[] = !fee
+      ? []
+      : e.asset === "devnet"
+        ? [
+            db
+              .prepare(`INSERT OR IGNORE INTO cash_ledger(id, account_id, kind, amount, reference, created) SELECT ?, ?, 'escrow_release', ?, ?, ? ${stillThere}`)
+              .bind(`tournament:${e.id}:withdrawn:escrow`, cashAccountId(escrowOwner(e.tournament_id)), -fee, e.tournament_id, now, e.id),
+            db
+              .prepare(`INSERT OR IGNORE INTO cash_ledger(id, account_id, kind, amount, reference, created) SELECT ?, ?, 'tournament_refund', ?, ?, ? ${stillThere}`)
+              .bind(`tournament:${e.id}:withdrawn`, cashAccountId(e.user_id), fee, e.tournament_id, now, e.id),
+          ]
+        : [
+            db
+              .prepare(`INSERT OR IGNORE INTO ledger(id, user_id, match_id, kind, amount, created) SELECT ?, ?, ?, 'tournament_refund', ?, ? ${stillThere}`)
+              .bind(`tournament:${e.id}:withdrawn`, e.user_id, e.tournament_id, fee, now, e.id),
+          ];
+    return [...refund, db.prepare("DELETE FROM tournament_entries WHERE id = ?").bind(e.id)];
+  });
+
+  // 3. Their SOL back to the treasury — every bot row, retired or not, so a
+  // match that settled in a bot's favour after an earlier press is collected too.
+  const { results: wallets } = await db
     .prepare(
       `SELECT p.id, COALESCE((SELECT a.balance FROM cash_accounts a WHERE a.id = 'devnet:' || p.id), 0) AS sol
-       FROM players p WHERE p.bot = 1 AND p.deleted IS NULL`,
+       FROM players p WHERE p.bot = 1`,
     )
     .all<{ id: string; sol: number }>();
-  let swept = 0;
-  for (const bot of results) {
-    const amount = Number(bot.sol);
-    if (amount > 0) {
-      await ensureCashAccount(HOUSE);
-      const reference = `bot-return:${bot.id}:${now}`;
-      await db.batch([
-        db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'bot_funding', ?, ?, ?)").bind(`${reference}:bot`, cashAccountId(bot.id), -amount, reference, now),
-        db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'bot_funding', ?, ?, ?)").bind(`${reference}:house`, cashAccountId(HOUSE), amount, reference, now),
-      ]);
-      swept += amount;
+  const holding = wallets.filter((bot) => Number(bot.sol) > 0);
+  if (holding.length) await ensureCashAccount(HOUSE);
+  await inChunks(holding, (bot) => {
+    const reference = `bot-return:${bot.id}:${now}`;
+    return [
+      db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'bot_funding', ?, ?, ?)").bind(`${reference}:bot`, cashAccountId(bot.id), -Number(bot.sol), reference, now),
+      db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'bot_funding', ?, ?, ?)").bind(`${reference}:house`, cashAccountId(HOUSE), Number(bot.sol), reference, now),
+    ];
+  });
+  const swept = holding.reduce((sum, bot) => sum + Number(bot.sol), 0);
+
+  // 4. The rows, closed. A retired name is the bot's whole id, so no two can
+  // clash; one that somebody has taken all the same gets a random one instead.
+  const { results: serving } = await db.prepare("SELECT id FROM players WHERE bot = 1 AND deleted IS NULL").all<{ id: string }>();
+  const close = (id: string, name: string) => db.prepare("UPDATE players SET deleted = ?, name = ?, bot = 1 WHERE id = ?").bind(now, name, id);
+  for (let start = 0; start < serving.length; start += 40) {
+    const chunk = serving.slice(start, start + 40);
+    try {
+      await db.batch(chunk.map((bot) => close(bot.id, `retired_${bot.id.slice(4)}`)));
+    } catch (e) {
+      if (!(e instanceof Error) || !/UNIQUE/i.test(e.message)) throw e;
+      for (const bot of chunk) {
+        try {
+          await close(bot.id, `retired_${bot.id.slice(4)}`).run();
+        } catch (err) {
+          if (!(err instanceof Error) || !/UNIQUE/i.test(err.message)) throw err;
+          await close(bot.id, `retired_${crypto.randomUUID().replaceAll("-", "").slice(0, 10)}`).run();
+        }
+      }
     }
-    await db.prepare("UPDATE players SET deleted = ?, name = ?, bot = 1 WHERE id = ?").bind(now, `retired_${bot.id.slice(4, 12)}`, bot.id).run();
   }
-  await setBotConfig(adminUid, { enabled: false, count: 0 }, now);
+
   await db
     .prepare("INSERT INTO admin_audit(id, admin_id, action, target_user_id, reason, created) VALUES(?, ?, 'bots.remove', 'bots', ?, ?)")
-    .bind(crypto.randomUUID(), adminUid, `${results.length} house players retired`, now)
+    .bind(
+      crypto.randomUUID(),
+      adminUid,
+      `${serving.length} house players retired · ${owed.length} unplayed match runs ended · ${entries.length} tournament places given back · ${swept / SOL} SOL to the treasury`,
+      now,
+    )
     .run();
-  return { retired: results.length, swept };
+  return { retired: serving.length, swept, ended: owed.length, withdrawn: entries.length };
 }
 
 /** The bots currently in service: the first `count` of the roster. */

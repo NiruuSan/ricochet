@@ -145,12 +145,24 @@ export function AdminBots() {
 
   const retire = async () => {
     const ok = await dialog.confirm(
-      "Take the house players off the site?\n\nThey stop playing, their names are freed and everything they hold goes back to the treasury. The matches and tournaments they played stay, because they are their opponents' history too.",
+      "Take the house players off the site?\n\nThey stop playing at once. A match run they have not played yet ends where it is, as an abandoned run would, so their opponents are settled; they leave every tournament that has not started, so the places are free for people; everything they hold goes back to the treasury and their names are freed. The matches and tournaments they played stay, because they are their opponents' history too.",
       { title: "Retire the house players", confirmLabel: "Retire them", danger: true },
     );
     if (!ok) return;
     const done = await send({ action: "remove" });
-    if (done) toast(`${done.retired} retired · ${amount(Number(done.swept ?? 0), "devnet")} back in the treasury.`);
+    if (!done) return;
+    const ended = Number(done.ended ?? 0);
+    const withdrawn = Number(done.withdrawn ?? 0);
+    toast(
+      [
+        `${done.retired} retired`,
+        ended ? `${ended} unplayed ${ended === 1 ? "run" : "runs"} ended` : "",
+        withdrawn ? `${withdrawn} tournament ${withdrawn === 1 ? "place" : "places"} given back` : "",
+        `${amount(Number(done.swept ?? 0), "devnet")} back in the treasury`,
+      ]
+        .filter(Boolean)
+        .join(" · ") + ".",
+    );
   };
 
   if (!board) return <p className={styles.loading}>{error || "Loading the house players…"}</p>;

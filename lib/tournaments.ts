@@ -77,7 +77,7 @@ type EntryRow = {
   trap: string | null;
 };
 
-const escrowOwner = (id: string) => `escrow:tournament:${id}`;
+export const escrowOwner = (id: string) => `escrow:tournament:${id}`;
 const isPreset = (value: unknown): value is PayoutPreset => typeof value === "string" && value in PAYOUT_SHARES;
 
 /** The pot for a given number of entrants: the house prize, or entries minus the house share. */
