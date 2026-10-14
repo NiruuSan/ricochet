@@ -346,18 +346,110 @@
   color: #c6f564;
 }
 
-/* Before the start there are no scores, only names. */
-.field {
+/* Before the start there are no scores, only names: how many, how strong, then who. */
+.fieldSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid #1d2634;
+  border-radius: 14px;
+  background: #121a26;
+}
+.faces {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.faces > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #c9d3e0;
+  font-size: 14px;
+}
+.faces b {
+  color: #f6f8fd;
+  font-size: 16px;
+}
+.faces small {
+  color: #7f8da3;
+  font-size: 11.5px;
+}
+.stack {
+  display: flex;
+  flex-shrink: 0;
+}
+.stack :global(.avatar) {
+  margin-left: -9px;
+  border: 2px solid #121a26;
+  border-radius: 50%;
+}
+.stack :global(.avatar):first-child {
+  margin-left: 0;
+}
+.strength small {
+  display: block;
+  margin-bottom: 6px;
+  color: #7f8da3;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.strength ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  list-style: none;
-  padding: 0;
+  gap: 6px 14px;
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.strength li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #93a1b8;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.strength li b {
+  color: #f6f8fd;
+}
+.find {
+  position: relative;
+  display: block;
+  margin-bottom: 10px;
+}
+.find svg {
+  position: absolute;
+  top: 50%;
+  left: 13px;
+  color: #7f8da3;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.find :global(.input) {
+  width: 100%;
+  padding-left: 38px;
+}
+.field {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .field li {
+  position: relative;
+  min-width: 0;
   border: 1px solid #1d2634;
-  border-radius: 999px;
+  border-radius: 12px;
   background: #121a26;
 }
 .field li:hover {
@@ -366,14 +458,70 @@
 .field a {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 7px 14px 7px 8px;
+  gap: 10px;
+  min-width: 0;
+  height: 100%;
+  padding: 9px 10px;
   color: #e8edf6;
-  font-size: 14px;
-  font-weight: 650;
 }
 .field :global(.avatar) {
+  flex-shrink: 0;
   border-radius: 50%;
+}
+/* In the corner, clear of the name and the rank however narrow the tile. */
+.field .youTag {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+}
+.field .mine .fieldName b {
+  padding-right: 38px;
+}
+.fieldName {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.fieldName b {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.showMore {
+  display: flex;
+  margin: 14px auto 0;
+}
+.noMatch {
+  padding: 22px 16px;
+  border: 1px dashed #2b3546;
+  border-radius: 14px;
+  color: #93a1b8;
+  font-size: 14px;
+  text-align: center;
+}
+.fieldNote {
+  margin-top: 10px;
+  color: #7f8da3;
+  font-size: 12px;
+  text-align: center;
+}
+/* Your own line, held at the top while the page shows other people's. */
+.pinned {
+  margin-bottom: 12px;
+}
+.pinned > small {
+  display: block;
+  margin: 0 0 6px 2px;
+  color: #c6f564;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 /* The prize ladder -------------------------------------------------------- */
@@ -496,6 +644,13 @@
 @media (max-width: 720px) {
   .head {
     padding: 18px;
+  }
+  .field {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+  .fieldSummary {
+    flex-direction: column;
+    align-items: flex-start;
   }
   .headTop {
     flex-direction: column;

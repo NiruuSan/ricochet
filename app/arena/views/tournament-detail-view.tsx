@@ -1,9 +1,10 @@
 "use client";
-import { RankBadge } from "../rank-badge";
-import { useEffect, useState } from "react";
+import { RankBadge, RankEmblem } from "../rank-badge";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Eye, Play, Trophy } from "lucide-react";
+import { ArrowLeft, Check, Eye, Play, Search, Trophy } from "lucide-react";
 import type { TournamentDetail, TournamentStanding } from "@/lib/api-types";
+import { RANK_TIERS, rankName } from "@/lib/levels";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import { amount, assetName } from "../format";
@@ -13,6 +14,204 @@ import { Podium } from "./podium";
 import styles from "./tournament-detail.module.css";
 
 const REFRESH_MS = 10_000;
+/** Players shown before "Show all", in the field before the start. */
+const FIELD_PREVIEW = 24;
+/** Rows of standings shown at a time once runs are being played. */
+const STANDINGS_PAGE = 25;
+/** Past this many players a list gets a search box. */
+const SEARCHABLE = 12;
+
+/** A search box for a long list of players. */
+function FindPlayer({ value, onChange, count }: { value: string; onChange: (value: string) => void; count: number }) {
+  return (
+    <label className={styles.find}>
+      <Search size={15} aria-hidden />
+      <input className="input" type="search" placeholder={`Find a player among ${count}…`} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Find a player" />
+    </label>
+  );
+}
+
+const matching = (list: TournamentStanding[], query: string) => {
+  const q = query.trim().toLowerCase();
+  return q ? list.filter((s) => s.name.toLowerCase().includes(q)) : list;
+};
+
+/**
+ * Who is in, before a single run is played. With a field of hundreds a wall of
+ * names says nothing, so it opens on what a player deciding whether to enter
+ * wants to know — how many, and how strong — and then the names: you first,
+ * the strongest next, a few rows of them until asked for all.
+ */
+function TheField({ t }: { t: TournamentDetail }) {
+  const [query, setQuery] = useState("");
+  const [all, setAll] = useState(false);
+  // The server sends the first two hundred; your own entry comes with it wherever it is.
+  const standings = useMemo(
+    () => (t.yourStanding && !t.standings.some((s) => s.isYou) ? [t.yourStanding, ...t.standings] : t.standings),
+    [t.standings, t.yourStanding],
+  );
+  const total = Math.max(t.entrants, standings.length);
+  const sorted = useMemo(
+    () => [...standings].sort((a, b) => Number(b.isYou) - Number(a.isYou) || b.level.xp - a.level.xp || a.name.localeCompare(b.name)),
+    [standings],
+  );
+  const strongest = useMemo(() => [...standings].sort((a, b) => b.level.xp - a.level.xp), [standings]);
+  const tiers = useMemo(
+    () =>
+      [...RANK_TIERS]
+        .reverse()
+        .map((tier) => ({ tier, count: standings.filter((s) => s.level.tier === tier).length }))
+        .filter((t) => t.count),
+    [standings],
+  );
+  const matches = matching(sorted, query);
+  const searching = !!query.trim();
+  const shown = searching || all ? matches : matches.slice(0, FIELD_PREVIEW);
+  const faces = strongest.slice(0, 6);
+
+  return (
+    <>
+      <div className={styles.fieldSummary}>
+        <div className={styles.faces}>
+          <div className={styles.stack} aria-hidden>
+            {faces.map((s) => (
+              <Avatar key={s.name} name={s.name} src={s.avatar} size={30} />
+            ))}
+          </div>
+          <span>
+            <span>
+              <b>{total}</b> {total === 1 ? "player" : "players"} in
+            </span>
+            {strongest[0] && (
+              <small>
+                Strongest: {strongest[0].name}, {strongest[0].level.name}
+              </small>
+            )}
+          </span>
+        </div>
+        <div className={styles.strength}>
+          <small>Field by rank</small>
+          <ul>
+            {tiers.map(({ tier, count }) => (
+              <li key={tier} title={`${count} ${rankName(tier, null)}`}>
+                <RankEmblem tier={tier} division={null} size={18} />
+                <b>{count}</b> {rankName(tier, null)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {standings.length > SEARCHABLE && <FindPlayer value={query} onChange={setQuery} count={total} />}
+
+      {shown.length ? (
+        <ul className={styles.field}>
+          {shown.map((s) => (
+            <li key={s.name} className={s.isYou ? styles.mine : ""}>
+              <Link href={`/players/${encodeURIComponent(s.name)}`}>
+                <Avatar name={s.name} src={s.avatar} size={32} />
+                <span className={styles.fieldName}>
+                  <b>{s.name}</b>
+                  <RankBadge level={s.level} />
+                </span>
+                {s.isYou && <span className={styles.youTag}>You</span>}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={styles.noMatch}>Nobody by that name in this field.</p>
+      )}
+
+      {!searching && matches.length > FIELD_PREVIEW && (
+        <button type="button" className={`btn ${styles.showMore}`} onClick={() => setAll((v) => !v)}>
+          {all ? "Show fewer" : `Show all ${matches.length} players`}
+        </button>
+      )}
+      {all && total > standings.length && (
+        <p className={styles.fieldNote}>
+          The first {standings.length} to register are listed here, of {total}.
+        </p>
+      )}
+    </>
+  );
+}
+
+/** One line of the standings. */
+function StandingRow({ s, t }: { s: TournamentStanding; t: TournamentDetail }) {
+  const state = runState(s, t.status === "settled" || t.status === "cancelled");
+  return (
+    <div className={`${styles.row} ${s.isYou ? styles.mine : ""}`}>
+      <span className={`${styles.rank} ${s.rank === 1 ? styles.first : ""}`}>{s.rank ? `#${s.rank}` : "—"}</span>
+      <Link className={styles.who} href={`/players/${encodeURIComponent(s.name)}`}>
+        <Avatar name={s.name} src={s.avatar} size={30} />
+        <span>
+          <span className={styles.name}>
+            {s.name}
+            <RankBadge level={s.level} />
+            {s.isYou && <span className={styles.youTag}>You</span>}
+          </span>
+          {state && <span className={`${styles.state2} ${state.live ? styles.playing : ""}`}>{state.label}</span>}
+        </span>
+      </Link>
+      <span className={styles.score}>
+        {s.started ? s.score.toLocaleString("en") : "—"}
+        {s.started && <small>pts</small>}
+      </span>
+      {s.watchId ? (
+        <Link className={styles.watch} href={`/watch/${s.watchId}`} aria-label={`Watch ${s.name}'s run`}>
+          <Eye size={14} /> {s.done ? "Replay" : "Watch"}
+        </Link>
+      ) : (
+        <span />
+      )}
+      <span className={`${styles.prize} ${s.payout ? "" : styles.noPrize}`}>{s.payout ? amount(s.payout, t.asset) : "—"}</span>
+    </div>
+  );
+}
+
+/**
+ * The standings once runs are played: a page of them at a time, a search for
+ * a long field, and your own line pinned at the top whenever it is further
+ * down than the page shows.
+ */
+function Standings({ t }: { t: TournamentDetail }) {
+  const [query, setQuery] = useState("");
+  const [limit, setLimit] = useState(STANDINGS_PAGE);
+  const rows = t.standings;
+  const matches = matching(rows, query);
+  const searching = !!query.trim();
+  const shown = searching ? matches : rows.slice(0, limit);
+  // Past the two hundred the server sends, your own line still comes with them.
+  const mine = rows.find((s) => s.isYou) ?? t.yourStanding ?? undefined;
+  const left = rows.length - shown.length;
+
+  return (
+    <>
+      {rows.length > STANDINGS_PAGE && <FindPlayer value={query} onChange={setQuery} count={rows.length} />}
+      {mine && !searching && !shown.includes(mine) && (
+        <div className={styles.pinned}>
+          <small>Your position</small>
+          <StandingRow s={mine} t={t} />
+        </div>
+      )}
+      {shown.length ? (
+        <div className={styles.rows}>
+          {shown.map((s) => (
+            <StandingRow key={s.name} s={s} t={t} />
+          ))}
+        </div>
+      ) : (
+        <p className={styles.noMatch}>Nobody by that name in this tournament.</p>
+      )}
+      {!searching && left > 0 && (
+        <button type="button" className={`btn ${styles.showMore}`} onClick={() => setLimit((n) => n + STANDINGS_PAGE)}>
+          Show {Math.min(STANDINGS_PAGE, left)} more · {left} to go
+        </button>
+      )}
+    </>
+  );
+}
 
 /** The clock, and how urgent it is: what is left to register, to play, or nothing. */
 function clock(t: TournamentDetail, now: number) {
@@ -231,52 +430,9 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
           )}
 
           {t.status === "registration" && t.standings.length ? (
-            <ul className={styles.field}>
-              {t.standings.map((s, i) => (
-                <li key={i} className={s.isYou ? styles.mine : ""}>
-                  <Link href={`/players/${encodeURIComponent(s.name)}`}>
-                    <Avatar name={s.name} src={s.avatar} size={26} />
-                    {s.name}
-                    <RankBadge level={s.level} />
-                    {s.isYou && <span className={styles.youTag}>You</span>}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <TheField t={t} />
           ) : t.standings.length ? (
-            <div className={styles.rows}>
-              {t.standings.map((s, i) => {
-                const state = runState(s, t.status === "settled" || t.status === "cancelled");
-                return (
-                  <div key={i} className={`${styles.row} ${s.isYou ? styles.mine : ""}`}>
-                    <span className={`${styles.rank} ${s.rank === 1 ? styles.first : ""}`}>{s.rank ? `#${s.rank}` : "—"}</span>
-                    <Link className={styles.who} href={`/players/${encodeURIComponent(s.name)}`}>
-                      <Avatar name={s.name} src={s.avatar} size={30} />
-                      <span>
-                        <span className={styles.name}>
-                          {s.name}
-                          <RankBadge level={s.level} />
-                          {s.isYou && <span className={styles.youTag}>You</span>}
-                        </span>
-                        {state && <span className={`${styles.state2} ${state.live ? styles.playing : ""}`}>{state.label}</span>}
-                      </span>
-                    </Link>
-                    <span className={styles.score}>
-                      {s.started ? s.score.toLocaleString("en") : "—"}
-                      {s.started && <small>pts</small>}
-                    </span>
-                    {s.watchId ? (
-                      <Link className={styles.watch} href={`/watch/${s.watchId}`} aria-label={`Watch ${s.name}'s run`}>
-                        <Eye size={14} /> {s.done ? "Replay" : "Watch"}
-                      </Link>
-                    ) : (
-                      <span />
-                    )}
-                    <span className={`${styles.prize} ${s.payout ? "" : styles.noPrize}`}>{s.payout ? amount(s.payout, t.asset) : "—"}</span>
-                  </div>
-                );
-              })}
-            </div>
+            <Standings t={t} />
           ) : (
             <p className={styles.empty}>Nobody has registered yet. Be the first.</p>
           )}
