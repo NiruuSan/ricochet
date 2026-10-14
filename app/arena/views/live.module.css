@@ -165,3 +165,12 @@
   .spinning, .loading > div { animation: none; }
   .card { transition: none; }
 }
+
+/* Small type, thumb-sized target. */
+@media (hover: none) and (pointer: coarse) {
+  .heroLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
+}

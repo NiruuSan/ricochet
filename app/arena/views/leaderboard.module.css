@@ -197,3 +197,13 @@
 @media (prefers-reduced-motion: reduce) {
   .spinning, .podiumSkeleton > div, .loadingRows > div { animation: none; }
 }
+
+/* Small type, thumb-sized target. */
+@media (hover: none) and (pointer: coarse) {
+  .heroLink,
+  .explainer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
+}

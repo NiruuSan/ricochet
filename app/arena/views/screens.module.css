@@ -1468,3 +1468,13 @@
     animation: none;
   }
 }
+
+/* Small type, thumb-sized target. */
+@media (hover: none) and (pointer: coarse) {
+  .heroLink,
+  .backLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
+}

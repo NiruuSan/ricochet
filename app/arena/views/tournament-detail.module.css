@@ -547,3 +547,12 @@
     font-size: 12.5px;
   }
 }
+
+/* Small type, thumb-sized target. */
+@media (hover: none) and (pointer: coarse) {
+  .back {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
+}

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Cinzel, Fredoka, Orbitron, Press_Start_2P, VT323 } from "next/font/google";
 import "./globals.css";
 import { ActionDialogProvider } from "@/components/ui/action-dialog";
+import { siteUrl } from "@/lib/legal";
 
 // The typefaces the themes wear (lib/themes.ts). Next downloads them at build
 // time and serves them from this origin, so no theme costs the player a request
@@ -18,6 +19,8 @@ const title = "Bounce — Brick Battle";
 const description = "Same board. Your angle. A head-to-head brick-breaker arcade. Play free or compete for devnet SOL and gems.";
 
 export const metadata: Metadata = {
+  // Shared cards and the sitemap point at the production address, not at whichever deployment rendered them.
+  metadataBase: new URL(siteUrl()),
   title,
   description,
   applicationName: "Bounce",

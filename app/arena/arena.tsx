@@ -17,6 +17,7 @@ import { FeedbackHost, RollingBalance, useArrival } from "./feedback";
 import feedback from "./feedback.module.css";
 import { SuspensionNotice } from "./suspension-notice";
 import { InAppNotice } from "./in-app-notice";
+import { CookieBanner } from "./cookie-banner";
 import { rememberReferral } from "./referral-link";
 import { useGameSession } from "./use-game-session";
 import type { View } from "./views";
@@ -35,6 +36,7 @@ const MatchesView = dynamic(() => import("./views/matches-view").then((m) => m.M
 const PlayView = dynamic(() => import("./views/play-view").then((m) => m.PlayView));
 const ProfileView = dynamic(() => import("./views/profile-view").then((m) => m.ProfileView));
 const PrivacyView = dynamic(() => import("./views/privacy-view").then((m) => m.PrivacyView));
+const TermsView = dynamic(() => import("./views/terms-view").then((m) => m.TermsView));
 const FriendsView = dynamic(() => import("./views/friends-view").then((m) => m.FriendsView));
 const QuestsView = dynamic(() => import("./views/quests-view").then((m) => m.QuestsView));
 const ThemesView = dynamic(() => import("./views/themes-view").then((m) => m.ThemesView));
@@ -159,7 +161,11 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
     <>
       <header className="topbar">
         <Link href="/welcome" className="brand" aria-label="Bounce home">
-          <img src="/brand/bounce-white.svg" alt="Bounce" width={147} height={36} />
+          {/* The narrowest phones get the mark alone, so the account's buttons keep their room. */}
+          <picture>
+            <source media="(max-width: 400px)" srcSet="/brand/bounce-icon-rotated.svg" />
+            <img src="/brand/bounce-white.svg" alt="Bounce" width={147} height={36} />
+          </picture>
         </Link>
         <nav className="navigation" aria-label="Main navigation">
           {NAVIGATION.map(({ href, view: key, label, short, Icon }) => (
@@ -259,6 +265,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         {(view === "login" || view === "signup") && <AuthView player={player} signup={view === "signup"} />}
         {(view === "faq" || view === "rules") && <RulesView rules={view === "rules"} />}
         {view === "privacy" && <PrivacyView />}
+        {view === "terms" && <TermsView />}
         {view === "friends" && <FriendsView player={player} />}
         {view === "quests" && <QuestsView player={player} />}
         {view === "themes" && <ThemesView player={player} />}
@@ -268,13 +275,16 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
           <div className="links" style={{ alignItems: "center", flexWrap: "wrap" }}>
             <Link href="/rules">Game rules</Link>
             <Link href="/faq">Q&A</Link>
+            <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
+            <Link href="/privacy#cookies">Cookies</Link>
             <button className="btn" onClick={() => setReportBug(true)}><Bug size={16} /> Report a bug</button>
             <Link href="/wallet">Test funds only</Link>
           </div>
         </footer>
       </main>
       <FeedbackHost />
+      <CookieBanner />
       {data.isAdmin && <AdminConfirm />}
       <BugReportDialog open={reportBug} onOpenChange={setReportBug} signedIn={!!data.authenticated} hasProfile={!!data.player} />
       <Dialog open={confirmForfeit} onOpenChange={setConfirmForfeit}>

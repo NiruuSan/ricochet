@@ -175,3 +175,13 @@
   .walletDepositHead span { margin-left: 0; width: 100%; }
   .walletDepositActions :global(.btn) { flex: 1; justify-content: center; }
 }
+
+/* Small type, thumb-sized target. */
+@media (hover: none) and (pointer: coarse) {
+  .heroLink,
+  .gemLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 36px;
+  }
+}

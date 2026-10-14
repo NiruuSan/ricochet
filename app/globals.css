@@ -691,6 +691,12 @@ h3 {
   cursor: pointer;
   padding: 0;
 }
+@media (hover: none) and (pointer: coarse) {
+  .coach-skip {
+    min-height: 34px;
+    padding: 0 6px;
+  }
+}
 .coach-skip:hover {
   color: #d4dded;
 }
@@ -1030,6 +1036,20 @@ h3 {
   .links {
     gap: 18px;
     flex-wrap: wrap;
+  }
+}
+/* The narrowest phones: the mark instead of the wordmark, and tighter account buttons. */
+@media (max-width: 400px) {
+  .topbar .brand img {
+    width: 34px;
+    height: 34px;
+  }
+  .topbar .top-actions {
+    gap: 6px;
+  }
+  .topbar .demo-tag {
+    padding: 6px 7px;
+    font-size: 10px;
   }
 }
 .error {

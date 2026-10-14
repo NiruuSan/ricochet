@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, Wallet } from "lucide-react";
 import { STARTING_GEMS } from "@/lib/api-types";
+import { LEGAL } from "@/lib/legal";
 import { signInWith, type SignInProvider } from "../../auth-actions";
 import { gameAction } from "../api";
 import type { PlayerState } from "../arena";
@@ -218,7 +219,15 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
           </div>
           <p className="fine center" style={{ marginTop: 20 }}>
             Only your account ID and display name are used. A wallet only signs a message: it costs nothing and moves no funds. Each sign-in method is a
-            separate player account.
+            separate player account. By continuing you accept the{" "}
+            <Link className="lime" href="/terms">
+              Terms
+            </Link>{" "}
+            and the{" "}
+            <Link className="lime" href="/privacy">
+              Privacy Policy
+            </Link>
+            .
           </p>
         </>
       ) : (
@@ -238,6 +247,13 @@ export function AuthView({ player, signup }: { player: PlayerState; signup: bool
             />
           </label>
           <p className="fine">3–20 letters, numbers or underscores. Visible to other players.</p>
+          <p className="fine">
+            By creating a profile you confirm you are {LEGAL.minimumAge} or older, not in a country where Bounce is unavailable, and accept the{" "}
+            <Link className="lime" href="/terms">
+              Terms
+            </Link>
+            .
+          </p>
           <button className="btn btn-primary full" disabled={saving}>
             {saving ? "Creating profile…" : `Create profile + ${STARTING_GEMS.toLocaleString("en")} gems`}
             <ArrowRight />
