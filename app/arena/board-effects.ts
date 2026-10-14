@@ -9,7 +9,7 @@ import type { Theme } from "@/lib/themes";
 // forty-ball shot on a full board costs the same as a single one — a phone
 // mid-match is the worst place to allocate.
 
-type Kind = Theme["effects"]["burst"] | Theme["effects"]["bounce"] | "blot" | "firework";
+type Kind = Theme["effects"]["burst"] | Theme["effects"]["bounce"] | "blot" | "firework" | "flash" | "streak";
 
 type Particle = {
   kind: Kind;
@@ -46,7 +46,7 @@ export function emitBreak(theme: Theme, x: number, y: number, colour: string) {
   const count = burst === "pixels" ? 10 : burst === "dust" ? 14 : burst === "coins" ? 6 : burst === "sprinkles" ? 12 : 8;
   if (burst === "ink") {
     // One blot that spreads where the brick stood, and drops flicked off it.
-    add({ kind: "blot", x, y, vx: 0, vy: 0, age: 0, life: 0.9, size: 8, colour, spin: 0, turn: 0 });
+    add({ kind: "blot", x, y, vx: 0, vy: 0, age: 0, life: 0.9, size: 8, colour, spin: rand(0, 1000), turn: rand(0, 6) });
   }
   for (let i = 0; i < count; i++) {
     const angle = rand(0, Math.PI * 2);
@@ -153,6 +153,35 @@ export function emitClear(theme: Theme) {
     add({ kind: "ring", x: W / 2, y: GROUND / 2, vx: 0, vy: 0, age: 0, life: 0.8, size: 12, colour: theme.board.glow, spin: 0, turn: 0 });
     return;
   }
+  if (clear === "petals") {
+    // A gust through the blossom: petals in every colour of the board, drifting down.
+    for (let i = 0; i < 64; i++) {
+      const [face] = theme.board.bricks[i % theme.board.bricks.length];
+      add({ kind: "petals", x: rand(-25, W - 20), y: rand(-40, GROUND * 0.55), vx: rand(25, 70), vy: rand(50, 130), age: -rand(0, 0.45), life: rand(1.5, 2.3), size: rand(4, 7), colour: i % 5 ? face : "#ffffff", spin: rand(-3, 3), turn: rand(0, 6) });
+    }
+    return;
+  }
+  if (clear === "nova") {
+    // The board flares white-hot, a ring goes out, and embers fly from the middle.
+    add({ kind: "flash", x: W / 2, y: GROUND / 2, vx: 0, vy: 0, age: 0, life: 0.7, size: 0, colour: "#ffb347", spin: 0, turn: 0 });
+    add({ kind: "ring", x: W / 2, y: GROUND / 2, vx: 0, vy: 0, age: 0, life: 0.8, size: 14, colour: "#fff1c0", spin: 0, turn: 0 });
+    for (let i = 0; i < 40; i++) {
+      const angle = rand(0, Math.PI * 2);
+      const speed = rand(90, 240);
+      const [face] = theme.board.bricks[i % theme.board.bricks.length];
+      add({ kind: "embers", x: W / 2, y: GROUND / 2, vx: Math.cos(angle) * speed * 0.4, vy: Math.sin(angle) * speed, age: 0, life: rand(0.8, 1.4), size: rand(1.5, 3.2), colour: face, spin: 0, turn: rand(0, 6) });
+    }
+    return;
+  }
+  if (clear === "warp") {
+    // The jump to light speed: stars stretch out from the middle and are gone.
+    for (let i = 0; i < 70; i++) {
+      const angle = rand(0, Math.PI * 2);
+      const from = rand(4, 60);
+      add({ kind: "streak", x: W / 2 + Math.cos(angle) * from, y: GROUND / 2 + Math.sin(angle) * from, vx: Math.cos(angle) * 40, vy: Math.sin(angle) * 40, age: -rand(0, 0.25), life: rand(0.7, 1.1), size: rand(0.8, 1.8), colour: i % 4 ? "#ffffff" : theme.board.glow, spin: 0, turn: 0 });
+    }
+    return;
+  }
   if (clear === "rays") {
     for (let i = 0; i < 18; i++) {
       const angle = (i / 18) * Math.PI * 2;
@@ -223,7 +252,15 @@ export function drawEffects(ctx: CanvasRenderingContext2D, now: number) {
         p.turn += dt * p.spin;
         break;
       case "blot":
-        p.size += (22 - p.size) * Math.min(1, dt * 7);
+        p.size += (17 - p.size) * Math.min(1, dt * 7);
+        break;
+      case "flash":
+        break;
+      case "streak":
+        p.vx *= 1 + dt * 4.2;
+        p.vy *= 1 + dt * 4.2;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
         break;
       case "firework":
         p.x += p.vx * dt;
@@ -341,11 +378,40 @@ export function drawEffects(ctx: CanvasRenderingContext2D, now: number) {
         ctx.fill();
         break;
       }
-      case "blot":
-        ctx.globalAlpha = Math.max(0, Math.min(0.55, fade * 0.7));
+      case "blot": {
+        // A splash, never a disc: a body, a ragged rim and a few drops thrown clear.
+        ctx.globalAlpha = Math.max(0, Math.min(0.7, fade * 0.85));
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        for (let k = 0; k < 4; k++) {
+          const a = p.turn + k * 1.7 + Math.sin(p.spin + k) * 0.5;
+          const reach = p.size * (0.8 + 0.25 * Math.abs(Math.sin(p.spin * 1.7 + k * 2.3)));
+          const r = p.size * (0.16 + 0.12 * Math.abs(Math.cos(p.spin + k)));
+          ctx.moveTo(p.x + Math.cos(a) * reach + r, p.y + Math.sin(a) * reach);
+          ctx.arc(p.x + Math.cos(a) * reach, p.y + Math.sin(a) * reach, r, 0, Math.PI * 2);
+        }
+        for (let k = 0; k < 5; k++) {
+          const a = p.turn + k * 1.3 + 0.6;
+          const d = p.size * (1.35 + 0.4 * Math.abs(Math.sin(p.spin + k * 3.1)));
+          const r = p.size * 0.06 + 0.5;
+          ctx.moveTo(p.x + Math.cos(a) * d + r, p.y + Math.sin(a) * d);
+          ctx.arc(p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, r, 0, Math.PI * 2);
+        }
         ctx.fill();
+        break;
+      }
+      case "flash":
+        ctx.globalAlpha = Math.max(0, fade * fade * 0.5);
+        ctx.fillRect(0, 0, W, H);
+        break;
+      case "streak":
+        ctx.lineWidth = p.size;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(p.x - p.vx * 0.06, p.y - p.vy * 0.06);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        ctx.lineCap = "butt";
         break;
       case "coins": {
         // A coin turning over: as wide as it is tall face-on, a sliver edge-on.

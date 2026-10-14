@@ -11,7 +11,7 @@ import type { PlayerState } from "../arena";
 import { brickColours, drawBoard } from "../board-canvas";
 import { clearEffects, emitBounce, emitBreak, emitClear } from "../board-effects";
 import { isAnimated } from "../board-scenes";
-import { playSound } from "../sound";
+import { playSound, resetCombo } from "../sound";
 import { themeStyle } from "../theme";
 import styles from "./themes.module.css";
 import { toast } from "../feedback";
@@ -76,7 +76,7 @@ function Preview({ theme, live }: { theme: Theme; live: boolean }) {
 
 /**
  * The theme at full size, playing itself: bricks go one by one with the
- * theme's own break, bounce and sound, and an emptied board gets its
+ * theme's own break, bounce and sounds, and an emptied board gets its
  * celebration before the bricks come back.
  */
 function Showcase({ theme }: { theme: Theme }) {
@@ -89,28 +89,34 @@ function Showcase({ theme }: { theme: Theme }) {
       drawBoard(canvas, null, SAMPLE, 68, theme, 12);
       return;
     }
+    const kit = theme.effects.sound;
     let bricks = [...SAMPLE.bricks];
     let next = performance.now() + 650;
     let refill = 0;
     let frame = 0;
+    resetCombo();
+    playSound("launch", 1, kit);
     const loop = (now: number) => {
       frame = requestAnimationFrame(loop);
       if (refill && now >= refill) {
         bricks = [...SAMPLE.bricks];
         refill = 0;
         next = now + 700;
+        resetCombo();
+        playSound("launch", 1, kit);
       } else if (!refill && now >= next) {
         const index = Math.floor(Math.random() * bricks.length);
         const brick = bricks[index];
         const rect = brickRect(brick);
         emitBounce(theme, rect.x + rect.w / 2, rect.y + rect.h);
         emitBreak(theme, rect.x + rect.w / 2, rect.y + rect.h / 2, brickColours(theme, brick.col, SAMPLE.round)[0]);
-        playSound("break");
+        playSound("hit", 1, kit);
+        playSound("break", 1, kit);
         bricks = bricks.filter((_, k) => k !== index);
         next = now + 430;
         if (!bricks.length) {
           emitClear(theme);
-          playSound("clear");
+          playSound("clear", 1, kit);
           refill = now + 2400;
         }
       }
@@ -136,9 +142,10 @@ function traits(theme: Theme) {
   const list = [theme.board.brick && theme.board.brick !== "flat" ? BRICKS[theme.board.brick] : theme.board.radius === 0 ? "Square bricks" : theme.board.radius >= 10 ? "Very round bricks" : "Rounded bricks"];
   if (theme.board.scene) list.push(isAnimated(theme) ? `${SCENES[theme.board.scene]} · animated` : SCENES[theme.board.scene]);
   list.push(BURSTS[theme.effects.burst]);
-  if (theme.effects.trail) list.push("Ball trail");
+  if (theme.effects.trail !== "none") list.push(theme.effects.trail === "comet" ? "Comet trail" : "Ball trail");
   if (theme.effects.bounce !== "none") list.push(BOUNCES[theme.effects.bounce]);
   list.push(CLEARS[theme.effects.clear]);
+  list.push(SOUNDS[theme.effects.sound]);
   return list;
 }
 
@@ -222,8 +229,9 @@ export function ThemesView({ player }: { player: PlayerState }) {
           <div className="tag lime">THE SAME BOARD, YOUR WAY</div>
           <h1>Themes.</h1>
           <p>
-            Eighteen looks for the arena: colours, scenes behind the board, bricks of glass, gems or light, what a brick does when it breaks, and the type on the
-            board. A theme is paint and nothing else — the board, the physics and every angle stay exactly as they are, whichever one you wear.
+            Eighteen looks for the arena, each with its own sound: a scene behind the board, bricks of glass, gold, gems or light, what a brick does when it
+            breaks, and the type on the board. A theme is paint and sound and nothing else — the board, the physics and every angle stay exactly as they are,
+            whichever one you wear.
           </p>
         </div>
       </div>
@@ -334,6 +342,13 @@ export function ThemesView({ player }: { player: PlayerState }) {
 }
 
 const BRICKS: Record<Exclude<NonNullable<Theme["board"]["brick"]>, "flat">, string> = {
+  paper: "Cut-card bricks",
+  pixel: "Eight-bit bricks",
+  pearl: "Pearl bricks",
+  crt: "Phosphor bricks",
+  petal: "Blossom bricks",
+  metal: "Gold-leaf bricks",
+  magma: "Molten bricks",
   glossy: "Jelly bricks",
   gem: "Cut-gem bricks",
   glass: "Glass bricks",
@@ -344,7 +359,15 @@ const BRICKS: Record<Exclude<NonNullable<Theme["board"]["brick"]>, "flat">, stri
 };
 
 const SCENES: Record<NonNullable<Theme["board"]["scene"]>, string> = {
-  stars: "Starfield",
+  skyline: "City skyline",
+  papercraft: "Paper hills",
+  arcade: "Scrolling starfield",
+  sea: "Light through water",
+  rain: "Falling code",
+  blossom: "Branch in blossom",
+  marble: "Gold-veined marble",
+  flare: "The sun's edge",
+  nebula: "Nebula",
   aurora: "Northern lights",
   outrun: "Sunset highway",
   ink: "Ink landscape",
@@ -386,4 +409,28 @@ const CLEARS: Record<Theme["effects"]["clear"], string> = {
   shockwave: "A shockwave on a clear",
   fireworks: "Fireworks on a clear",
   jackpot: "A jackpot on a clear",
+  petals: "A petal storm on a clear",
+  nova: "A nova on a clear",
+  warp: "A jump to light speed on a clear",
+};
+
+const SOUNDS: Record<Theme["effects"]["sound"], string> = {
+  classic: "The original sound",
+  synth: "Synth sound",
+  paper: "Kalimba and paper sound",
+  chip: "Eight-bit sound",
+  bubble: "Underwater sound",
+  terminal: "Keyboard and beeper sound",
+  koto: "Koto sound",
+  gold: "Bells and gongs",
+  fire: "Crackling fire sound",
+  space: "Deep-space sound",
+  candy: "Pop and boing sound",
+  ice: "Glass-bell sound",
+  zen: "Woodblock and singing bowl",
+  retro: "Synthwave sound",
+  crystal: "Crystal sound",
+  chain: "Digital chirps",
+  aurora: "Ambient sound",
+  casino: "Chips and slot-machine sound",
 };

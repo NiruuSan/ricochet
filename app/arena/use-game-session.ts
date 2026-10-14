@@ -313,7 +313,7 @@ export function useGameSession({ onSaved, onError, theme: themeInput }: Options)
     setLiveScore(gameRef.current.score);
     flightRef.current = f;
     resetCombo();
-    playSound("launch");
+    playSound("launch", 1, themeRef.current.effects.sound);
 
     // Hidden rows: send the shot now, and show the server's board once the balls land.
     let confirmed: Run | null = null;
@@ -340,7 +340,7 @@ export function useGameSession({ onSaved, onError, theme: themeInput }: Options)
       setFlying(false);
       // The round has a last word: the game ending, the board cleared, or the
       // plain thud of the last ball coming home.
-      playSound(f.game.over ? "over" : f.game.bonus ? "clear" : "land");
+      playSound(f.game.over ? "over" : f.game.bonus ? "clear" : "land", 1, themeRef.current.effects.sound);
       if (f.game.bonus) emitClear(themeRef.current);
       if (hiddenRows) {
         landed = true;
@@ -410,10 +410,10 @@ export function useGameSession({ onSaved, onError, theme: themeInput }: Options)
           return now;
         });
       }
-      if (hits > 0) playSound("hit", hits);
-      if (breaks > 0) playSound("break", breaks);
+      if (hits > 0) playSound("hit", hits, themeRef.current.effects.sound);
+      if (breaks > 0) playSound("break", breaks, themeRef.current.effects.sound);
       // The last ball lands with the round; its thud would tread on the fanfare.
-      if (landings > 0 && !f.done) playSound("land");
+      if (landings > 0 && !f.done) playSound("land", 1, themeRef.current.effects.sound);
       if (f.aborted) {
         flightRef.current = null;
         busyRef.current = false;

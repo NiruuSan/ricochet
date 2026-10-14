@@ -1,10 +1,11 @@
 // The skins a player can put on the game.
 //
-// A theme is data, never code: colours, one brick shape, one set of effects and
-// one typeface. The board it describes is the same board — the bricks sit in
-// the same cells, the balls bounce off the same edges (lib/engine.ts owns the
-// geometry, and `brickBounds` never reads anything here). A theme cannot make a
-// shot easier or harder, which is why it can be sold.
+// A theme is data, never code: colours, a scene, a way of building bricks, a
+// set of effects, a typeface and a voice. The board it describes is the same
+// board — the bricks sit in the same cells, the balls bounce off the same edges
+// (lib/engine.ts owns the geometry, and `brickBounds` never reads anything
+// here). A theme cannot make a shot easier or harder, which is why it can be
+// sold.
 //
 // Everything below is shared by the browser that paints it and the server that
 // sells it, so this file imports nothing that only one of them has.
@@ -51,17 +52,71 @@ export type Burst =
   | "sprinkles";
 /** What a ball leaves behind where it strikes. */
 export type Bounce = "none" | "ring" | "spark" | "ripple";
+/** What a ball leaves behind as it flies: nothing, a few fading copies, or a comet's tail. */
+export type Trail = "none" | "dots" | "comet";
 /** The celebration when a board is cleared. */
-export type Clear = "wash" | "rays" | "confetti" | "shockwave" | "fireworks" | "jackpot";
+export type Clear = "wash" | "rays" | "confetti" | "shockwave" | "fireworks" | "jackpot" | "petals" | "nova" | "warp";
 
 /**
  * A picture behind the bricks, painted by app/arena/board-scenes.ts. Some move
  * (stars twinkle, snow falls, the aurora drifts); none of them is ever in front
  * of a brick or the ball, so nothing on the board is harder to read.
  */
-export type Scene = "stars" | "aurora" | "outrun" | "ink" | "snow" | "cave" | "felt" | "pulse" | "candy";
+export type Scene =
+  | "skyline"
+  | "papercraft"
+  | "arcade"
+  | "sea"
+  | "rain"
+  | "blossom"
+  | "marble"
+  | "flare"
+  | "nebula"
+  | "candy"
+  | "snow"
+  | "ink"
+  | "outrun"
+  | "cave"
+  | "pulse"
+  | "aurora"
+  | "felt";
 /** How a brick is built: flat paint, or something with depth. Same cell, same size, whichever. */
-export type BrickStyle = "flat" | "glossy" | "gem" | "glass" | "neon" | "chip" | "ink" | "gradient";
+export type BrickStyle =
+  | "flat"
+  | "paper"
+  | "pixel"
+  | "pearl"
+  | "crt"
+  | "petal"
+  | "metal"
+  | "magma"
+  | "glass"
+  | "glossy"
+  | "ink"
+  | "neon"
+  | "gem"
+  | "gradient"
+  | "chip";
+/** How the game sounds in the theme. Every kit is synthesised by app/arena/sound-kits.ts. */
+export type SoundKit =
+  | "classic"
+  | "synth"
+  | "paper"
+  | "chip"
+  | "bubble"
+  | "terminal"
+  | "koto"
+  | "gold"
+  | "fire"
+  | "space"
+  | "candy"
+  | "ice"
+  | "zen"
+  | "retro"
+  | "crystal"
+  | "chain"
+  | "aurora"
+  | "casino";
 
 export type Theme = {
   id: ThemeId;
@@ -71,7 +126,7 @@ export type Theme = {
   /** Null for the theme everybody starts with. */
   price: { asset: "gems"; amount: number } | { asset: "devnet"; amount: number } | null;
   board: {
-    /** Behind everything. Two stops make a gradient; one is flat. */
+    /** Behind everything, top to bottom. */
     sky: [string, string];
     /** Below the launch line. */
     floor: string;
@@ -80,11 +135,20 @@ export type Theme = {
     dots: string | null;
     /** Face and shade for each brick colour, cycled per column and round. */
     bricks: [face: string, shade: string][];
-    /** The number on a brick. */
+    /**
+     * The number on a brick, or "tone" for a deep shade of the brick's own
+     * colour. Wherever it would not read, `labelAlt` is written instead (see
+     * lib/colour.ts): a theme can be pretty, it cannot be illegible.
+     */
     label: string;
+    labelAlt: string;
+    /** A dark outline round the number, at this opacity, for bricks too bright or too varied to trust one colour on. */
+    outline?: number;
+    /** The typeface of the numbers. */
+    font: FontKey;
     /** A lighter band across the top of a brick, or null for a flat face. */
     shine: string | null;
-    /** Corner radius in board units: 0 is a square brick, 7 is today's. */
+    /** Corner radius in board units: 0 is a square brick, 7 is the classic one. */
     radius: number;
     /** An outline around each brick, for themes made of glass or light. */
     stroke: string | null;
@@ -94,21 +158,21 @@ export type Theme = {
     aim: string;
     /** A picture behind the bricks; none when absent. */
     scene?: Scene;
-    /** How bricks are drawn; flat when absent. For "gradient" the shade is the second colour. */
+    /** How bricks are built; flat when absent. For "gradient" the shade is the second colour. */
     brick?: BrickStyle;
     /** A ball lit from one side, like a sphere, instead of a flat disc. */
     orb?: boolean;
   };
-  effects: { burst: Burst; bounce: Bounce; trail: boolean; clear: Clear };
+  effects: { burst: Burst; bounce: Bounce; trail: Trail; clear: Clear; sound: SoundKit };
   /** The screens around the board: accent, text, panels, and the typefaces. */
   ui: { accent: string; ink: string; surface: string; font: FontKey; display: FontKey };
 };
 
 /**
  * The catalogue. Eighteen looks that should never be mistaken for one another
- * at a glance, from the free board to the gold-rimmed table: every one with its
- * own break, bounce and clear, and the later ones with a scene behind the board
- * and bricks with real depth.
+ * at a glance — or by ear: from the free board to the gold-rimmed table, every
+ * one has its own scene, its own bricks, its own break, bounce and clear, and
+ * its own sound.
  */
 export const THEMES: Theme[] = [
   {
@@ -130,6 +194,8 @@ export const THEMES: Theme[] = [
         ["#c6f564", "#809e3e"],
       ],
       label: "#162238",
+      labelAlt: "#ffffff",
+      font: "system",
       shine: "#ffffff38",
       radius: 7,
       stroke: null,
@@ -137,268 +203,308 @@ export const THEMES: Theme[] = [
       glow: "#c6f564",
       aim: "198, 245, 100",
     },
-    effects: { burst: "shards", bounce: "none", trail: false, clear: "wash" },
+    effects: { burst: "shards", bounce: "none", trail: "none", clear: "wash", sound: "classic" },
     ui: { accent: "#c6f564", ink: "#e7edf7", surface: "#111826", font: "system", display: "system" },
   },
   {
     id: "neon",
     name: "Neon Grid",
-    tagline: "A city at 3am. Magenta, cyan, and a horizon that will not stop glowing.",
+    tagline: "A city at 3am: a skyline lit window by window, magenta, cyan, and a horizon that will not stop glowing.",
     price: { asset: "gems", amount: 2_500 },
     board: {
-      sky: ["#1a0b2e", "#2d0b45"],
-      floor: "#120724",
+      sky: ["#12071f", "#2d0b45"],
+      floor: "#0d0518",
       line: "#ff3df0",
-      dots: "#5b2a8c",
+      dots: "#4a2373",
       bricks: [
         ["#ff3df0", "#8c1c86"],
         ["#00f0ff", "#00808a"],
         ["#ffe600", "#8a7c00"],
-        ["#7b5cff", "#3d2a8a"],
+        ["#8f74ff", "#47358f"],
         ["#ff6b9d", "#8a3a56"],
         ["#39ff88", "#1c8a49"],
       ],
       label: "#1a0b2e",
-      shine: "#ffffff55",
+      labelAlt: "#ffffff",
+      font: "orbitron",
+      shine: "#ffffff66",
       radius: 0,
-      stroke: "#ffffff2e",
+      stroke: "#ffffff38",
       ball: "#ffffff",
       glow: "#00f0ff",
       aim: "255, 61, 240",
+      scene: "skyline",
     },
-    effects: { burst: "sparks", bounce: "spark", trail: true, clear: "rays" },
+    effects: { burst: "sparks", bounce: "spark", trail: "dots", clear: "rays", sound: "synth" },
     ui: { accent: "#ff3df0", ink: "#f3e9ff", surface: "#1d0e33", font: "orbitron", display: "orbitron" },
   },
   {
     id: "paper",
     name: "Paper Cut",
-    tagline: "Daylight, at last. Cut paper on a cream page, with scraps that fall when it tears.",
+    tagline: "Daylight, at last. Hills cut from card, bricks with a shadow under them, and scraps that fall when one tears.",
     price: { asset: "gems", amount: 4_000 },
     board: {
-      sky: ["#f6f1e4", "#efe7d6"],
-      floor: "#e3d9c4",
+      sky: ["#f8f3e7", "#efe6d3"],
+      floor: "#e6dbc4",
       line: "#b9ac91",
-      dots: "#d9cfb9",
+      dots: null,
       bricks: [
-        ["#e8705a", "#b8503e"],
-        ["#4f9d86", "#357061"],
-        ["#e8b64c", "#b88b33"],
-        ["#5d7fb9", "#41598450"],
-        ["#c46a9e", "#8f4874"],
-        ["#7aa653", "#55763a"],
+        ["#ef8b74", "#c4644f"],
+        ["#62b59c", "#3f8a73"],
+        ["#efc35e", "#c49a3a"],
+        ["#7f9ed3", "#5876ab"],
+        ["#d585b2", "#a85d89"],
+        ["#93c26b", "#6a9547"],
       ],
-      label: "#3a3222",
-      shine: "#ffffff70",
+      label: "#2e2618",
+      labelAlt: "#fffaf0",
+      font: "serif",
+      shine: null,
       radius: 3,
-      stroke: "#00000018",
+      stroke: null,
       ball: "#2f2a20",
       glow: "#00000000",
       aim: "80, 72, 56",
+      scene: "papercraft",
+      brick: "paper",
     },
-    effects: { burst: "scraps", bounce: "none", trail: false, clear: "confetti" },
-    ui: { accent: "#e8705a", ink: "#2f2a20", surface: "#fbf7ee", font: "serif", display: "serif" },
+    effects: { burst: "scraps", bounce: "none", trail: "none", clear: "confetti", sound: "paper" },
+    ui: { accent: "#d0553f", ink: "#2f2a20", surface: "#fbf7ee", font: "serif", display: "serif" },
   },
   {
     id: "arcade",
     name: "Arcade 84",
-    tagline: "Four colours, square corners and a screen that hums. Bring coins.",
+    tagline: "Eight-bit bricks, a starfield scrolling past and a screen that hums. Bring coins.",
     price: { asset: "gems", amount: 6_000 },
     board: {
-      sky: ["#0b0b0b", "#141414"],
-      floor: "#050505",
+      sky: ["#05050a", "#0d0d16"],
+      floor: "#030305",
       line: "#f8f8f8",
-      dots: "#272727",
+      dots: null,
       bricks: [
-        ["#ff0044", "#a3002b"],
+        ["#ff2457", "#a3002b"],
         ["#ffcc00", "#a38200"],
         ["#00d1ff", "#0085a3"],
         ["#00ff66", "#00a341"],
-        ["#ff7a00", "#a34e00"],
-        ["#ffffff", "#a3a3a3"],
+        ["#ff8a1f", "#a34e00"],
+        ["#f4f4f4", "#9a9a9a"],
       ],
       label: "#0b0b0b",
+      labelAlt: "#ffffff",
+      font: "pixel",
       shine: null,
       radius: 0,
-      stroke: "#00000000",
+      stroke: null,
       ball: "#ffffff",
       glow: "#ffcc00",
       aim: "255, 204, 0",
+      scene: "arcade",
+      brick: "pixel",
     },
-    effects: { burst: "pixels", bounce: "none", trail: false, clear: "shockwave" },
-    ui: { accent: "#ffcc00", ink: "#f8f8f8", surface: "#151515", font: "system", display: "pixel" },
+    effects: { burst: "pixels", bounce: "none", trail: "none", clear: "shockwave", sound: "chip" },
+    ui: { accent: "#ffcc00", ink: "#f8f8f8", surface: "#121218", font: "system", display: "pixel" },
   },
   {
     id: "deep",
     name: "Deep Sea",
-    tagline: "Far under. Coral bricks, a wake behind the ball, and bubbles on the way up.",
+    tagline: "Far under. Light falling through the water, pearl bricks, and bubbles on the way up.",
     price: { asset: "gems", amount: 8_000 },
     board: {
-      sky: ["#022b3a", "#04121c"],
-      floor: "#02202b",
-      line: "#1f7a8c",
-      dots: "#0b4a5e",
+      sky: ["#04384a", "#03121c"],
+      floor: "#021a24",
+      line: "#2a8ea0",
+      dots: null,
       bricks: [
-        ["#57cc99", "#2f7d5c"],
-        ["#38a3a5", "#1f6567"],
-        ["#80ed99", "#4a9159"],
-        ["#c7f9cc", "#77a87b"],
-        ["#22577a", "#143549"],
-        ["#f4a261", "#96602f"],
+        ["#5fd3a1", "#2f7d5c"],
+        ["#45b3b5", "#1f6567"],
+        ["#8af0a3", "#4a9159"],
+        ["#cdf9d1", "#77a87b"],
+        ["#6db3dc", "#2f6a8f"],
+        ["#f6a96b", "#96602f"],
       ],
-      label: "#04121c",
-      shine: "#ffffff30",
-      radius: 12,
+      label: "#03141f",
+      labelAlt: "#e0fbfc",
+      font: "round",
+      shine: null,
+      radius: 14,
       stroke: null,
       ball: "#e0fbfc",
-      glow: "#57cc99",
-      aim: "128, 237, 153",
+      glow: "#5fd3a1",
+      aim: "138, 240, 163",
+      scene: "sea",
+      brick: "pearl",
+      orb: true,
     },
-    effects: { burst: "bubbles", bounce: "ripple", trail: true, clear: "wash" },
-    ui: { accent: "#57cc99", ink: "#e0fbfc", surface: "#06283a", font: "round", display: "round" },
+    effects: { burst: "bubbles", bounce: "ripple", trail: "dots", clear: "wash", sound: "bubble" },
+    ui: { accent: "#5fd3a1", ink: "#e0fbfc", surface: "#06283a", font: "round", display: "round" },
   },
   {
     id: "terminal",
     name: "Terminal",
-    tagline: "Green phosphor, no decoration, and characters falling out of every brick.",
+    tagline: "Green phosphor, code raining behind the bricks, and characters falling out of every one you crack.",
     price: { asset: "gems", amount: 12_000 },
     board: {
-      sky: ["#000e04", "#001a08"],
-      floor: "#000a03",
+      sky: ["#000a03", "#001407"],
+      floor: "#000802",
       line: "#00ff6a",
-      dots: "#004d20",
+      dots: null,
       bricks: [
         ["#00ff6a", "#008035"],
-        ["#00c853", "#00642a"],
-        ["#9dff00", "#4e8000"],
+        ["#00d65a", "#00642a"],
+        ["#a6ff1a", "#4e8000"],
         ["#00ffa3", "#008052"],
-        ["#66ff99", "#33804d"],
-        ["#00e676", "#007338"],
+        ["#70ffa0", "#33804d"],
+        ["#19ee7f", "#007338"],
       ],
       label: "#001a08",
+      labelAlt: "#d4ffe4",
+      font: "mono",
       shine: null,
       radius: 0,
-      stroke: "#00ff6a55",
+      stroke: null,
       ball: "#d4ffe4",
       glow: "#00ff6a",
       aim: "0, 255, 106",
+      scene: "rain",
+      brick: "crt",
     },
-    effects: { burst: "glyphs", bounce: "none", trail: false, clear: "rays" },
+    effects: { burst: "glyphs", bounce: "none", trail: "none", clear: "rays", sound: "terminal" },
     ui: { accent: "#00ff6a", ink: "#c8ffdd", surface: "#001208", font: "mono", display: "mono" },
   },
   {
     id: "sakura",
     name: "Sakura",
-    tagline: "Dusk over the blossom. Soft bricks, and petals that drift down when one goes.",
+    tagline: "Dusk under the blossom: a pale moon, a branch in flower, and petals drifting down through every shot.",
     price: { asset: "gems", amount: 20_000 },
     board: {
-      sky: ["#2b1b2e", "#4a2440"],
-      floor: "#231624",
+      sky: ["#24172e", "#5a2a4a"],
+      floor: "#1e1322",
       line: "#e8a0bf",
-      dots: "#5d3352",
+      dots: null,
       bricks: [
-        ["#ffb3c6", "#a86b7e"],
-        ["#ffc8dd", "#a87e94"],
-        ["#cdb4db", "#85738f"],
-        ["#bde0fe", "#7a92a8"],
-        ["#ffafcc", "#a8708a"],
-        ["#f7d6e0", "#a18d94"],
+        ["#ffb3c6", "#b56f84"],
+        ["#ffcfe1", "#b58599"],
+        ["#d6bfe6", "#8b7799"],
+        ["#c4e3fe", "#7a92a8"],
+        ["#ffa8c7", "#b06e8b"],
+        ["#f9dbe4", "#a68f97"],
       ],
-      label: "#2b1b2e",
-      shine: "#ffffff4a",
-      radius: 10,
+      label: "#3a1f33",
+      labelAlt: "#fff0f6",
+      font: "round",
+      shine: null,
+      radius: 12,
       stroke: null,
       ball: "#fff0f6",
       glow: "#ffb3c6",
       aim: "255, 179, 198",
+      scene: "blossom",
+      brick: "petal",
+      orb: true,
     },
-    effects: { burst: "petals", bounce: "none", trail: true, clear: "wash" },
-    ui: { accent: "#ffb3c6", ink: "#fff0f6", surface: "#322034", font: "round", display: "serif" },
+    effects: { burst: "petals", bounce: "none", trail: "dots", clear: "petals", sound: "koto" },
+    ui: { accent: "#ffb3c6", ink: "#fff0f6", surface: "#2c1c30", font: "round", display: "serif" },
   },
   {
     id: "obsidian",
     name: "Obsidian & Gold",
-    tagline: "Black stone, gold leaf, and dust that hangs in the air after a break.",
+    tagline: "Black marble veined with gold, bricks of beaten gold leaf, and dust that hangs in the air after a break.",
     price: { asset: "devnet", amount: 250_000_000 },
     board: {
-      sky: ["#0a0a0c", "#131318"],
-      floor: "#07070a",
+      sky: ["#0b0b0e", "#16161c"],
+      floor: "#070709",
       line: "#c9a227",
-      dots: "#26262e",
+      dots: null,
       bricks: [
-        ["#e8c766", "#967c24"],
-        ["#c9a227", "#7d6416"],
-        ["#f2e2b1", "#a1936f"],
-        ["#8c7853", "#5a4d33"],
-        ["#d4af37", "#856d1f"],
-        ["#efe1c0", "#9c9079"],
+        ["#ecc96a", "#8f7322"],
+        ["#d4ad3a", "#7d6416"],
+        ["#f3e3b6", "#a1936f"],
+        ["#b39a6b", "#6b5a3a"],
+        ["#e0bb4a", "#856d1f"],
+        ["#f0e2c2", "#9c9079"],
       ],
       label: "#0a0a0c",
-      shine: "#fff6d980",
-      radius: 0,
-      stroke: "#c9a22766",
-      ball: "#f6e7b4",
+      labelAlt: "#f6e7b4",
+      font: "serif",
+      shine: null,
+      radius: 1,
+      stroke: "#fff3c8",
+      ball: "#fff3c8",
       glow: "#c9a227",
       aim: "201, 162, 39",
+      scene: "marble",
+      brick: "metal",
+      orb: true,
     },
-    effects: { burst: "dust", bounce: "ring", trail: false, clear: "rays" },
-    ui: { accent: "#c9a227", ink: "#f2e9d2", surface: "#111116", font: "serif", display: "serif" },
+    effects: { burst: "dust", bounce: "ring", trail: "none", clear: "rays", sound: "gold" },
+    ui: { accent: "#d4ad3a", ink: "#f2e9d2", surface: "#111116", font: "serif", display: "serif" },
   },
   {
     id: "solar",
     name: "Solar Flare",
-    tagline: "Something molten. Embers climb from every brick you take apart.",
+    tagline: "Something molten. The sun's own edge above the board, bricks with a burning core, and a comet for a ball.",
     price: { asset: "devnet", amount: 500_000_000 },
     board: {
-      sky: ["#1a0a05", "#3d1205"],
-      floor: "#140704",
+      sky: ["#2a0c04", "#120402"],
+      floor: "#0e0402",
       line: "#ff7b29",
-      dots: "#5c2410",
+      dots: null,
       bricks: [
-        ["#ffd166", "#a6852f"],
-        ["#ff9f1c", "#a6640f"],
-        ["#ff6b35", "#a63f1c"],
-        ["#f94144", "#a12628"],
-        ["#ffbf69", "#a67a3c"],
-        ["#fff3b0", "#a69c67"],
+        ["#ffd166", "#a6602f"],
+        ["#ffa22a", "#a6460f"],
+        ["#ff7140", "#a6301c"],
+        ["#ff5a52", "#a11a28"],
+        ["#ffc36e", "#a6603c"],
+        ["#fff1a8", "#a67c47"],
       ],
       label: "#1a0a05",
-      shine: "#fff1c980",
-      radius: 4,
+      labelAlt: "#ffe9d0",
+      font: "orbitron",
+      shine: null,
+      radius: 5,
       stroke: null,
       ball: "#fff6e0",
       glow: "#ff7b29",
-      aim: "255, 123, 41",
+      aim: "255, 140, 60",
+      scene: "flare",
+      brick: "magma",
+      orb: true,
     },
-    effects: { burst: "embers", bounce: "spark", trail: true, clear: "shockwave" },
+    effects: { burst: "embers", bounce: "spark", trail: "comet", clear: "nova", sound: "fire" },
     ui: { accent: "#ff7b29", ink: "#ffe9d0", surface: "#23100a", font: "orbitron", display: "orbitron" },
   },
   {
     id: "void",
     name: "Void",
-    tagline: "Deep space, glass bricks and a comet where the ball used to be.",
+    tagline: "Deep space: a nebula, a shooting star now and then, bricks of real glass and a comet where the ball used to be.",
     price: { asset: "devnet", amount: 1_000_000_000 },
     board: {
-      sky: ["#05040f", "#0d0b26"],
-      floor: "#04030c",
-      line: "#6c5ce7",
-      dots: "#ffffff22",
+      sky: ["#04030c", "#0c0a24"],
+      floor: "#03020a",
+      line: "#7c6cf0",
+      dots: null,
       bricks: [
-        ["#a29bfe57", "#6c5ce7"],
-        ["#74b9ff57", "#0984e3"],
-        ["#81ecec57", "#00cec9"],
-        ["#fd79a857", "#e84393"],
-        ["#ffeaa757", "#fdcb6e"],
-        ["#dfe6e957", "#b2bec3"],
+        ["#9a8bff85", "#6c5ce7"],
+        ["#55a8ff85", "#0984e3"],
+        ["#3fe3e07a", "#00cec9"],
+        ["#ff5fa585", "#e84393"],
+        ["#ffcf6b70", "#fdcb6e"],
+        ["#c9d4ff6b", "#8e9bd6"],
       ],
-      label: "#f1f2ff",
-      shine: "#ffffff2e",
-      radius: 2,
-      stroke: "#ffffff66",
+      label: "#ffffff",
+      labelAlt: "#0b0a1c",
+      font: "orbitron",
+      shine: "#ffffff70",
+      radius: 3,
+      stroke: "#ffffff8c",
       ball: "#ffffff",
       glow: "#a29bfe",
       aim: "162, 155, 254",
+      scene: "nebula",
+      brick: "glass",
+      orb: true,
     },
-    effects: { burst: "shards", bounce: "ring", trail: true, clear: "shockwave" },
+    effects: { burst: "shards", bounce: "ring", trail: "comet", clear: "warp", sound: "space" },
     ui: { accent: "#a29bfe", ink: "#eef0ff", surface: "#0b0a1c", font: "orbitron", display: "orbitron" },
   },
   {
@@ -407,54 +513,58 @@ export const THEMES: Theme[] = [
     tagline: "Jelly bricks, a sugar-pink sky and sprinkles everywhere a brick gives way.",
     price: { asset: "gems", amount: 5_000 },
     board: {
-      sky: ["#ffe1f0", "#d6efff"],
-      floor: "#ffd0e8",
+      sky: ["#ffe4f2", "#d9f0ff"],
+      floor: "#ffd3ea",
       line: "#ff8fc4",
       dots: null,
       bricks: [
         ["#ff6fae", "#d1407f"],
         ["#ffb347", "#d9822b"],
         ["#5fdcff", "#2ba6cf"],
-        ["#b38bff", "#7f5ad6"],
+        ["#b896ff", "#7f5ad6"],
         ["#6ff09a", "#36b864"],
         ["#ffdc5e", "#d4ac2c"],
       ],
-      label: "#ffffff",
+      label: "tone",
+      labelAlt: "#ffffff",
+      font: "round",
       shine: null,
       radius: 18,
       stroke: null,
-      ball: "#ffffff",
+      ball: "#e0157a",
       glow: "#ff6fae",
-      aim: "255, 111, 174",
+      aim: "224, 21, 122",
       scene: "candy",
       brick: "glossy",
       orb: true,
     },
-    effects: { burst: "sprinkles", bounce: "ring", trail: false, clear: "confetti" },
-    ui: { accent: "#ff4f9a", ink: "#3d1730", surface: "#fff4fa", font: "round", display: "round" },
+    effects: { burst: "sprinkles", bounce: "ring", trail: "none", clear: "confetti", sound: "candy" },
+    ui: { accent: "#e8247c", ink: "#3d1730", surface: "#fff4fa", font: "round", display: "round" },
   },
   {
     id: "frost",
     name: "Frostbite",
-    tagline: "A winter night. Bricks of clear ice, snow that never stops, and frost when one shatters.",
+    tagline: "A winter night. Bricks of frosted ice, snow that never stops, and crystals when one shatters.",
     price: { asset: "gems", amount: 9_000 },
     board: {
-      sky: ["#06162c", "#17466f"],
-      floor: "#0a213a",
+      sky: ["#051327", "#16416a"],
+      floor: "#0a1f37",
       line: "#9ad8ff",
       dots: null,
       bricks: [
-        ["#bfe9ff73", "#6fb8e0"],
-        ["#e6f7ff66", "#9ccbe6"],
-        ["#8fd3ff73", "#4a9fd1"],
-        ["#c9d8ff73", "#7d92d6"],
-        ["#a6f0ff73", "#55b9cc"],
-        ["#ffffff59", "#b7d3e6"],
+        ["#c4ecffc7", "#5d9fd0"],
+        ["#a3d8ffc7", "#4d86c4"],
+        ["#d5e0ffc7", "#7085cf"],
+        ["#b3f2ffc7", "#4aa9c2"],
+        ["#e6f6ffc7", "#86a9c9"],
+        ["#9fcff7c7", "#4a7fb8"],
       ],
-      label: "#ffffff",
-      shine: "#ffffffa0",
+      label: "#0b2140",
+      labelAlt: "#ffffff",
+      font: "round",
+      shine: "#ffffffd0",
       radius: 6,
-      stroke: "#e8f7ffb3",
+      stroke: "#f2fbffe6",
       ball: "#ffffff",
       glow: "#9ad8ff",
       aim: "180, 225, 255",
@@ -462,7 +572,7 @@ export const THEMES: Theme[] = [
       brick: "glass",
       orb: true,
     },
-    effects: { burst: "crystals", bounce: "ring", trail: true, clear: "shockwave" },
+    effects: { burst: "crystals", bounce: "ring", trail: "dots", clear: "shockwave", sound: "ice" },
     ui: { accent: "#9ad8ff", ink: "#eaf7ff", surface: "#0b2140", font: "round", display: "round" },
   },
   {
@@ -484,6 +594,8 @@ export const THEMES: Theme[] = [
         ["#8f2b25", "#5a1814"],
       ],
       label: "#f5eddc",
+      labelAlt: "#1f1c1a",
+      font: "serif",
       shine: null,
       radius: 2,
       stroke: null,
@@ -493,7 +605,7 @@ export const THEMES: Theme[] = [
       scene: "ink",
       brick: "ink",
     },
-    effects: { burst: "ink", bounce: "none", trail: false, clear: "wash" },
+    effects: { burst: "ink", bounce: "none", trail: "none", clear: "wash", sound: "zen" },
     ui: { accent: "#b8312f", ink: "#2a2420", surface: "#f8f1e3", font: "serif", display: "serif" },
   },
   {
@@ -515,6 +627,8 @@ export const THEMES: Theme[] = [
         ["#05ffa1", "#05ffa1"],
       ],
       label: "#ffffff",
+      labelAlt: "#ffffff",
+      font: "orbitron",
       shine: null,
       radius: 3,
       stroke: null,
@@ -525,7 +639,7 @@ export const THEMES: Theme[] = [
       brick: "neon",
       orb: true,
     },
-    effects: { burst: "sparks", bounce: "spark", trail: true, clear: "fireworks" },
+    effects: { burst: "sparks", bounce: "spark", trail: "comet", clear: "fireworks", sound: "retro" },
     ui: { accent: "#ff2bd6", ink: "#ffe9fb", surface: "#1a0633", font: "orbitron", display: "orbitron" },
   },
   {
@@ -547,6 +661,9 @@ export const THEMES: Theme[] = [
         ["#4cc9f0", "#1f7d99"],
       ],
       label: "#ffffff",
+      labelAlt: "#1a0b2e",
+      outline: 0.55,
+      font: "serif",
       shine: null,
       radius: 3,
       stroke: "#ffffff40",
@@ -557,7 +674,7 @@ export const THEMES: Theme[] = [
       brick: "gem",
       orb: true,
     },
-    effects: { burst: "crystals", bounce: "spark", trail: true, clear: "fireworks" },
+    effects: { burst: "crystals", bounce: "spark", trail: "dots", clear: "fireworks", sound: "crystal" },
     ui: { accent: "#c77dff", ink: "#f1e8ff", surface: "#140b24", font: "system", display: "serif" },
   },
   {
@@ -579,6 +696,9 @@ export const THEMES: Theme[] = [
         ["#00ffa3", "#dc1fff"],
       ],
       label: "#ffffff",
+      labelAlt: "#ffffff",
+      outline: 0.6,
+      font: "orbitron",
       shine: "#ffffff45",
       radius: 10,
       stroke: "#ffffff26",
@@ -589,7 +709,7 @@ export const THEMES: Theme[] = [
       brick: "gradient",
       orb: true,
     },
-    effects: { burst: "pixels", bounce: "ring", trail: true, clear: "shockwave" },
+    effects: { burst: "pixels", bounce: "ring", trail: "dots", clear: "shockwave", sound: "chain" },
     ui: { accent: "#14f195", ink: "#eafff6", surface: "#100d1f", font: "orbitron", display: "orbitron" },
   },
   {
@@ -611,6 +731,9 @@ export const THEMES: Theme[] = [
         ["#e9f5ff4d", "#9fb3c4"],
       ],
       label: "#ffffff",
+      labelAlt: "#ffffff",
+      outline: 0.35,
+      font: "round",
       shine: "#ffffff8c",
       radius: 8,
       stroke: "#ffffff66",
@@ -621,7 +744,7 @@ export const THEMES: Theme[] = [
       brick: "glass",
       orb: true,
     },
-    effects: { burst: "stars", bounce: "ring", trail: true, clear: "rays" },
+    effects: { burst: "stars", bounce: "ring", trail: "dots", clear: "rays", sound: "aurora" },
     ui: { accent: "#5cffc6", ink: "#e8fff8", surface: "#061826", font: "round", display: "serif" },
   },
   {
@@ -643,6 +766,8 @@ export const THEMES: Theme[] = [
         ["#e9e2d0", "#9a937f"],
       ],
       label: "#f6e7b4",
+      labelAlt: "#1c1c1c",
+      font: "serif",
       shine: null,
       radius: 12,
       stroke: "#d4af37",
@@ -653,7 +778,7 @@ export const THEMES: Theme[] = [
       brick: "chip",
       orb: true,
     },
-    effects: { burst: "coins", bounce: "ring", trail: false, clear: "jackpot" },
+    effects: { burst: "coins", bounce: "ring", trail: "none", clear: "jackpot", sound: "casino" },
     ui: { accent: "#e4c25a", ink: "#f6efd9", surface: "#0a2a20", font: "serif", display: "serif" },
   },
 ];

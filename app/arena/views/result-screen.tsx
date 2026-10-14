@@ -186,9 +186,10 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
   useEffect(() => {
     if (!settledResult || sounded.current) return;
     sounded.current = true;
-    if (settledResult === "win") playSound("win");
-    else if (settledResult === "loss" || settledResult === "draw") playSound("lose");
-  }, [settledResult]);
+    const kit = themeById(theme).effects.sound;
+    if (settledResult === "win") playSound("win", 1, kit);
+    else if (settledResult === "loss" || settledResult === "draw") playSound("lose", 1, kit);
+  }, [settledResult, theme]);
 
   // Close on Escape, like any full-screen overlay.
   useEffect(() => {

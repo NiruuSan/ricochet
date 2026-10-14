@@ -16,6 +16,7 @@ Object.assign(process.env, {
 const { sqlite, close } = await createDatabase();
 
 const { THEMES, DEFAULT_THEME, themeById } = await import("../lib/themes.ts");
+const { contrast, labelContrast, over, mixHex, READABLE } = await import("../lib/colour.ts");
 const store = await import("../lib/theme-store.ts");
 const { cashAccountId, ensureCashAccount, HOUSE } = await import("../lib/payments/accounts.ts");
 const { playerSnapshot } = await import("../lib/matches.ts");
@@ -47,12 +48,38 @@ try {
   assert.equal(paid.filter((t) => t.price.asset === "gems").length, 11, "Eleven bought with gems");
   assert.equal(paid.filter((t) => t.price.asset === "devnet").length, 6, "Six bought with devnet SOL");
   // A scene or a brick style is paint too: only names the painter knows.
-  const SCENES = ["stars", "aurora", "outrun", "ink", "snow", "cave", "felt", "pulse", "candy"];
-  const STYLES = ["flat", "glossy", "gem", "glass", "neon", "chip", "ink", "gradient"];
+  const SCENES = ["skyline", "papercraft", "arcade", "sea", "rain", "blossom", "marble", "flare", "nebula", "candy", "snow", "ink", "outrun", "cave", "pulse", "aurora", "felt"];
+  const STYLES = ["flat", "paper", "pixel", "pearl", "crt", "petal", "metal", "magma", "glass", "glossy", "ink", "neon", "gem", "gradient", "chip"];
   for (const theme of THEMES) {
     if (theme.board.scene) assert.ok(SCENES.includes(theme.board.scene), `${theme.id} has a known scene`);
     if (theme.board.brick) assert.ok(STYLES.includes(theme.board.brick), `${theme.id} has a known brick style`);
     for (const [face, shade] of theme.board.bricks) assert.match(face + shade, /^#[0-9a-f]{6,8}#[0-9a-f]{6,8}$/i, `${theme.id} colours are hex`);
+    assert.ok(["none", "dots", "comet"].includes(theme.effects.trail), `${theme.id} has a known trail`);
+  }
+  // Every paid theme has a picture behind its board; no two share one, nor a voice.
+  assert.ok(paid.every((t) => t.board.scene), "Every theme on sale has a scene");
+  assert.equal(new Set(paid.map((t) => t.board.scene)).size, paid.length, "No two themes share a scene");
+  assert.equal(new Set(THEMES.map((t) => t.effects.sound)).size, THEMES.length, "Every theme has its own sound");
+
+  // --- Legibility ---------------------------------------------------------
+  // A theme may be dark, pale or loud; the game must still be readable in it.
+  for (const theme of THEMES) {
+    for (const [face, shade] of theme.board.bricks) {
+      const ratio = labelContrast(theme, face, shade);
+      assert.ok(ratio >= READABLE, `${theme.id}: the number on ${face} reads at ${ratio.toFixed(2)}:1, under ${READABLE}:1`);
+    }
+    // The ball against the sky it flies through, top to bottom.
+    for (const sky of theme.board.sky) {
+      const ratio = contrast(theme.board.ball, sky);
+      assert.ok(ratio >= 3, `${theme.id}: the ball shows at ${ratio.toFixed(2)}:1 against ${sky}`);
+    }
+    // The aim guide, at its strongest, against the sky.
+    const aim = `#${theme.board.aim.split(",").map((c) => Number(c).toString(16).padStart(2, "0")).join("")}`;
+    const sky = mixHex(theme.board.sky[0], theme.board.sky[1], 0.5);
+    assert.ok(contrast(over(`${aim}b3`, sky), sky) >= 2, `${theme.id}: the aim guide is visible`);
+    // The screens round the board: text on panels, and the accent used as text.
+    assert.ok(contrast(theme.ui.ink, theme.ui.surface) >= 7, `${theme.id}: text on its panels reads`);
+    assert.ok(contrast(theme.ui.accent, theme.ui.surface) >= 3, `${theme.id}: its accent shows on its panels (${contrast(theme.ui.accent, theme.ui.surface).toFixed(2)}:1)`);
   }
   assert.ok(
     paid.filter((t) => t.price.asset === "gems").every((t) => t.price.amount >= 1_000 && t.price.amount <= 50_000),
