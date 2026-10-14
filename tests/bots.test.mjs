@@ -33,7 +33,7 @@ try {
 
   // Off by default: a fresh site is people only.
   assert.equal((await bots.botConfig()).enabled, false);
-  assert.deepEqual(await bots.tickBots(NOW), { played: 0, entered: 0, joined: 0 }, "nothing happens while they are off");
+  assert.deepEqual(await bots.tickBots(NOW), { played: 0, entered: 0, joined: 0, more: false }, "nothing happens while they are off");
 
   // Turning them on puts the roster on the site, funded by the treasury.
   const houseBefore = cash(HOUSE);
@@ -113,7 +113,7 @@ try {
   run("UPDATE tournament_entries SET done = 0, state = NULL, finished = NULL, score = 0, rank = NULL, payout = 0 WHERE tournament_id = ?", cupId);
   run("UPDATE tournaments SET status = 'scheduled', starts_at = ?, ends_at = ? WHERE id = ?", NOW, NOW + 3 * 3_600_000, cupId);
   assert.equal((await bots.botWork(NOW + 60_000)).cupRuns, 3, "three cup runs are waiting");
-  const forced = await bots.tickBots(NOW + 60_000, { budget: 25, immediate: true });
+  const forced = await bots.tickBots(NOW + 60_000, { immediate: true });
   assert.equal(forced.played, 3, "and the button plays all three at once, a minute in");
   assert.equal((await bots.botWork(NOW + 60_000)).cupRuns, 0, "with nothing left owed");
 
@@ -166,7 +166,80 @@ try {
   );
   assert.ok(again.every((bot) => bot.sol >= back.floor), "and funded again");
 
-  console.log("PASS: bots (off by default, funded by the treasury, taking open seats after a pause, playing through the engine with replayable shots, skill that shows, filling a cup on the button, stopping on the switch, and giving the treasury its money back at launch)");
+  // No roster of twenty: past the first names, every bot still gets a name of
+  // its own that a player could have, and an id of its own.
+  const names = Array.from({ length: bots.MAX_BOTS }, (_, i) => bots.botName(i));
+  assert.equal(new Set(names.map((name) => name.toLowerCase())).size, bots.MAX_BOTS, "every place in the roster has its own name");
+  assert.ok(names.every((name) => /^[a-zA-Z0-9_]{3,20}$/.test(name)), "and every one is a valid player name");
+  assert.equal(new Set(names.map((_, i) => bots.botId(i))).size, bots.MAX_BOTS, "and its own id");
+  assert.equal(bots.botName(0), "Bumper", "the first twenty keep the names they always had");
+
+  // How much each one is given is the administrator's to set.
+  const houseAt = cash(HOUSE);
+  const wide = await bots.setBotConfig(ADMIN, { enabled: true, count: 30, topUp: 2 * SOL, floor: SOL / 4 }, NOW + 33 * 60_000);
+  assert.equal(wide.count, 30, "thirty sit down: more than the old twenty");
+  assert.equal(wide.topUp, 2 * SOL);
+  const thirty = await bots.bots();
+  assert.equal(thirty.length, 30);
+  assert.ok(thirty.slice(20).every((bot) => !bot.name.startsWith("bot:") && bot.sol === 2 * SOL), "the new ones are named and given exactly the new amount");
+  assert.equal(houseAt - cash(HOUSE), 27 * 2 * SOL, "and only the twenty-seven new wallets were paid for: the first three still hold more than the floor");
+  assert.equal(thirty.find((bot) => bot.id === bots.botId(21)).skill, ["rookie", "steady", "sharp"][21 % 3], "a bot past twenty still plays at the skill its place gives it");
+
+  // The button brings every bot up to a new amount, and only up.
+  await bots.setBotConfig(ADMIN, { topUp: 3 * SOL }, NOW + 34 * 60_000);
+  const beforeButton = cash(HOUSE);
+  const topped = await bots.fundBots(NOW + 34 * 60_000, { everyone: true });
+  assert.equal(topped.funded, 27, "the twenty-seven at two SOL were brought up; the three at five were left alone");
+  assert.equal(topped.moved, 27 * SOL);
+  assert.equal(beforeButton - cash(HOUSE), topped.moved, "and the treasury paid exactly that");
+  assert.ok((await bots.bots()).every((bot) => bot.sol >= 3 * SOL));
+
+  // An amount the treasury cannot cover: it pays nobody it cannot pay in full, and never goes below zero.
+  await bots.setBotConfig(ADMIN, { topUp: 900 * SOL }, NOW + 35 * 60_000);
+  const broke = await bots.fundBots(NOW + 35 * 60_000, { everyone: true });
+  assert.ok(broke.unaffordable > 0, "the bots it cannot afford are counted, not paid");
+  assert.ok(cash(HOUSE) >= 0, "and the treasury stays above zero");
+
+  // Nonsense is held to sensible bounds: the floor never above the amount, nothing past the guards.
+  const bounded = await bots.setBotConfig(ADMIN, { enabled: false, topUp: 2 * SOL, floor: 7 * SOL, count: 1e9 }, NOW + 36 * 60_000);
+  assert.equal(bounded.floor, 2 * SOL, "a floor above the amount given is brought down to it");
+  assert.equal(bounded.count, bots.MAX_BOTS, "and a count past the guard stops at it");
+  assert.equal((await bots.setBotConfig(ADMIN, { topUp: 1e30, count: 30 }, NOW + 36 * 60_000)).topUp, bots.MAX_TOP_UP);
+  assert.equal((await bots.setBotConfig(ADMIN, { topUp: -5 }, NOW + 36 * 60_000)).topUp, bots.MIN_TOP_UP);
+
+  // The administrator's button has no cap: ten open seats, at every entry in
+  // both currencies, are all taken in one press — an ordinary turn stops at
+  // four — and the ten runs that makes are all played in the next, past the
+  // eight an ordinary turn reads.
+  // The seat left open while they were switched off is put away first, so every seat below is a new one.
+  run("UPDATE matches SET settled = 1, cancelled = 1 WHERE settled = 0 AND p2 IS NULL");
+  run("INSERT INTO cash_ledger VALUES('house-more', ?, 'fixture', ?, 'fixture', ?)", cashAccountId(HOUSE), 500 * SOL, NOW);
+  await bots.setBotConfig(ADMIN, { enabled: true, count: 12, topUp: 11 * SOL, floor: 11 * SOL }, NOW + 40 * 60_000);
+  const entries = [...[25, 50, 100, 500, 1000].map((stake) => ["gems", stake]), ...[0.05, 0.1, 1, 5, 10].map((stake) => ["devnet", stake * SOL])];
+  for (const [i, [asset, stake]] of entries.entries()) {
+    const uid = `github:seat${i}`;
+    run("INSERT INTO players(id, name, balance, created) VALUES(?, ?, 5000, ?)", uid, `Seat${i}`, NOW - 9e8);
+    if (asset === "devnet") {
+      await ensureCashAccount(uid);
+      run("INSERT INTO cash_ledger VALUES(?, ?, 'deposit', ?, 'fixture', ?)", `seat-${i}`, cashAccountId(uid), 20 * SOL, NOW - 9e8);
+    }
+    await startMatch(uid, String(stake), asset);
+  }
+  const openSeats = () => Number(sqlite.prepare("SELECT COUNT(*) AS n FROM matches WHERE settled = 0 AND p2 IS NULL AND p1 LIKE 'github:seat%'").get().n);
+  assert.equal(openSeats(), 10, "ten seats open at once");
+  const seated = await bots.tickBots(NOW + 41 * 60_000, { immediate: true });
+  assert.equal(seated.joined, 10, "all ten taken in one press");
+  assert.equal(openSeats(), 0);
+  const playedOut = await bots.tickBots(NOW + 41 * 60_000, { immediate: true });
+  assert.equal(playedOut.played, 10, "and all ten runs played in the next");
+  assert.equal(playedOut.more, false, "with nothing left over");
+  const ordinary = await bots.tickBots(NOW + 42 * 60_000);
+  assert.ok(ordinary.played + ordinary.joined + ordinary.entered <= 3, "an ordinary turn, inside somebody's page load, still does only a little");
+  // What does stop the button is the clock, and a turn out of time says there is more.
+  const late = await bots.tickBots(NOW + 43 * 60_000, { immediate: true, seconds: -1 });
+  assert.equal(late.more, true, "a turn with no time left says so, and the screen asks again");
+
+  console.log("PASS: bots (off by default, funded by the treasury, taking open seats after a pause, playing through the engine with replayable shots, skill that shows, filling a cup on the button, stopping on the switch, giving the treasury its money back at launch, a roster past twenty with names of their own, an amount per bot the administrator sets and the treasury can always refuse, and a button with no cap on how much it plays, only a clock)");
 } catch (e) {
   console.error(e);
   process.exitCode = 1;

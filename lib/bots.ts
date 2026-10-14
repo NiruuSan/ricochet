@@ -45,12 +45,20 @@ export const SKILLS = {
 export type BotSkill = keyof typeof SKILLS;
 export const SKILL_ORDER: BotSkill[] = ["rookie", "steady", "sharp"];
 
-/** The names the house's players go by. One per bot, in this order. */
+/** The names the first twenty of the house's players go by, in this order. */
 const ROSTER = [
   "Bumper", "Cinder", "Halcyon", "Juniper", "Karst", "Lumen", "Mistral", "Nimbus",
   "Onyx", "Peregrine", "Quill", "Ridge", "Sable", "Tessellate", "Umbra", "Vellum",
   "Wren", "Xenon", "Yarrow", "Zephyr",
 ] as const;
+/**
+ * Past the first twenty, a name is made of two halves — Amber and Finch make
+ * AmberFinch — and past every pairing, a number goes on the end. Every half is
+ * short enough that the longest name still fits the twenty characters a player
+ * name is allowed.
+ */
+const FIRST = ["Amber", "Basalt", "Cobalt", "Dusk", "Ember", "Flint", "Garnet", "Hazel", "Indigo", "Jasper", "Kestrel", "Lapis", "Marble", "Nova", "Opal", "Pewter", "Quartz", "Russet", "Slate", "Topaz", "Umber", "Violet", "Willow", "Zinc"];
+const SECOND = ["Finch", "Heron", "Lynx", "Otter", "Raven", "Viper", "Falcon", "Badger", "Comet", "Pike", "Moth", "Ibis", "Marten", "Swift", "Crane", "Gecko", "Puma", "Orca", "Stoat", "Kite", "Bison", "Hare", "Newt", "Wolf"];
 
 export type BotConfig = {
   /** Off means nothing new is entered; runs already under way still finish. */
@@ -61,9 +69,9 @@ export type BotConfig = {
   skills: BotSkill[];
   /** Stakes a bot will take a seat at, in lamports. */
   stakes: number[];
-  /** Topped up from the treasury whenever a bot falls below this. */
+  /** Topped up from the treasury whenever a bot falls below this, in lamports. */
   floor: number;
-  /** Topped up to this much. */
+  /** How much each bot is given: its wallet is brought up to this, in lamports. */
   topUp: number;
   /** Bots enter tournaments on their own while this is on. */
   tournaments: boolean;
@@ -79,8 +87,48 @@ const DEFAULTS: BotConfig = {
   tournaments: true,
 };
 
-export const botId = (n: number) => `bot:${ROSTER[n].toLowerCase()}`;
-export const MAX_BOTS = ROSTER.length;
+/**
+ * The most the house will seat, as a guard against a slip of the keyboard
+ * rather than a design limit: every one of them is a row, a wallet and a turn
+ * to take.
+ */
+export const MAX_BOTS = 1_000;
+/** The most a bot can be given, and the least worth giving, in lamports. */
+export const MAX_TOP_UP = 1_000 * SOL;
+export const MIN_TOP_UP = SOL / 1_000;
+
+/** The name of the bot in place `n` of the roster: always the same one. */
+export function botName(n: number) {
+  if (n < ROSTER.length) return ROSTER[n];
+  const k = n - ROSTER.length;
+  const first = k % FIRST.length;
+  const round = Math.floor(k / FIRST.length);
+  // Shifting the second half each round keeps neighbours from sharing it.
+  const second = (first + round) % SECOND.length;
+  const lap = Math.floor(k / (FIRST.length * SECOND.length));
+  return `${FIRST[first]}${SECOND[second]}${lap ? lap + 1 : ""}`;
+}
+export const botId = (n: number) => `bot:${botName(n).toLowerCase()}`;
+
+const places = new Map<string, number>();
+let placed = 0;
+/** Where a bot sits in the roster, from its id. */
+function botIndex(uid: string) {
+  const known = places.get(uid);
+  if (known !== undefined) return known;
+  while (placed < MAX_BOTS) {
+    const id = botId(placed);
+    places.set(id, placed++);
+    if (id === uid) return placed - 1;
+  }
+  return 0;
+}
+
+/** A whole number of lamports within `[min, max]`, or the fallback when it is not a number at all. */
+const lamports = (value: unknown, min: number, max: number, fallback: number) => {
+  const n = Math.floor(Number(value));
+  return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+};
 
 /** The switch and its settings, as an administrator left them. */
 export async function botConfig(): Promise<BotConfig> {
@@ -88,12 +136,15 @@ export async function botConfig(): Promise<BotConfig> {
   if (!row) return DEFAULTS;
   try {
     const saved = JSON.parse(row.value) as Partial<BotConfig>;
+    const topUp = lamports(saved.topUp, MIN_TOP_UP, MAX_TOP_UP, DEFAULTS.topUp);
     return {
       ...DEFAULTS,
       ...saved,
       count: Math.max(0, Math.min(MAX_BOTS, Math.floor(Number(saved.count ?? DEFAULTS.count)))),
       skills: (saved.skills ?? DEFAULTS.skills).filter((s): s is BotSkill => s in SKILLS),
       stakes: (saved.stakes ?? DEFAULTS.stakes).filter((s) => Number.isFinite(s) && s > 0),
+      topUp,
+      floor: lamports(saved.floor, 0, topUp, Math.min(DEFAULTS.floor, topUp)),
     };
   } catch {
     return DEFAULTS;
@@ -102,10 +153,15 @@ export async function botConfig(): Promise<BotConfig> {
 
 /** Administrator: changes the settings, and records who changed them. */
 export async function setBotConfig(adminUid: string, patch: Partial<BotConfig>, now = Date.now()) {
-  const next: BotConfig = { ...(await botConfig()), ...patch };
+  const current = await botConfig();
+  // A field the request left out keeps its value rather than becoming undefined.
+  const next: BotConfig = { ...current, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) };
   if (!next.skills.length) next.skills = DEFAULTS.skills;
   if (!next.stakes.length) next.stakes = DEFAULTS.stakes;
-  next.count = Math.max(0, Math.min(MAX_BOTS, Math.floor(next.count)));
+  next.count = Math.max(0, Math.min(MAX_BOTS, Math.floor(Number(next.count) || 0)));
+  next.topUp = lamports(next.topUp, MIN_TOP_UP, MAX_TOP_UP, current.topUp);
+  // Topping up starts below the amount given, never above it.
+  next.floor = lamports(next.floor, 0, next.topUp, Math.min(current.floor, next.topUp));
   const db = database();
   await db.batch([
     db
@@ -113,7 +169,7 @@ export async function setBotConfig(adminUid: string, patch: Partial<BotConfig>, 
       .bind(SETTING, JSON.stringify(next), adminUid, now),
     db
       .prepare("INSERT INTO admin_audit(id, admin_id, action, target_user_id, reason, created) VALUES(?, ?, 'bots', 'bots', ?, ?)")
-      .bind(crypto.randomUUID(), adminUid, `Bots ${next.enabled ? "on" : "off"} · ${next.count} on the site`, now),
+      .bind(crypto.randomUUID(), adminUid, `Bots ${next.enabled ? "on" : "off"} · ${next.count} on the site · ${next.topUp / SOL} SOL each, topped up below ${next.floor / SOL} SOL`, now),
   ]);
   if (next.enabled) await ensureBots(now);
   return next;
@@ -151,59 +207,112 @@ export async function ensureBots(now = Date.now()) {
   // turning them back on has to bring it back rather than skip it.
   const { results: existing } = await db.prepare("SELECT id FROM players WHERE bot = 1 AND deleted IS NULL").all<{ id: string }>();
   const have = new Set(existing.map((row) => row.id));
-  for (let i = 0; i < config.count; i++) {
-    const id = botId(i);
-    if (have.has(id)) continue;
+  const missing = Array.from({ length: config.count }, (_, i) => i).filter((i) => !have.has(botId(i)));
+  // Two plain statements rather than an upsert: inside an upsert, SQLite hands
+  // its own conflict handling down to the `activity_signup` and
+  // `activity_presence` triggers, and their `INSERT OR IGNORE` into
+  // player_activity becomes an abort as soon as that row already exists.
+  const seat = (i: number) => [
+    db
+      .prepare("INSERT OR IGNORE INTO players(id, name, balance, created, last_seen, bot) VALUES(?, ?, ?, ?, ?, 1)")
+      // Older rows first, so the roster reads in the order it was filled.
+      .bind(botId(i), botName(i), 5_000, now - (MAX_BOTS - i) * 60_000, now),
+    // And back from retirement, under their own name again.
+    db.prepare("UPDATE players SET bot = 1, deleted = NULL, name = ?, last_seen = ? WHERE id = ?").bind(botName(i), now, botId(i)),
+  ];
+  // A roster of hundreds is seated a few dozen at a time, one round trip each.
+  for (let start = 0; start < missing.length; start += 40) {
+    const chunk = missing.slice(start, start + 40);
     try {
-      // Two plain statements rather than an upsert: inside an upsert, SQLite
-      // hands its own conflict handling down to the `activity_signup` and
-      // `activity_presence` triggers, and their `INSERT OR IGNORE` into
-      // player_activity becomes an abort as soon as that row already exists.
-      await db
-        .prepare("INSERT OR IGNORE INTO players(id, name, balance, created, last_seen, bot) VALUES(?, ?, ?, ?, ?, 1)")
-        // Older rows first, so the roster reads in the order it was filled.
-        .bind(id, ROSTER[i], 5_000, now - (MAX_BOTS - i) * 3_600_000, now)
-        .run();
-      // And back from retirement, under their own name again.
-      await db.prepare("UPDATE players SET bot = 1, deleted = NULL, name = ?, last_seen = ? WHERE id = ?").bind(ROSTER[i], now, id).run();
+      await db.batch(chunk.flatMap(seat));
     } catch (e) {
-      // Somebody took the name while they were away: that one stays off the
-      // site rather than holding up the rest of the roster.
       if (!(e instanceof Error) || !/UNIQUE/i.test(e.message)) throw e;
+      // Somebody took one of the names while that bot was away: it stays off
+      // the site rather than holding up the rest of the roster.
+      for (const i of chunk) {
+        try {
+          await db.batch(seat(i));
+        } catch (err) {
+          if (!(err instanceof Error) || !/UNIQUE/i.test(err.message)) throw err;
+        }
+      }
     }
   }
   await fundBots(now);
 }
 
-/** Tops up every bot the treasury can afford to, and says how much it moved. */
-export async function fundBots(now = Date.now()) {
+/**
+ * Gives the bots in service their money from the treasury, and says what moved.
+ *
+ * On an ordinary turn only a bot that has fallen below the floor is topped up.
+ * `everyone` is the administrator's button: every bot below the amount it is
+ * given is brought up to it, which is how a new amount reaches the whole
+ * roster at once. Either way the treasury never goes short to do it: a bot it
+ * cannot afford is left as it is and counted.
+ */
+export async function fundBots(now = Date.now(), { everyone = false } = {}) {
   const config = await botConfig();
   const db = database();
+  const serving = new Set(await activeBots(config));
   const { results } = await db
     .prepare(
       `SELECT p.id, COALESCE((SELECT a.balance FROM cash_accounts a WHERE a.id = 'devnet:' || p.id), 0) AS sol
        FROM players p WHERE p.bot = 1 AND p.deleted IS NULL`,
     )
     .all<{ id: string; sol: number }>();
-  const short = results.filter((row) => Number(row.sol) < config.floor);
-  if (!short.length) return 0;
+  const short = results.filter((row) => serving.has(row.id) && Number(row.sol) < (everyone ? config.topUp : config.floor));
+  const result = { moved: 0, funded: 0, unaffordable: 0 };
+  if (!short.length) return result;
+  await db.batch(
+    [HOUSE, ...short.map((row) => row.id)].map((uid) =>
+      db.prepare("INSERT OR IGNORE INTO cash_accounts(id, network, user_id, created) VALUES(?, 'devnet', ?, ?)").bind(cashAccountId(uid), uid, now),
+    ),
+  );
   const house = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(HOUSE)).first<{ balance: number }>();
   let left = Number(house?.balance ?? 0);
-  let moved = 0;
+  const grants: { id: string; amount: number }[] = [];
   for (const row of short) {
     const amount = config.topUp - Number(row.sol);
-    // The treasury pays for the practice; it never goes short to do it.
-    if (amount <= 0 || amount > left) continue;
-    await Promise.all([ensureCashAccount(row.id), ensureCashAccount(HOUSE)]);
-    const reference = `bot-funding:${row.id}:${now}`;
-    await db.batch([
-      db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'bot_funding', ?, ?, ?)").bind(`${reference}:house`, cashAccountId(HOUSE), -amount, reference, now),
-      db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'bot_funding', ?, ?, ?)").bind(`${reference}:bot`, cashAccountId(row.id), amount, reference, now),
-    ]);
+    if (amount <= 0) continue;
+    if (amount > left) {
+      result.unaffordable++;
+      continue;
+    }
+    grants.push({ id: row.id, amount });
     left -= amount;
-    moved += amount;
   }
-  return moved;
+  const ledger = (grant: { id: string; amount: number }) => {
+    const reference = `bot-funding:${grant.id}:${now}`;
+    return [
+      db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'bot_funding', ?, ?, ?)").bind(`${reference}:house`, cashAccountId(HOUSE), -grant.amount, reference, now),
+      db.prepare("INSERT INTO cash_ledger(id, account_id, kind, amount, reference, created) VALUES(?, ?, 'bot_funding', ?, ?, ?)").bind(`${reference}:bot`, cashAccountId(grant.id), grant.amount, reference, now),
+    ];
+  };
+  const paid = (grants: { amount: number }[]) => {
+    for (const grant of grants) {
+      result.moved += grant.amount;
+      result.funded++;
+    }
+  };
+  for (let start = 0; start < grants.length; start += 40) {
+    const chunk = grants.slice(start, start + 40);
+    try {
+      await db.batch(chunk.flatMap(ledger));
+      paid(chunk);
+    } catch {
+      // Something else spent from the treasury in the meantime: the ledger
+      // refuses to let it go below zero, so pay what it still can, one by one.
+      for (const grant of chunk) {
+        try {
+          await db.batch(ledger(grant));
+          paid([grant]);
+        } catch {
+          result.unaffordable++;
+        }
+      }
+    }
+  }
+  return result;
 }
 
 /** A small deterministic number from a string, so a bot's pace never jitters. */
@@ -285,30 +394,43 @@ function saveRun(table: "runs" | "tournament_entries", id: string, runKey: strin
 const runTime = (key: string) => 60_000 + hashed(key) * 240_000;
 
 /**
- * One turn of the house's players. Bounded on purpose: it runs inside ordinary
- * requests, so it does a little and comes back. An administrator asking for a
- * turn can hand it a bigger budget and tell it not to wait — `immediate` drops
- * the pauses that make them look human, which is what you want when you are
- * testing rather than watching.
+ * One turn of the house's players. An ordinary turn is bounded on purpose: it
+ * runs inside ordinary requests, so it does a little and comes back.
+ *
+ * An administrator's turn is not: `immediate` drops the pauses that make them
+ * look human and the cap on how much one turn takes on, so every run waiting,
+ * every open seat and every cup with room is dealt with. What stops it is the
+ * clock — `seconds` — so one request never outlives the server's limit; a turn
+ * that ran out of time says `more`, and the caller simply asks again.
  */
-export async function tickBots(now = Date.now(), options: { budget?: number; immediate?: boolean } = {}) {
+export async function tickBots(now = Date.now(), options: { budget?: number; immediate?: boolean; seconds?: number } = {}) {
   const config = await botConfig();
-  if (!config.enabled || !config.count) return { played: 0, entered: 0, joined: 0 };
+  if (!config.enabled || !config.count) return { played: 0, entered: 0, joined: 0, more: false };
   const db = database();
   const immediate = !!options.immediate;
-  let budget = options.budget ?? WORK_PER_TICK;
-  const done = { played: 0, entered: 0, joined: 0 };
+  let budget = options.budget ?? (immediate ? Number.POSITIVE_INFINITY : WORK_PER_TICK);
+  const stopAt = options.seconds ? Date.now() + options.seconds * 1000 : Number.POSITIVE_INFINITY;
+  const done = { played: 0, entered: 0, joined: 0, more: false };
+  /** Out of work allowed or out of time: whatever is left waits for the next turn. */
+  const spent = () => {
+    if (budget > 0 && Date.now() < stopAt) return false;
+    done.more = true;
+    return true;
+  };
+  // SQLite reads a negative LIMIT as none at all.
+  const upTo = (ordinary: number) => (immediate ? -1 : ordinary);
 
   // Runs that have had their time: play them out and settle the match.
   const { results: running } = await db
     .prepare(
       `SELECT r.id, r.match_id, r.created, m.seed, m.ruleset, m.row_key, m.asset, p.id AS uid
        FROM runs r JOIN matches m ON m.id = r.match_id JOIN players p ON p.id = r.user_id
-       WHERE p.bot = 1 AND r.done = 0 ORDER BY r.created LIMIT 8`,
+       WHERE p.bot = 1 AND r.done = 0 ORDER BY r.created LIMIT ?`,
     )
+    .bind(upTo(8))
     .all<{ id: string; match_id: string; created: number; seed: number; ruleset: number; row_key: string | null; uid: string }>();
   for (const run of running) {
-    if (budget <= 0) break;
+    if (spent()) break;
     if (!immediate && now - run.created < runTime(run.id)) continue;
     const skill = skillFor(run.uid, config);
     const played = playRun(run.seed, run.ruleset, run.row_key, skill, seeded(run.id));
@@ -326,12 +448,12 @@ export async function tickBots(now = Date.now(), options: { budget?: number; imm
          FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id JOIN players p ON p.id = e.user_id
          -- A cup that has started is still 'scheduled' in the table: live is the
          -- clock, not a column (lib/tournament-history.ts).
-         WHERE p.bot = 1 AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ? LIMIT 8`,
+         WHERE p.bot = 1 AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ? LIMIT ?`,
       )
-      .bind(now, now)
+      .bind(now, now, upTo(8))
       .all<{ id: string; tournament_id: string; registered: number; seed: number; ruleset: number; row_key: string | null; starts_at: number; ends_at: number; uid: string }>();
     for (const entry of entries) {
-      if (budget <= 0) break;
+      if (spent()) break;
       // Early in the window and never more than twenty-five minutes in, so a
       // cup has scores on the board while people are still looking at it.
       const window = entry.ends_at - entry.starts_at;
@@ -347,7 +469,7 @@ export async function tickBots(now = Date.now(), options: { budget?: number; imm
     }
   }
 
-  if (budget <= 0) return done;
+  if (spent()) return done;
   await ensureBots(now);
   // They are on the site, so they count as on the site.
   await db.prepare("UPDATE players SET last_seen = ? WHERE bot = 1 AND deleted IS NULL").bind(now).run();
@@ -358,14 +480,14 @@ export async function tickBots(now = Date.now(), options: { budget?: number; imm
     .prepare(
       `SELECT m.id, m.stake, m.asset FROM matches m JOIN players p ON p.id = m.p1
        WHERE m.settled = 0 AND m.p2 IS NULL AND m.invite IS NULL AND p.bot = 0 AND m.created < ?
-       ORDER BY m.created LIMIT 4`,
+       ORDER BY m.created LIMIT ?`,
     )
     // A seat is given a moment to find a person before the house takes it.
-    .bind(immediate ? now : now - 45_000)
+    .bind(immediate ? now : now - 45_000, upTo(4))
     .all<{ id: string; stake: number; asset: string }>();
   for (const seat of seats) {
-    if (budget <= 0) break;
-    const free = await freeBot(roster, seat.stake, seat.asset, undefined, now);
+    if (spent()) break;
+    const free = await freeBot(roster, seat.stake, seat.asset, undefined, now, seat.id);
     if (!free) continue;
     try {
       await startMatch(free, seat.stake, seat.asset);
@@ -377,20 +499,20 @@ export async function tickBots(now = Date.now(), options: { budget?: number; imm
   }
 
   // And a tournament that could use a field.
-  if (config.tournaments && budget > 0) {
+  if (config.tournaments && !spent()) {
     const { results: cups } = await db
       .prepare(
         `SELECT t.id, t.entry_fee, t.asset, t.places, t.starts_at,
            (SELECT COUNT(*) FROM tournament_entries e WHERE e.tournament_id = t.id) AS entrants
-         FROM tournaments t WHERE t.status = 'scheduled' AND t.starts_at > ? ORDER BY t.starts_at LIMIT 3`,
+         FROM tournaments t WHERE t.status = 'scheduled' AND t.starts_at > ? ORDER BY t.starts_at LIMIT ?`,
       )
-      .bind(now)
+      .bind(now, upTo(3))
       .all<{ id: string; entry_fee: number; asset: string; places: number; starts_at: number; entrants: number }>();
     for (const cup of cups) {
-      if (budget <= 0) break;
+      if (spent()) break;
       // A bot joins a cup only once the humans have had their chance at it.
       if (cup.entrants >= cup.places || (!immediate && now < cup.starts_at - 45 * 60_000)) continue;
-      const free = await freeBot(roster, cup.entry_fee, cup.asset, cup.id, now);
+      const free = await freeBot(roster, cup.entry_fee, cup.asset, cup.id, now, `${cup.id}:${cup.entrants}`);
       if (!free) continue;
       try {
         await registerForTournament(free, cup.id, now);
@@ -498,35 +620,43 @@ async function activeBots(config: BotConfig) {
   return Array.from({ length: config.count }, (_, i) => botId(i)).filter((id) => live.has(id));
 }
 
-const skillFor = (uid: string, config: BotConfig) => skillOf(Math.max(0, ROSTER.findIndex((name) => `bot:${name.toLowerCase()}` === uid)), config.skills);
+const skillFor = (uid: string, config: BotConfig) => skillOf(botIndex(uid), config.skills);
 
-/** The first bot with nothing on, enough money for the entry, and not already in. */
-async function freeBot(roster: string[], stake: number, asset: string, tournamentId?: string, now = Date.now()) {
+/**
+ * A bot with nothing on, enough money for the entry, and not already in. The
+ * search starts at a place picked by `key`, so the work is spread across the
+ * roster instead of falling on the first few names; and it costs four queries
+ * however long the roster is.
+ */
+async function freeBot(roster: string[], stake: number, asset: string, tournamentId?: string, now = Date.now(), key = "") {
+  if (!roster.length) return null;
   const db = database();
-  for (const uid of roster) {
-    const busy = await db.prepare("SELECT 1 AS yes FROM runs r JOIN matches m ON m.id = r.match_id WHERE r.user_id = ? AND r.done = 0 AND m.settled = 0").bind(uid).first();
-    if (busy) continue;
+  const none = { results: [] as { id: string }[] };
+  const [busy, owes, entered, wallets] = await Promise.all([
+    db
+      .prepare("SELECT DISTINCT r.user_id AS id FROM runs r JOIN matches m ON m.id = r.match_id JOIN players p ON p.id = r.user_id WHERE p.bot = 1 AND r.done = 0 AND m.settled = 0")
+      .all<{ id: string }>(),
     // A cup it has entered and not played comes before anything else.
-    const owes = await db
+    db
       .prepare(
-        `SELECT 1 AS yes FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id
-         WHERE e.user_id = ? AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ?`,
+        `SELECT DISTINCT e.user_id AS id FROM tournament_entries e JOIN tournaments t ON t.id = e.tournament_id JOIN players p ON p.id = e.user_id
+         WHERE p.bot = 1 AND e.done = 0 AND t.status = 'scheduled' AND t.starts_at <= ? AND t.ends_at > ?`,
       )
-      .bind(uid, now, now)
-      .first();
-    if (owes) continue;
-    if (tournamentId) {
-      const already = await db.prepare("SELECT 1 AS yes FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").bind(tournamentId, uid).first();
-      if (already) continue;
-    }
-    if (asset === "devnet") {
-      const account = await db.prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(uid)).first<{ balance: number }>();
-      if (Number(account?.balance ?? 0) < stake) continue;
-    } else {
-      const player = await db.prepare("SELECT balance FROM players WHERE id = ?").bind(uid).first<{ balance: number }>();
-      if (Number(player?.balance ?? 0) < stake) continue;
-    }
-    return uid;
+      .bind(now, now)
+      .all<{ id: string }>(),
+    tournamentId ? db.prepare("SELECT user_id AS id FROM tournament_entries WHERE tournament_id = ?").bind(tournamentId).all<{ id: string }>() : Promise.resolve(none),
+    asset === "devnet"
+      ? db
+          .prepare("SELECT p.id, COALESCE((SELECT a.balance FROM cash_accounts a WHERE a.id = 'devnet:' || p.id), 0) AS balance FROM players p WHERE p.bot = 1 AND p.deleted IS NULL")
+          .all<{ id: string; balance: number }>()
+      : db.prepare("SELECT id, balance FROM players WHERE bot = 1 AND deleted IS NULL").all<{ id: string; balance: number }>(),
+  ]);
+  const taken = new Set([...busy.results, ...owes.results, ...entered.results].map((row) => row.id));
+  const money = new Map(wallets.results.map((row) => [row.id, Number(row.balance)]));
+  const start = key ? Math.floor(hashed(key) * roster.length) : 0;
+  for (let k = 0; k < roster.length; k++) {
+    const uid = roster[(start + k) % roster.length];
+    if (!taken.has(uid) && (money.get(uid) ?? 0) >= stake) return uid;
   }
   return null;
 }

@@ -1,18 +1,30 @@
 import { elevationRequired } from "@/lib/admin-guard";
 import { administrator } from "@/lib/auth-user";
-import { botConfig, bots, botWork, fillTournament, fundBots, removeBots, setBotConfig, tickBots, type BotSkill } from "@/lib/bots";
+import { botConfig, bots, botWork, fillTournament, fundBots, MAX_BOTS, MAX_TOP_UP, MIN_TOP_UP, removeBots, setBotConfig, tickBots, type BotSkill } from "@/lib/bots";
+import { database } from "@/db/raw";
+import { cashAccountId, HOUSE } from "@/lib/payments/accounts";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
 import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
+// Playing everything waiting is real work: each turn is given up to twenty
+// seconds (below), with room to spare before the platform would cut it off.
+export const maxDuration = 60;
 
-/** The house's practice opponents: who they are, and how they are set. */
+/** What the treasury holds, in lamports: what the bots are funded from. */
+const treasury = async () =>
+  Number((await database().prepare("SELECT balance FROM cash_accounts WHERE id = ?").bind(cashAccountId(HOUSE)).first<{ balance: number }>())?.balance ?? 0);
+
+/** The bounds the form is held to, so it says what the server will accept. */
+const LIMITS = { count: MAX_BOTS, minTopUp: MIN_TOP_UP, maxTopUp: MAX_TOP_UP };
+
+/** The house's practice opponents: who they are, how they are set, and what the treasury can give them. */
 export async function GET() {
   if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
   try {
-    const [config, roster, work] = await Promise.all([botConfig(), bots(), botWork()]);
-    return json({ config, bots: roster, work });
+    const [config, roster, work, held] = await Promise.all([botConfig(), bots(), botWork(), treasury()]);
+    return json({ config, bots: roster, work, treasury: held, limits: LIMITS });
   } catch (e) {
     console.error(e);
     return json({ error: "The house players are unavailable." }, 503);
@@ -37,15 +49,23 @@ export async function POST(req: Request) {
         count: Number(b.count),
         tournaments: !!b.tournaments,
         skills: Array.isArray(b.skills) ? (b.skills as BotSkill[]) : undefined,
+        // Lamports, as whole numbers; the form converts from SOL.
+        topUp: b.topUp === undefined ? undefined : Number(b.topUp),
+        floor: b.floor === undefined ? undefined : Number(b.floor),
       });
-      return json({ config, bots: await bots() });
+      return json({ config, bots: await bots(), treasury: await treasury() });
     }
-    if (b.action === "fund") return json({ moved: await fundBots(), bots: await bots() });
-    // Their turn, now: every run that is waiting, without the pauses that make
-    // them look human on an ordinary tick.
+    // The button: every bot in service is brought up to the amount it is given.
+    if (b.action === "fund") {
+      const funded = await fundBots(Date.now(), { everyone: true });
+      return json({ ...funded, bots: await bots(), treasury: await treasury() });
+    }
+    // Their turn, now: everything that is waiting, without the pauses that make
+    // them look human and without a cap on how much — only twenty seconds of it
+    // per request. `more` says the clock ran out first; the screen asks again.
     if (b.action === "play") {
-      const done = await tickBots(Date.now(), { budget: 25, immediate: true });
-      return json({ done, bots: await bots(), work: await botWork() });
+      const { more, ...done } = await tickBots(Date.now(), { immediate: true, seconds: 20 });
+      return json({ done, more, bots: await bots(), work: await botWork() });
     }
     if (b.action === "fill") return json(await fillTournament(user.userId, b.id));
     if (b.action === "remove") {

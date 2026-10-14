@@ -5,7 +5,7 @@ import { useActionDialog } from "@/components/ui/action-dialog";
 import type { BotConfig, BotRow, BotSkill } from "@/lib/bots";
 import { request } from "../api";
 import { Avatar } from "../avatar";
-import { amount, units } from "../format";
+import { amount, exactSol, units } from "../format";
 import styles from "./admin.module.css";
 import { toast } from "../feedback";
 
@@ -13,14 +13,26 @@ import { toast } from "../feedback";
 type Work = { matches: number; cupRuns: number; cupsAhead: number };
 
 const REFRESH_MS = 20_000;
-const MAX = 20;
+const SOL = 1_000_000_000;
+/**
+ * How many turns one press may ask for. Each turn plays everything it can in
+ * twenty seconds; this only stops a loop that somehow never runs dry.
+ */
+const MAX_TURNS = 200;
 const SKILLS: { id: BotSkill; label: string; note: string }[] = [
   { id: "rookie", label: "Rookie", note: "Glances at three angles and misses" },
   { id: "steady", label: "Steady", note: "Reads the board, drops the odd shot" },
   { id: "sharp", label: "Sharp", note: "Takes the best angle it can find" },
 ];
 
-type Board = { config: BotConfig; bots: BotRow[]; work: Work };
+type Limits = { count: number; minTopUp: number; maxTopUp: number };
+type Board = { config: BotConfig; bots: BotRow[]; work: Work; treasury: number; limits: Limits };
+
+/** What the form says in SOL, as lamports; null for something that is not an amount. */
+const toLamports = (text: string) => {
+  const n = Number(text.replace(",", "."));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * SOL) : null;
+};
 
 /**
  * The house's practice opponents: the switch, how many sit down, how well they
@@ -31,6 +43,8 @@ export function AdminBots() {
   const [board, setBoard] = useState<Board | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  /** What one press of "Play everything waiting" has done so far. */
+  const [progress, setProgress] = useState<number | null>(null);
 
   const load = useCallback(
     () =>
@@ -51,7 +65,8 @@ export function AdminBots() {
     setError("");
     try {
       const next = await request<Partial<Board> & Record<string, unknown>>("/api/admin/bots", body);
-      if (next.config && next.bots) setBoard({ config: next.config, bots: next.bots, work: next.work ?? board?.work ?? { matches: 0, cupRuns: 0, cupsAhead: 0 } });
+      if (next.config && next.bots && board)
+        setBoard({ ...board, config: next.config, bots: next.bots, work: next.work ?? board.work, treasury: next.treasury ?? board.treasury });
       else await load();
       if (said) toast(said);
       return next;
@@ -69,7 +84,63 @@ export function AdminBots() {
     if (!board) return;
     const next = { ...board.config, ...patch };
     setBoard({ ...board, config: next });
-    void send({ action: "save", enabled: next.enabled, count: next.count, tournaments: next.tournaments, skills: next.skills }, said);
+    void send({ action: "save", enabled: next.enabled, count: next.count, tournaments: next.tournaments, skills: next.skills, topUp: next.topUp, floor: next.floor }, said);
+  };
+
+  /** Sets one of the two amounts from what was typed, in SOL. */
+  const saveAmount = (field: "topUp" | "floor", text: string) => {
+    if (!board) return;
+    const value = toLamports(text);
+    if (value === null) {
+      setError("Write the amount in SOL, for example 2.5.");
+      return;
+    }
+    if (value === board.config[field]) return;
+    save({ [field]: value }, field === "topUp" ? `Each bot is now given ${exactSol(value)} SOL.` : "Saved.");
+  };
+
+  /**
+   * Plays everything waiting, however much that is. The server plays for twenty
+   * seconds a turn and says when there is more; a seat taken or a cup entered
+   * makes new runs to play, so the turns go on until one finds nothing to do.
+   */
+  const playAll = async () => {
+    setBusy("play");
+    setError("");
+    setProgress(0);
+    const total = { played: 0, joined: 0, entered: 0 };
+    try {
+      for (let turn = 0; turn < MAX_TURNS; turn++) {
+        const next = await request<{ done: typeof total; more: boolean; bots: BotRow[]; work: Work }>("/api/admin/bots", { action: "play" });
+        total.played += next.done.played;
+        total.joined += next.done.joined;
+        total.entered += next.done.entered;
+        setProgress(total.played + total.joined + total.entered);
+        setBoard((current) => (current ? { ...current, bots: next.bots, work: next.work } : current));
+        if (!next.more && !next.done.played && !next.done.joined && !next.done.entered) break;
+      }
+      const said = [
+        total.played ? `${total.played} ${total.played === 1 ? "run" : "runs"} played` : "",
+        total.joined ? `${total.joined} ${total.joined === 1 ? "seat" : "seats"} taken` : "",
+        total.entered ? `${total.entered} ${total.entered === 1 ? "cup" : "cups"} entered` : "",
+      ].filter(Boolean);
+      toast(said.length ? `${said.join(" · ")}.` : "Nothing was waiting for them.");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+      setProgress(null);
+      void load();
+    }
+  };
+
+  const topUpAll = async () => {
+    const next = await send({ action: "fund" });
+    if (!next) return;
+    const funded = Number(next.funded ?? 0);
+    const short = Number(next.unaffordable ?? 0);
+    const said = funded ? `${funded} ${funded === 1 ? "wallet" : "wallets"} topped up · ${exactSol(Number(next.moved ?? 0))} SOL from the treasury.` : "Every bot already has its amount.";
+    toast(short ? `${said} ${short} could not be covered: the treasury is short.` : said);
   };
 
   const retire = async () => {
@@ -83,7 +154,10 @@ export function AdminBots() {
   };
 
   if (!board) return <p className={styles.loading}>{error || "Loading the house players…"}</p>;
-  const { config, bots } = board;
+  const { config, bots, limits } = board;
+  // What topping every bot in service up to its amount would take from the treasury.
+  const serving = bots.slice(0, config.count);
+  const needed = serving.reduce((sum, bot) => sum + Math.max(0, config.topUp - bot.sol), 0) + Math.max(0, config.count - serving.length) * config.topUp;
 
   return (
     <section className={styles.section}>
@@ -122,12 +196,44 @@ export function AdminBots() {
               className="input"
               type="number"
               min={0}
-              max={MAX}
+              max={limits.count}
               step={1}
               value={config.count}
               disabled={!!busy}
-              onChange={(e) => setBoard({ ...board, config: { ...config, count: Math.max(0, Math.min(MAX, Number(e.target.value))) } })}
+              onChange={(e) => setBoard({ ...board, config: { ...config, count: Math.max(0, Math.min(limits.count, Math.floor(Number(e.target.value) || 0))) } })}
               onBlur={() => save({}, "Saved.")}
+            />
+          </label>
+          <label className="field">
+            SOL given to each bot
+            <input
+              key={`top-${config.topUp}`}
+              className="input"
+              type="number"
+              inputMode="decimal"
+              min={limits.minTopUp / SOL}
+              max={limits.maxTopUp / SOL}
+              step="any"
+              defaultValue={config.topUp / SOL}
+              disabled={!!busy}
+              onBlur={(e) => saveAmount("topUp", e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            />
+          </label>
+          <label className="field">
+            Topped up again below (SOL)
+            <input
+              key={`floor-${config.floor}`}
+              className="input"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={config.topUp / SOL}
+              step="any"
+              defaultValue={config.floor / SOL}
+              disabled={!!busy}
+              onBlur={(e) => saveAmount("floor", e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
             />
           </label>
           <div className="field">
@@ -157,31 +263,24 @@ export function AdminBots() {
         </div>
 
         <p className={styles.fine}>
+          The treasury holds {exactSol(board.treasury)} SOL. Each bot is given {exactSol(config.topUp)} SOL and topped up again whenever it falls below{" "}
+          {exactSol(config.floor)} SOL; bringing all {config.count} up to their amount now would take {exactSol(needed)} SOL
+          {needed > board.treasury ? ", more than the treasury holds — the ones it cannot cover are left as they are" : ""}.
+        </p>
+
+        <p className={styles.fine}>
           Waiting for them right now: {board.work.cupRuns} {board.work.cupRuns === 1 ? "cup run" : "cup runs"} · {board.work.matches}{" "}
           {board.work.matches === 1 ? "match" : "matches"} · {board.work.cupsAhead} {board.work.cupsAhead === 1 ? "entry" : "entries"} in cups still to start. On an ordinary
-          turn they play a few at a time and spread a cup run over the first minutes of its window; the button below skips the waiting.
+          turn they play a few at a time and spread a cup run over the first minutes of its window; the button below skips the waiting and plays all of it, however much
+          there is.
         </p>
 
         <div className={styles.formActions}>
-          <button className="btn" disabled={!!busy} onClick={() => void send({ action: "fund" }, "Wallets topped up from the treasury.")}>
-            <Coins size={15} /> Top up wallets
+          <button className="btn" disabled={!!busy || !config.count} onClick={() => void topUpAll()}>
+            <Coins size={15} /> Top up every bot to {exactSol(config.topUp)} SOL
           </button>
-          <button
-            className="btn"
-            disabled={!!busy || !config.enabled}
-            onClick={async () => {
-              const next = await send({ action: "play" });
-              if (!next) return;
-              const done = (next.done ?? {}) as { played?: number; joined?: number; entered?: number };
-              const said = [
-                done.played ? `${done.played} ${done.played === 1 ? "run" : "runs"} played` : "",
-                done.joined ? `${done.joined} ${done.joined === 1 ? "seat" : "seats"} taken` : "",
-                done.entered ? `${done.entered} ${done.entered === 1 ? "cup" : "cups"} entered` : "",
-              ].filter(Boolean);
-              toast(said.length ? `${said.join(" · ")}.` : "Nothing was waiting for them.");
-            }}
-          >
-            <Play size={15} /> Play everything waiting
+          <button className="btn" disabled={!!busy || !config.enabled} onClick={() => void playAll()} aria-live="polite">
+            <Play size={15} /> {progress === null ? "Play everything waiting" : `Playing… ${progress} done so far`}
           </button>
           <button className="btn btn-danger" disabled={!!busy || !bots.length} onClick={() => void retire()}>
             <Trash2 size={15} /> Retire them all
