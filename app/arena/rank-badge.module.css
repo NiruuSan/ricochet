@@ -7,10 +7,7 @@
 .diamond { --rank: #9fccfc; --rank-dark: #5b7fac; }
 .bouncer { --rank: #c6f564; --rank-dark: #718e35; }
 
-.emblem { display: block; flex-shrink: 0; }
-.shield { fill: var(--rank); stroke: var(--rank-dark); stroke-width: 1.2; stroke-linejoin: round; }
-.shine { fill: #ffffff; opacity: .28; }
-.numeral { fill: #0c1018; font: 900 8px Arial, Helvetica, sans-serif; letter-spacing: -.3px; }
+.emblem { display: block; flex-shrink: 0; overflow: visible; }
 
 .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px 2px 4px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--rank) 30%, transparent); background: color-mix(in srgb, var(--rank) 10%, transparent); color: var(--rank); font-size: 10px; font-weight: 700; letter-spacing: 0; white-space: nowrap; line-height: 1.4; }
 

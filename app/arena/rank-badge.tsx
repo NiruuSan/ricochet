@@ -1,26 +1,33 @@
+import { useId, useMemo } from "react";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { PlayerLevel, RankTier } from "@/lib/api-types";
 import { LAMPORTS_PER_XP } from "@/lib/levels";
 import { amount } from "./format";
+import { rankArt } from "./rank-art";
 import styles from "./rank-badge.module.css";
 
-const NUMERALS = { 1: "I", 2: "II", 3: "III" } as const;
+/** Below this many pixels tall, the insignia is drawn in its compact form. */
+const COMPACT_BELOW = 28;
 
-/** A shield in the tier's colour with the division numeral; Bouncer gets the Bounce icon. */
+/**
+ * The rank's insignia (app/arena/rank-art.ts). `size` is its height; winged
+ * ranks are wider than they are tall.
+ */
 export function RankEmblem({ tier, division, size = 22 }: { tier: RankTier; division: 1 | 2 | 3 | null; size?: number }) {
-  if (tier === "bouncer") {
-    return <img className={styles.emblem} src="/brand/bounce-icon.svg" alt="" width={size} height={size} />;
-  }
+  // Gradient ids of their own, so two badges on a page never borrow each other's.
+  const id = `rank${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const compact = size < COMPACT_BELOW;
+  const art = useMemo(() => rankArt(tier, division, id, compact), [tier, division, id, compact]);
   return (
-    <svg className={`${styles.emblem} ${styles[tier]}`} width={size} height={size} viewBox="0 0 24 24" aria-hidden>
-      <path className={styles.shield} d="M12 1.8 20.6 5v6.1c0 5.5-3.6 9.7-8.6 11.1C7 20.8 3.4 16.6 3.4 11.1V5L12 1.8Z" />
-      <path className={styles.shine} d="M12 3.9 5.4 6.4v4.7c0 1.1.2 2.2.5 3.2L12 3.9Z" />
-      {division && (
-        <text x="12" y="15.6" textAnchor="middle" className={styles.numeral}>
-          {NUMERALS[division]}
-        </text>
-      )}
-    </svg>
+    <svg
+      className={styles.emblem}
+      width={Math.round(size * art.width)}
+      height={size}
+      viewBox={art.viewBox}
+      aria-hidden
+      // Markup built from the rank alone, never from anything a player typed.
+      dangerouslySetInnerHTML={{ __html: art.body }}
+    />
   );
 }
 
@@ -28,7 +35,7 @@ export function RankEmblem({ tier, division, size = 22 }: { tier: RankTier; divi
 export function RankBadge({ level, className = "" }: { level: PlayerLevel; className?: string }) {
   return (
     <Tooltip content={`${level.name} · ${level.xp.toLocaleString("en")} XP`}><span className={`${styles.badge} ${styles[level.tier]} ${className}`}>
-      <RankEmblem tier={level.tier} division={level.division} size={14} />
+      <RankEmblem tier={level.tier} division={level.division} size={15} />
       {level.name}
     </span></Tooltip>
   );
@@ -41,7 +48,7 @@ export function RankProgress({ level, own }: { level: PlayerLevel; own: boolean 
   const progress = level.next === null ? 1 : (level.xp - level.floor) / span;
   return (
     <div className={`${styles.progress} ${styles[level.tier]}`}>
-      <RankEmblem tier={level.tier} division={level.division} size={40} />
+      <RankEmblem tier={level.tier} division={level.division} size={44} />
       <div className={styles.progressBody}>
         <div className={styles.progressTop}>
           <b>{level.name}</b>
