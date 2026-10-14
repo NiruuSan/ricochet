@@ -1,0 +1,113 @@
+/* The ladder of ranks on the rules page: every insignia, tier by tier. */
+.ladder {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+.tier {
+  padding: 14px 12px 12px;
+  border: 1px solid color-mix(in srgb, var(--tier) 22%, #263043);
+  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--tier) 7%, #111723), #111723 70%);
+}
+.tier header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 0 4px;
+}
+.tier header b {
+  color: var(--tier);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+.tier header small {
+  color: #7f8ba1;
+  font-size: 11px;
+  white-space: nowrap;
+}
+/* Two classes deep, to win over the document's own list styles. */
+.ladder .steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ladder .steps li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 4px 8px;
+  border-radius: 10px;
+  background: #0d121b;
+  text-align: center;
+}
+.ladder .steps li b {
+  color: #f6f8fd;
+  font-size: 13px;
+  line-height: 1.2;
+}
+.ladder .steps li small {
+  color: #8c98ad;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.emblem {
+  display: grid;
+  place-items: center;
+  height: 64px;
+}
+/* The last rank stands alone, across the width, with room for its glow. */
+.top {
+  grid-column: 1 / -1;
+}
+.ladder .top .steps {
+  grid-template-columns: 1fr;
+}
+.ladder .top .steps li {
+  flex-direction: row;
+  justify-content: center;
+  gap: 18px;
+  padding: 12px;
+  text-align: left;
+}
+.top .emblem {
+  height: 84px;
+}
+.ladder .top li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ladder .top li b {
+  font-size: 16px;
+}
+
+.iron { --tier: #b4bdca; }
+.bronze { --tier: #e09a5f; }
+.silver { --tier: #e3eaf5; }
+.gold { --tier: #ffc93f; }
+.platinum { --tier: #9ee8e2; }
+.diamond { --tier: #a9d2ff; }
+.bouncer { --tier: #c6f564; }
+
+@media (max-width: 760px) {
+  .ladder {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 380px) {
+  .ladder .steps li b {
+    font-size: 12px;
+  }
+  .ladder .steps li small {
+    font-size: 10px;
+  }
+}

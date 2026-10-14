@@ -3,8 +3,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, RotateCcw } from "lucide-react";
 import { MIN_DEPOSIT, PAYOUT_SHARES, STAKES, TOURNAMENT_FEE_PERCENT, winnerPayout } from "@/lib/api-types";
+import { LAMPORTS_PER_XP, RANK_TIERS, RANKS, rankName } from "@/lib/levels";
 import { replayCoach } from "../coach";
+import { RankEmblem } from "../rank-badge";
 import { FactTable, LegalPage, type LegalSection } from "./legal-page";
+import ladder from "./rules.module.css";
 
 // The game rules and the questions people ask about them, on one page: how the
 // board works, what a match costs and pays, and what happens when something
@@ -17,6 +20,58 @@ const sol = (lamports: number) => (lamports / SOL).toLocaleString("en", { maximu
 const list = (items: string[]) => new Intl.ListFormat("en", { type: "disjunction" }).format(items);
 const percent = (shares: readonly number[]) => shares.map((s) => `${s}%`).join(", ");
 const FEE = TOURNAMENT_FEE_PERCENT.devnet;
+
+/** Every rank's insignia, tier by tier, with what it takes to reach it. */
+function RankLadder() {
+  return (
+    <div className={ladder.ladder}>
+      {RANK_TIERS.map((tier) => {
+        const steps = RANKS.filter((rank) => rank.tier === tier);
+        const top = tier === "bouncer";
+        return (
+          <section key={tier} className={`${ladder.tier} ${ladder[tier]} ${top ? ladder.top : ""}`} aria-label={rankName(tier, null)}>
+            <header>
+              <b>{rankName(tier, null)}</b>
+              <small>{top ? "The top of the ladder" : `From ${steps[0].xp.toLocaleString("en")} XP`}</small>
+            </header>
+            <ol className={ladder.steps}>
+              {steps.map((rank) => {
+                const label = (
+                  <>
+                    <b>{rankName(rank.tier, rank.division)}</b>
+                    <small>
+                      {rank.xp ? (
+                        <>
+                          {rank.xp.toLocaleString("en")} XP
+                          <br />
+                          {((rank.xp * LAMPORTS_PER_XP) / 1e9).toLocaleString("en")} SOL
+                        </>
+                      ) : (
+                        <>
+                          0 XP
+                          <br />
+                          Where everyone starts
+                        </>
+                      )}
+                    </small>
+                  </>
+                );
+                return (
+                  <li key={rank.xp}>
+                    <span className={ladder.emblem}>
+                      <RankEmblem tier={rank.tier} division={rank.division} size={top ? 80 : 56} />
+                    </span>
+                    {top ? <div>{label}</div> : label}
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
 
 const SECTIONS: LegalSection[] = [
   {
@@ -163,20 +218,10 @@ const SECTIONS: LegalSection[] = [
         <h3>Ranks</h3>
         <p>
           Every 0.1 SOL of entries earns 1 XP, once the match has settled or the tournament has ended. Refunded entries and cancelled matches earn nothing, gem matches
-          earn no XP, and XP never goes down, whether you win or lose. Iron to Diamond each have three divisions; Bouncer sits on its own at the top.
+          earn no XP, and XP never goes down, whether you win or lose. Iron to Diamond each have three divisions; Bouncer sits on its own at the top. Here is
+          every insignia, with the XP it takes and the SOL of entries that adds up to.
         </p>
-        <FactTable
-          head={["Rank", "Reached at"]}
-          rows={[
-            ["Iron 1", "0 XP — everybody starts here"],
-            ["Bronze 1", "50 XP · 5 SOL of entries"],
-            ["Silver 1", "400 XP · 40 SOL"],
-            ["Gold 1", "3,000 XP · 300 SOL"],
-            ["Platinum 1", "25,000 XP · 2,500 SOL"],
-            ["Diamond 1", "200,000 XP · 20,000 SOL"],
-            ["Bouncer", "1,000,000 XP · 100,000 SOL"],
-          ]}
-        />
+        <RankLadder />
         <h3>The weekly race</h3>
         <p>
           From Monday 00:00 UTC to the next Monday, the Weekly race tab of the leaderboard ranks players by their best single score in SOL matches and paid SOL
