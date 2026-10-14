@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import Arena from "../arena/arena";
 import { VIEWS, type View } from "../arena/views";
 
@@ -18,8 +18,10 @@ const PAGES: Partial<Record<View, { title: string; description: string }>> = {
   live: { title: "Live games · Bounce", description: "Watch the runs being played right now, shot by shot." },
   tournaments: { title: "Tournaments · Bounce", description: "Daily cups and tournaments: everyone plays the same board, the best scores share the pool." },
   leaderboard: { title: "Leaderboard · Bounce", description: "The best players on Bounce, and this week's race." },
-  faq: { title: "How to play · Bounce", description: "Good questions, straight answers: everything you need before your first run." },
-  rules: { title: "Game rules · Bounce", description: "How matches, forfeits, ties, fees and tournaments work on Bounce." },
+  rules: {
+    title: "Game rules · Bounce",
+    description: "How Bounce works: the board, matches and entries, wins, draws and forfeits, time limits, tournaments, ranks, fair boards and SOL.",
+  },
   privacy: { title: "Privacy Policy · Bounce", description: "What Bounce collects, why, who handles it, how long it is kept and how to use your GDPR rights." },
   terms: { title: "Terms of Use · Bounce", description: "The rules of the house: who may play, entries and fees, deposits and withdrawals, fair play." },
   login: { title: "Sign in · Bounce", description: "Sign in with a Solana wallet, GitHub, Google or Discord." },
@@ -36,5 +38,7 @@ export default async function Page({ params }: { params: Promise<{ view: string 
   const { view } = await params;
   // "play" is served at the site root; "watch" needs a game, at /watch/<id>.
   if (view === "play" || view === "watch" || !(VIEWS as readonly string[]).includes(view)) notFound();
+  // The questions and the rules were one page under two names; the rules kept it.
+  if (view === "faq") permanentRedirect("/rules");
   return <Arena view={view as View} />;
 }

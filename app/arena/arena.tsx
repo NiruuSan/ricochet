@@ -67,7 +67,7 @@ const NAVIGATION = [
   { href: "/live", view: "live", label: "Live", short: "Live", Icon: Radio },
   { href: "/tournaments", view: "tournaments", label: "Tournaments", short: "Cups", Icon: Medal },
   { href: "/leaderboard", view: "leaderboard", label: "Leaderboard", short: "Ranks", Icon: Trophy },
-  { href: "/faq", view: "faq", label: "How to play", short: "Help", Icon: HelpCircle },
+  { href: "/rules", view: "rules", label: "How to play", short: "Help", Icon: HelpCircle },
 ];
 
 type ArenaProps = { view: View; profileName?: string; adminCaseName?: string; initialMatchId?: string; initialTournamentId?: string; initialInvite?: string; tournamentId?: string; watchId?: string };
@@ -169,7 +169,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         </Link>
         <nav className="navigation" aria-label="Main navigation">
           {NAVIGATION.map(({ href, view: key, label, short, Icon }) => (
-            <Link key={key} href={href} className={view === key ? "active" : ""}>
+            <Link key={key} href={href} className={view === key ? "active" : ""} aria-current={view === key ? "page" : undefined}>
               <Icon />
               <span className="nav-label">{label}</span>
               <span className="nav-label-short">{short}</span>
@@ -263,7 +263,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         {view === "wallet" && <WalletView player={player} />}
         {view === "profile" && (profileName ? <PublicProfileView key={profileName} name={profileName} player={player} /> : <ProfileView player={player} />)}
         {(view === "login" || view === "signup") && <AuthView player={player} signup={view === "signup"} />}
-        {(view === "faq" || view === "rules") && <RulesView rules={view === "rules"} />}
+        {view === "rules" && <RulesView />}
         {view === "privacy" && <PrivacyView />}
         {view === "terms" && <TermsView />}
         {view === "friends" && <FriendsView player={player} />}
@@ -274,7 +274,6 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
           <span>© {new Date().getFullYear()} Bounce · A good angle changes everything.</span>
           <div className="links" style={{ alignItems: "center", flexWrap: "wrap" }}>
             <Link href="/rules">Game rules</Link>
-            <Link href="/faq">Q&A</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/privacy#cookies">Cookies</Link>

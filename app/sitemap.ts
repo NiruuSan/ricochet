@@ -9,7 +9,6 @@ const PAGES: { path: string; changeFrequency: "hourly" | "daily" | "weekly" | "m
   { path: "/tournaments", changeFrequency: "hourly", priority: 0.8 },
   { path: "/leaderboard", changeFrequency: "hourly", priority: 0.8 },
   { path: "/live", changeFrequency: "hourly", priority: 0.7 },
-  { path: "/faq", changeFrequency: "monthly", priority: 0.6 },
   { path: "/rules", changeFrequency: "monthly", priority: 0.6 },
   { path: "/terms", changeFrequency: "monthly", priority: 0.3 },
   { path: "/privacy", changeFrequency: "monthly", priority: 0.3 },

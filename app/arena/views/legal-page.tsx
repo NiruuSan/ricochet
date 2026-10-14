@@ -5,11 +5,13 @@ import styles from "./legal.module.css";
 export type LegalSection = { id: string; title: string; body: ReactNode };
 
 /**
- * A legal document laid out to be read rather than skimmed past: everything
- * open, and a contents list that jumps to each part (whose address can be
- * shared to point at one clause).
+ * A document laid out to be read rather than skimmed past: everything open,
+ * and a contents list that jumps to each part (whose address can be shared to
+ * point at one clause). The legal pages use it, and so do the game rules,
+ * which form part of the Terms. `footer` closes the document, under the last
+ * part.
  */
-export function LegalPage({ eyebrow, title, intro, sections }: { eyebrow: string; title: string; intro: ReactNode; sections: LegalSection[] }) {
+export function LegalPage({ eyebrow, title, intro, sections, footer }: { eyebrow: string; title: string; intro: ReactNode; sections: LegalSection[]; footer?: ReactNode }) {
   return (
     <article className={`subpage ${styles.page}`}>
       <div className="tag lime" style={{ marginBottom: 12 }}>
@@ -39,6 +41,7 @@ export function LegalPage({ eyebrow, title, intro, sections }: { eyebrow: string
               {s.body}
             </section>
           ))}
+          {footer && <div className={styles.footer}>{footer}</div>}
         </div>
       </div>
     </article>

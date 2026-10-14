@@ -205,7 +205,7 @@ export function WatchView({ id }: { id: string }) {
                   {data.fairness.key}
                 </code>
               )}
-              <Link href="/faq" className="lime">
+              <Link href="/rules#fair" className="lime">
                 How to check this
               </Link>
             </details>

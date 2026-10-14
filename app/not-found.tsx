@@ -75,7 +75,7 @@ export default function NotFound() {
             <Link className="btn btn-primary" href="/">
               Back to the arena
             </Link>
-            <Link className="btn" href="/faq">
+            <Link className="btn" href="/rules">
               How to play
             </Link>
           </div>
