@@ -262,6 +262,12 @@ const SECTIONS: LegalSection[] = [
           In a paid SOL tournament the pool is the entries less the house&apos;s {FEE}%. Gem tournaments have no fee, and the pool of a free tournament is put up by the
           house. Every tournament shows its entry, its number of places and its split before you register.
         </p>
+        <h3>Tournaments by rank</h3>
+        <p>
+          Some tournaments are for a band of the <Link href="#ranked">ranked ladder</Link> only — Gold to Platinum, Silver and below, Bouncers only. The rank that counts
+          is the one you hold when you register: climbing past the band afterwards keeps your seat. Until your placement matches are played you have no rank, so these
+          tournaments wait for you to finish them.
+        </p>
       </>
     ),
   },

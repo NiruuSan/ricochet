@@ -1,4 +1,5 @@
-import { ranksFor } from "./ranked";
+import { rankOf, ranksFor } from "./ranked";
+import { rankBlock, TOP_STEP, type RankLimits } from "./rank-limits";
 import { database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, validAngle, type Game } from "./engine";
 import { inspectShot } from "./anti-cheat-rules";
@@ -55,6 +56,9 @@ type TournamentRow = {
   ends_at: number;
   status: "scheduled" | "settled" | "cancelled";
   created: number;
+  /** Who may enter, by ranked rank (lib/rank-limits.ts). Null is no limit. */
+  min_rank: number | null;
+  max_rank: number | null;
 };
 
 type EntryRow = {
@@ -127,7 +131,25 @@ export type TournamentInput = {
   places?: unknown;
   startsAt?: unknown;
   endsAt?: unknown;
+  /** Rank steps, 0 (Iron 1) to 18 (Bouncer); empty for no limit. */
+  minRank?: unknown;
+  maxRank?: unknown;
 };
+
+/** The rank limits an administrator asked for, checked. A highest rank of Bouncer is no limit at all. */
+export function parseRankLimits(minInput: unknown, maxInput: unknown): RankLimits {
+  const read = (value: unknown, which: string) => {
+    if (value === undefined || value === null || value === "") return null;
+    const step = Number(value);
+    if (!Number.isInteger(step) || step < 0 || step > TOP_STEP) throw new GameError(`Choose the ${which} rank from the list.`);
+    return step;
+  };
+  const min = read(minInput, "lowest");
+  let max = read(maxInput, "highest");
+  if (max === TOP_STEP) max = null;
+  if (min !== null && max !== null && min > max) throw new GameError("The lowest rank cannot be above the highest.");
+  return { min, max };
+}
 
 /** Administrator: creates a tournament. A free SOL tournament reserves its prize from the house balance. */
 export async function createTournament(input: TournamentInput, now = Date.now()) {
@@ -150,16 +172,17 @@ export async function createTournament(input: TournamentInput, now = Date.now())
   if (!Number.isSafeInteger(startsAt) || startsAt < now - MINUTE) throw new GameError("The start must be in the future.");
   if (!Number.isSafeInteger(endsAt) || endsAt < startsAt + 5 * MINUTE) throw new GameError("The tournament must last at least 5 minutes.");
   if (endsAt > now + 90 * DAY) throw new GameError("The tournament must end within 90 days.");
+  const ranks = parseRankLimits(input.minRank, input.maxRank);
 
   const db = database();
   const id = crypto.randomUUID();
   const ops: Statement[] = [
     db
       .prepare(
-        `INSERT INTO tournaments(id, name, asset, entry_fee, prize, payout, places, seed, ruleset, row_key, starts_at, ends_at, created)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO tournaments(id, name, asset, entry_fee, prize, payout, places, seed, ruleset, row_key, starts_at, ends_at, created, min_rank, max_rank)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(id, name, asset, entryFee, prize, payout, places, crypto.getRandomValues(new Uint32Array(1))[0], RULESET, newRowKey(), startsAt, endsAt, now),
+      .bind(id, name, asset, entryFee, prize, payout, places, crypto.getRandomValues(new Uint32Array(1))[0], RULESET, newRowKey(), startsAt, endsAt, now, ranks.min, ranks.max),
   ];
   if (asset === "devnet" && !paid) {
     await Promise.all([ensureCashAccount(HOUSE), ensureCashAccount(escrowOwner(id))]);
@@ -197,6 +220,10 @@ export async function registerForTournament(uid: string, idInput: unknown, now =
   if (await db.prepare("SELECT 1 FROM tournament_entries WHERE tournament_id = ? AND user_id = ?").bind(t.id, uid).first()) {
     throw new GameError("You are already registered.", 409);
   }
+  // A cup limited by rank takes the rank the player holds now; a later climb or fall keeps the seat.
+  const limits = { min: t.min_rank ?? null, max: t.max_rank ?? null };
+  const blocked = limits.min !== null || limits.max !== null ? rankBlock(await rankOf(uid, now), limits) : null;
+  if (blocked) throw new GameError(blocked, 403);
   if (t.asset === "devnet") requireDevnet(settings());
   const entryId = crypto.randomUUID();
   // The seat only exists if the tournament is still open and not full; the entry
@@ -586,6 +613,7 @@ function summary(t: SummaryRow, you: EntryRow | undefined, now: number): Tournam
     startsAt: t.starts_at,
     endsAt: t.ends_at,
     status: tournamentStatus(t, now),
+    ranks: { min: t.min_rank ?? null, max: t.max_rank ?? null },
     you: you ? { score: you.score, done: !!you.done, started: you.state !== null, rank: you.rank, payout: you.payout } : null,
   };
 }

@@ -7,6 +7,8 @@ import { request } from "../api";
 import { amount, assetName } from "../format";
 import type { PlayerState } from "../arena";
 import { entryLabel, headlinePot, PAYOUT_LABELS, STATUS_LABELS, timing } from "../tournament-format";
+import { RankLimitTag } from "../rank-badge";
+import { rankLimitLabel } from "@/lib/rank-limits";
 import styles from "./tournaments.module.css";
 import lobby from "./tournament-lobby.module.css";
 
@@ -62,6 +64,7 @@ export function TournamentCard({ t, now }: { t: TournamentSummary; now: number }
         <span className={`${styles.chip} ${t.asset === "devnet" ? styles.chipSol : styles.chipGems}`}>{assetName(t.asset).toUpperCase()}</span>
       </div>
       <div className={styles.cardName}>{t.name}</div>
+      {rankLimitLabel(t.ranks) && <RankLimitTag limits={t.ranks} className={styles.cardLimit} />}
       <div className={styles.pot}>
         <small>{t.status === "registration" && t.entryFee ? "PRIZE POOL WHEN FULL" : "PRIZE POOL"}</small>
         <strong>{amount(headlinePot(t), t.asset)}</strong>
@@ -110,7 +113,7 @@ function FeaturedTournament({ t, now }: { t: TournamentSummary; now: number }) {
         </div>
         <dl className={lobby.eventFacts}>
           <div><dt>Entry</dt><dd>{entryLabel(t)}</dd></div>
-          <div><dt>Format</dt><dd>One run</dd></div>
+          {rankLimitLabel(t.ranks) ? <div><dt>Ranks</dt><dd><RankLimitTag limits={t.ranks} /></dd></div> : <div><dt>Format</dt><dd>One run</dd></div>}
           <div><dt>Players</dt><dd>{t.entrants}<span> / {t.places}</span></dd></div>
         </dl>
       </div>

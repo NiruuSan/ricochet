@@ -3,6 +3,8 @@ import { initial, simulate, simulateShot, ShotError, type Game } from "./engine"
 import { GameError, settle, takeSeat } from "./matches";
 import { botSkillFor, ranksFor, setBotRatings } from "./ranked";
 import { RANKED, seasonAt } from "./ranked-rules";
+import { rankFor } from "./levels";
+import { isLimited, rankBlock, rankLimitLabel, type RankLimits } from "./rank-limits";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
 import { rowsFor } from "./secret-rows";
 import { endIfEveryoneFinished, escrowOwner, registerForTournament, tournamentStatus } from "./tournaments";
@@ -528,17 +530,18 @@ export async function tickBots(now = Date.now(), options: { budget?: number; imm
   if (config.tournaments && !spent()) {
     const { results: cups } = await db
       .prepare(
-        `SELECT t.id, t.entry_fee, t.asset, t.places, t.starts_at,
+        `SELECT t.id, t.entry_fee, t.asset, t.places, t.starts_at, t.min_rank, t.max_rank,
            (SELECT COUNT(*) FROM tournament_entries e WHERE e.tournament_id = t.id) AS entrants
          FROM tournaments t WHERE t.status = 'scheduled' AND t.starts_at > ? ORDER BY t.starts_at LIMIT ?`,
       )
       .bind(now, upTo(3))
-      .all<{ id: string; entry_fee: number; asset: string; places: number; starts_at: number; entrants: number }>();
+      .all<{ id: string; entry_fee: number; asset: string; places: number; starts_at: number; entrants: number; min_rank: number | null; max_rank: number | null }>();
     for (const cup of cups) {
       if (spent()) break;
       // A bot joins a cup only once the humans have had their chance at it.
       if (cup.entrants >= cup.places || (!immediate && now < cup.starts_at - 45 * 60_000)) continue;
-      const free = await freeBot(roster, cup.entry_fee, cup.asset, cup.id, now, `${cup.id}:${cup.entrants}`);
+      const fitting = botsFitting(roster, config, { min: cup.min_rank, max: cup.max_rank });
+      const free = await freeBot(fitting, cup.entry_fee, cup.asset, cup.id, now, `${cup.id}:${cup.entrants}`);
       if (!free) continue;
       try {
         await registerForTournament(free, cup.id, now);
@@ -578,15 +581,20 @@ export async function fillTournament(adminUid: string, idInput: unknown, now = D
   const db = database();
   const cup = await db
     .prepare(
-      `SELECT t.id, t.entry_fee, t.asset, t.places, t.status, t.starts_at, t.ends_at,
+      `SELECT t.id, t.entry_fee, t.asset, t.places, t.status, t.starts_at, t.ends_at, t.min_rank, t.max_rank,
          (SELECT COUNT(*) FROM tournament_entries e WHERE e.tournament_id = t.id) AS entrants
        FROM tournaments t WHERE t.id = ?`,
     )
     .bind(id)
-    .first<{ id: string; entry_fee: number; asset: string; places: number; status: string; starts_at: number; ends_at: number; entrants: number }>();
+    .first<{ id: string; entry_fee: number; asset: string; places: number; status: string; starts_at: number; ends_at: number; entrants: number; min_rank: number | null; max_rank: number | null }>();
   if (!cup) throw new GameError("No such tournament.", 404);
   if (tournamentStatus(cup, now) !== "registration") throw new GameError("Only a tournament that has not started can be filled.", 409);
-  const roster = await activeBots(config);
+  const limits = { min: cup.min_rank, max: cup.max_rank };
+  const roster = botsFitting(await activeBots(config), config, limits);
+  if (!roster.length) {
+    const held = [...new Set(config.skills)].map((skill) => rankFor(RANKED.bots[skill] ?? RANKED.start).name).join(", ");
+    throw new GameError(`No house player fits ${rankLimitLabel(limits)}: they play at ${held}.`);
+  }
   let filled = 0;
   for (const uid of roster) {
     if (cup.entrants + filled >= cup.places) break;
@@ -736,6 +744,15 @@ async function activeBots(config: BotConfig) {
 }
 
 const skillFor = (uid: string, config: BotConfig) => skillOf(botIndex(uid), config.skills);
+
+/**
+ * The bots a cup limited by rank would take: each holds the fixed rating of
+ * its skill (lib/ranked.ts), so whether it fits is known before it tries.
+ */
+function botsFitting(roster: string[], config: BotConfig, limits: RankLimits) {
+  if (!isLimited(limits)) return roster;
+  return roster.filter((uid) => !rankBlock(rankFor(RANKED.bots[skillFor(uid, config)] ?? RANKED.start), limits));
+}
 
 /**
  * A bot with nothing on, enough money for the entry, and not already in. The

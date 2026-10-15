@@ -3,6 +3,7 @@
 import type { Game } from "./engine";
 import type { Fairness } from "./fairness";
 import type { AccountLevel, PlayerRank } from "./levels";
+import type { RankLimits } from "./rank-limits";
 
 export type { AccountLevel, PlayerRank, RankTier } from "./levels";
 
@@ -527,6 +528,8 @@ export type TournamentSummary = {
   startsAt: number;
   endsAt: number;
   status: TournamentStatus;
+  /** Who may enter, by ranked rank (lib/rank-limits.ts); both null for an open cup. */
+  ranks: RankLimits;
   /** The signed-in player's entry, if registered. */
   you: TournamentYou | null;
 };

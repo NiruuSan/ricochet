@@ -260,6 +260,13 @@
       "when": 1792236429418,
       "tag": "0036_ranked",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1792253000000,
+      "tag": "0037_tournament_ranks",
+      "breakpoints": true
     }
   ]
 }

@@ -1,11 +1,14 @@
 "use client";
 import { Form } from "@/components/ui/form";
 import { DateTimeField } from "@/components/ui/date-time-field";
+import { Select } from "@/components/ui/select";
 import { useActionDialog } from "@/components/ui/action-dialog";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Bot, Plus, Trash2 } from "lucide-react";
 import { PAYOUT_SHARES, TOURNAMENT_FEE_PERCENT, type AdminTournament, type Asset, type PayoutPreset } from "@/lib/api-types";
+import { RANK_STEPS, rankLimitLabel, TOP_STEP } from "@/lib/rank-limits";
+import { RankLimitTag } from "../rank-badge";
 import { request } from "../api";
 import { amount } from "../format";
 import { entryLabel, ordinal, PAYOUT_LABELS, STATUS_LABELS, timing } from "../tournament-format";
@@ -29,6 +32,13 @@ const toUnits = (value: string, asset: Asset) => {
   return asset === "devnet" ? Math.round(n * 1e9) : Math.floor(n);
 };
 
+/** The ranks a cup can be limited to; "any" is no limit at that end. */
+const ANY = "any";
+const LOWEST = [{ value: ANY, label: "Any rank" }, ...RANK_STEPS.map((r) => ({ value: String(r.step), label: r.name }))];
+// Bouncer as the highest rank would limit nothing, so it is not offered there.
+const HIGHEST = [{ value: ANY, label: "Any rank" }, ...RANK_STEPS.filter((r) => r.step < TOP_STEP).map((r) => ({ value: String(r.step), label: r.name }))];
+const step = (value: string) => (value === ANY ? null : Number(value));
+
 /** What a tournament is doing right now, in the colour it deserves. */
 const TONE: Record<string, string> = { live: styles.ok, registration: styles.calm, settled: styles.chip, cancelled: styles.bad };
 
@@ -42,12 +52,16 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
   const [places, setPlaces] = useState("16");
   const [startsAt, setStartsAt] = useState(() => localInput(Date.now() + HOUR));
   const [endsAt, setEndsAt] = useState(() => localInput(Date.now() + 25 * HOUR));
+  const [minRank, setMinRank] = useState(ANY);
+  const [maxRank, setMaxRank] = useState(ANY);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const seats = Number(places);
   const pool = entry === "paid" ? Math.floor((toUnits(fee, asset) * (seats || 0) * (100 - TOURNAMENT_FEE_PERCENT[asset])) / 100) : toUnits(prize, asset);
   const shares = PAYOUT_SHARES[payout];
+  const limits = { min: step(minRank), max: step(maxRank) };
+  const backwards = limits.min !== null && limits.max !== null && limits.min > limits.max;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +79,8 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
         places: seats,
         startsAt: new Date(startsAt).getTime(),
         endsAt: new Date(endsAt).getTime(),
+        minRank: limits.min,
+        maxRank: limits.max,
       });
       toast(`“${name}” is scheduled.`);
       setName("");
@@ -81,7 +97,7 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
     <Form className={styles.panel} onSubmit={submit}>
       <div className={styles.panelHead}>
         <h3>New tournament</h3>
-        <span>Anyone may enter; the pool is whatever the entries add up to, less the house share.</span>
+        <span>{rankLimitLabel(limits) ? `Open to ${rankLimitLabel(limits)}, by the rank each player holds when they register.` : "Anyone may enter; the pool is whatever the entries add up to, less the house share."}</span>
       </div>
       <div className={styles.form}>
         {error && (
@@ -140,6 +156,25 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
             ))}
           </div>
         </div>
+        <div className={`field ${styles.rankSelect}`}>
+          Lowest rank
+          <Select value={minRank} onValueChange={setMinRank} label="Lowest rank" options={LOWEST} />
+        </div>
+        <div className={`field ${styles.rankSelect}`}>
+          Highest rank
+          <Select value={maxRank} onValueChange={setMaxRank} label="Highest rank" options={HIGHEST} />
+        </div>
+        <p className={`${styles.full} ${styles.rankLimit}`} role={backwards ? "alert" : undefined}>
+          {backwards ? (
+            "The lowest rank is above the highest: no one could enter."
+          ) : rankLimitLabel(limits) ? (
+            <>
+              <RankLimitTag limits={limits} /> Players still in their placement matches cannot enter.
+            </>
+          ) : (
+            "Open to every player, ranked or not."
+          )}
+        </p>
         <div className="field">
           <label htmlFor="tournament-starts">Starts</label>
           <DateTimeField id="tournament-starts" label="Starts" value={startsAt} onChange={setStartsAt} required />
@@ -169,7 +204,7 @@ function CreateTournament({ solConfigured, onCreated }: { solConfigured: boolean
               </span>
             ))}
           </div>
-          <button className="btn btn-primary" disabled={busy}>
+          <button className="btn btn-primary" disabled={busy || backwards}>
             <Plus /> {busy ? "Creating…" : "Create tournament"}
           </button>
         </div>
@@ -273,6 +308,7 @@ export function AdminTournaments({ solConfigured }: { solConfigured: boolean }) 
                     <span>
                       {timing(t, now)} · {t.asset === "devnet" ? "Devnet SOL" : "Gems"}
                     </span>
+                    <RankLimitTag limits={t.ranks} className={styles.rowLimit} />
                   </div>
                 </div>
                 <div className={styles.cells}>

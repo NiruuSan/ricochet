@@ -1,8 +1,9 @@
 "use client";
-import { RankBadge, RankEmblem } from "../rank-badge";
+import { RankBadge, RankEmblem, RankLimitTag } from "../rank-badge";
+import { rankBlock, rankLimitLabel } from "@/lib/rank-limits";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Eye, Play, Search, Trophy } from "lucide-react";
+import { ArrowLeft, Check, Eye, Lock, Play, Search, Trophy } from "lucide-react";
 import type { TournamentDetail, TournamentStanding } from "@/lib/api-types";
 import { RANK_TIERS, rankName } from "@/lib/levels";
 import type { RankLook } from "../rank-art";
@@ -288,6 +289,9 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
   const full = t.entrants >= t.places;
   const spots = Math.max(0, t.places - t.entrants);
   const time = clock(t, now);
+  // A cup limited by rank says who it is for before anyone tries; the server checks again.
+  const limit = rankLimitLabel(t.ranks);
+  const barred = signedIn && !you ? rankBlock(player.data.player?.ranked, t.ranks) : null;
 
   let action: React.ReactNode;
   if (t.status === "registration") {
@@ -299,6 +303,10 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
       <Link className="btn btn-primary" href={player.data.authenticated ? "/signup" : "/login"}>
         Sign in to register
       </Link>
+    ) : barred ? (
+      <span className={`${styles.state} ${styles.stateBarred}`}>
+        <Lock size={16} /> {barred}
+      </span>
     ) : (
       <button className="btn btn-primary" disabled={busy || full} onClick={() => void register()}>
         {full ? "Tournament full" : busy ? "Registering…" : `Register · ${entryLabel(t)}`}
@@ -350,6 +358,7 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
             <div className={styles.chips}>
               <span className={`${styles.chip} ${t.status === "live" ? styles.live : ""}`}>{STATUS_LABELS[t.status].toUpperCase()}</span>
               <span className={`${styles.chip} ${t.asset === "devnet" ? styles.sol : styles.gems}`}>{assetName(t.asset).toUpperCase()}</span>
+              <RankLimitTag limits={t.ranks} />
             </div>
             <h1 className={styles.title}>{t.name}</h1>
             <p className={styles.when}>
@@ -395,6 +404,7 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
           <p className={styles.rule}>
             One run each on the same board. Registration closes at the start; play any time before the end. A run still in progress at the end counts with its score so far.
             {t.entryFee ? (t.asset === "devnet" ? " The pool is the entries minus the 12% house share." : " The pool is every entry.") : " The prize is put up by the house."}
+            {limit && ` Open to ${limit}: the rank you hold when you register is the one that counts, and players still in their placement matches cannot enter.`}
           </p>
         </div>
       </header>

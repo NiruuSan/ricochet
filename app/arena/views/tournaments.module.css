@@ -74,6 +74,11 @@
   letter-spacing: -0.5px;
   line-height: 1.2;
 }
+/* Who a cup limited by rank is for, under its name. */
+.cardLimit {
+  align-self: flex-start;
+  margin-top: 8px;
+}
 .pot small,
 .stat small {
   display: block;

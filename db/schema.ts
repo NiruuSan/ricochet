@@ -285,6 +285,9 @@ export const tournaments = sqliteTable(
     // scheduled → settled | cancelled
     status: text("status").notNull().default("scheduled"),
     created: integer("created").notNull(),
+    // Who may enter, by ranked rank (lib/rank-limits.ts): steps 0 (Iron 1) to 18 (Bouncer). Null is no limit.
+    minRank: integer("min_rank"),
+    maxRank: integer("max_rank"),
   },
   (t) => [index("tournament_schedule").on(t.status, t.endsAt)],
 );

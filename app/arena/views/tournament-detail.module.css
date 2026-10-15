@@ -711,3 +711,14 @@
     min-height: 36px;
   }
 }
+
+/* Registration this player's rank does not fit. */
+.stateBarred {
+  max-width: 520px;
+  color: #c9d3e2;
+  line-height: 1.5;
+}
+.stateBarred svg {
+  flex-shrink: 0;
+  color: #8e9cb2;
+}

@@ -583,3 +583,37 @@
     align-items: flex-start;
   }
 }
+
+/* A tournament's rank limit, under the form's two selects and in the list. */
+.rankLimit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0 6px;
+  color: #8e9cb2;
+  font-size: 12.5px;
+}
+.rankLimit[role="alert"] {
+  color: #ff9aa9;
+}
+.rowLimit {
+  margin-top: 6px;
+  align-self: flex-start;
+}
+/* The rank selects, boxed like the form's other fields. */
+.rankSelect > button {
+  display: flex;
+  width: 100%;
+  min-height: 50px;
+  margin-top: 8px;
+  padding: 0 15px;
+  border: 1px solid #3a475e;
+  border-radius: 9px;
+  background: #0d141f;
+  color: #fff;
+  font-size: 15px;
+}
+.rankSelect > button[data-state="open"] {
+  border-color: #c6f56466;
+}

@@ -2,6 +2,7 @@ import { useId, useMemo } from "react";
 import { Tooltip } from "@/components/ui/tooltip";
 import type { AccountLevel, PlayerRank } from "@/lib/api-types";
 import { cashbackFor, DIVISION_RR, LAMPORTS_PER_XP, rankName, RANKS } from "@/lib/levels";
+import { RANK_STEPS, rankLimitLabel, type RankLimits } from "@/lib/rank-limits";
 import { amount } from "./format";
 import { rankArt, type RankLook } from "./rank-art";
 import styles from "./rank-badge.module.css";
@@ -47,6 +48,32 @@ export function RankBadge({ rank, className = "" }: { rank: PlayerRank; classNam
         {rank.tier === "bouncer" && rank.position ? `Bouncer #${rank.position}` : rank.name}
       </span>
     </Tooltip>
+  );
+}
+
+/**
+ * Who may enter a cup limited by rank: the insignia at either end, then the
+ * words ("Gold – Platinum"). A range inside one tier shows that tier's mark
+ * once. Nothing for an open cup.
+ */
+export function RankLimitTag({ limits, className = "" }: { limits: RankLimits; className?: string }) {
+  const label = rankLimitLabel(limits);
+  if (!label) return null;
+  const low = limits.min !== null && limits.min > 0 ? RANK_STEPS[limits.min] : null;
+  const high = limits.max !== null ? RANK_STEPS[limits.max] : null;
+  const oneTier = !!low && !!high && low.tier === high.tier;
+  return (
+    <span className={`${styles.limit} ${className}`}>
+      {oneTier ? (
+        <RankEmblem tier={low.tier} division={low.step === high.step ? low.division : null} size={16} />
+      ) : (
+        <>
+          {low && <RankEmblem tier={low.tier} division={low.division} size={16} />}
+          {high && <RankEmblem tier={high.tier} division={high.division} size={16} />}
+        </>
+      )}
+      {label}
+    </span>
   );
 }
 
