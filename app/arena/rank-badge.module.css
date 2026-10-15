@@ -9,8 +9,9 @@
 .unranked { --rank: #9aa5b5; --rank-dark: #4b5463; }
 
 /* The account level: a plain chip, so it is never mistaken for a rank. */
-.levelCard { --rank: #c6f564; --rank-dark: #718e35; }
-.levelMark { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; border: 1px solid #c6f56455; background: radial-gradient(circle at 35% 30%, #c6f56433, #c6f5640a 70%); color: #c6f564; font-size: 17px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.level { display: inline-flex; align-items: baseline; gap: 3px; padding: 3px 8px 4px; border: 1.5px solid #c6f564; border-radius: 8px; background: #10170c; color: #c6f564; box-shadow: 0 3px 0 #0008; line-height: 1; white-space: nowrap; cursor: default; }
+.level small { font-size: 8px; font-weight: 800; letter-spacing: 1px; color: #a9d15a; }
+.level b { font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -.3px; }
 
 .emblem { display: block; flex-shrink: 0; overflow: visible; }
 

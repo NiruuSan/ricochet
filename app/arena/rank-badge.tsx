@@ -94,30 +94,23 @@ export function RankProgress({ rank }: { rank: PlayerRank }) {
   );
 }
 
-/** The account level with its bar to the next one, and the cashback it earns. */
-export function LevelProgress({ level, own }: { level: AccountLevel; own: boolean }) {
-  const span = level.next === null ? 1 : level.next - level.floor;
-  const progress = level.next === null ? 1 : (level.xp - level.floor) / span;
-  const step = cashbackFor(level.level);
+/**
+ * The account level as a small plate, "LVL 31": what the player has staked
+ * over all time, which never goes down. Its tooltip says what it is worth.
+ */
+export function LevelBadge({ level, own, className = "" }: { level: AccountLevel; own: boolean; className?: string }) {
+  const next =
+    level.next === null
+      ? "The last level."
+      : own
+        ? `Wager ${amount((level.next - level.xp) * LAMPORTS_PER_XP, "devnet")} more for level ${level.level + 1}.`
+        : "Earned from every SOL entry.";
   return (
-    <div className={`${styles.progress} ${styles.levelCard}`}>
-      <span className={styles.levelMark} aria-hidden>
-        {level.level}
+    <Tooltip content={`Level ${level.level} · ${cashbackFor(level.level).share}% cashback. ${next} A level is never lost.`}>
+      <span className={`${styles.level} ${className}`} aria-label={`Level ${level.level}`}>
+        <small aria-hidden>LVL</small>
+        <b aria-hidden>{level.level}</b>
       </span>
-      <div className={styles.progressBody}>
-        <div className={styles.progressTop}>
-          <b>Level {level.level}</b>
-          <span>{step.share}% cashback</span>
-        </div>
-        <div className={styles.bar} role="progressbar" aria-label="Progress to the next level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
-          <span style={{ width: `${Math.max(2, progress * 100)}%` }} />
-        </div>
-        <small>
-          {level.next === null
-            ? "The last level. It never goes down."
-            : `${own ? "Wager" : "Another"} ${amount((level.next - level.xp) * LAMPORTS_PER_XP, "devnet")} ${own ? "more for" : "to"} level ${level.level + 1}. A level is never lost.`}
-        </small>
-      </div>
-    </div>
+    </Tooltip>
   );
 }

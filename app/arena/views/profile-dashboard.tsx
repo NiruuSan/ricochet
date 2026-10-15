@@ -9,7 +9,7 @@ import { ENTRY_BATCH, ShowMore } from "@/components/ui/show-more";
 import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, ProfileStats, PublicPlayerProfile } from "@/lib/api-types";
 import type { PlayerState } from "../arena";
 import { request } from "../api";
-import { LevelProgress, RankEmblem, RankProgress } from "../rank-badge";
+import { LevelBadge, RankEmblem, RankProgress } from "../rank-badge";
 import { Avatar } from "../avatar";
 import { assetName, currency, fullSol, shortId } from "../format";
 import { ordinal } from "../tournament-format";
@@ -217,7 +217,7 @@ export function ProfileDashboard({
       <div className={styles.heroContent}>
         <div className={styles.eyebrow}><UserRound size={15} />{own ? "YOUR PLAYER PROFILE" : "PLAYER PROFILE"}</div>
         <div className={styles.identity}>
-          <div className={styles.avatar}><Avatar name={profile.name} src={own ? player.data.player?.avatar : profile.avatar} size={88} /></div>
+          <div className={styles.avatar}><Avatar name={profile.name} src={own ? player.data.player?.avatar : profile.avatar} size={88} /><LevelBadge level={profile.level} own={!!profile.isYou} className={styles.avatarLevel} /></div>
           <div className={styles.nameBlock}><h1>{profile.name}</h1><p>In the arena since {new Date(profile.created).toLocaleDateString("en", { month: "short", year: "numeric" })}</p></div>
         </div>
         <p className={styles.heroDescription}>{own ? "Your best runs, closest matches, and next milestone." : "The runs, results, and ranks behind the player."}</p>
@@ -232,7 +232,7 @@ export function ProfileDashboard({
       <div className={styles.rankShowcase}>
         <div className={styles.rankArt} aria-hidden="true"><div className={styles.rankRing} /><RankEmblem tier={profile.ranked.tier} division={profile.ranked.division} size={110} /></div>
         <div className={styles.rankCaption}>EVERY RUN. A LITTLE HIGHER.</div>
-        <div className={styles.rankProgress}><RankProgress rank={profile.ranked} /><LevelProgress level={profile.level} own={!!profile.isYou} /></div>
+        <div className={styles.rankProgress}><RankProgress rank={profile.ranked} /></div>
       </div>
     </header>}
     <div className={styles.assetBar}>

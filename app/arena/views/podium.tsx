@@ -50,7 +50,7 @@ export function Podium({ entries, titles = DEFAULT_TITLES, label = "Top three pl
               <span>#{p.rank}</span>
             </div>
             <h2>{p.name}</h2>
-            {p.ranked && <RankBadge rank={p.ranked} />}
+            {p.ranked && <RankBadge rank={p.ranked} className={styles.rank} />}
             <span className={styles.podiumMeta}>
               {p.meta}
               {p.isYou && <span className={styles.you}>YOU</span>}

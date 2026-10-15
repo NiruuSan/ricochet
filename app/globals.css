@@ -1839,7 +1839,7 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
+  margin: 14px 0 12px;
 }
 .online-chip {
   display: inline-flex;
