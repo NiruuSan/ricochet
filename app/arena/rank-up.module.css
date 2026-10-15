@@ -1,0 +1,388 @@
+/*
+ * A rank earned, on the whole screen (rank-up.tsx). Every element's own style
+ * is its last frame and the animations play towards it, so with reduced motion
+ * (globals.css turns animations off) the screen simply shows the result.
+ * --lands is when the new insignia lands; everything after it keys off it.
+ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 380;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #f6f8fd;
+  cursor: pointer;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, #0d1119ee 0%, #06080df2 52%, #030406f8 100%);
+  backdrop-filter: blur(6px);
+  animation: fade 0.35s ease-out both;
+}
+/* The new rank's colour floods in as it lands, not before: a first rank stays a surprise. */
+.tint {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--face) 24%, transparent) 0%, color-mix(in srgb, var(--face) 6%, transparent) 45%, transparent 75%);
+  animation: fade 0.5s ease-out var(--lands) both;
+}
+.rays {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 220vmax;
+  height: 220vmax;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--face) 20%, transparent) 0deg 5deg, transparent 5deg 15deg);
+  mask-image: radial-gradient(circle, #000 0%, #0008 14%, transparent 34%);
+  transform: translate(-50%, -50%);
+  opacity: 0.9;
+  animation:
+    raysIn 0.9s ease-out var(--lands) both,
+    spin 60s linear var(--lands) infinite;
+}
+.big .rays {
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--face) 28%, transparent) 0deg 4deg, transparent 4deg 11deg);
+}
+.flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, #fff 0%, color-mix(in srgb, var(--light) 70%, transparent) 18%, transparent 55%);
+  opacity: 0;
+  pointer-events: none;
+  animation: flash 0.7s ease-out var(--lands) both;
+}
+
+.stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  width: min(100%, 720px);
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  text-align: center;
+}
+.emblems {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: min(70vw, 300px);
+  height: min(46vh, 260px);
+  margin-bottom: 6px;
+}
+.emblems > * {
+  grid-area: 1 / 1;
+}
+.glow {
+  width: 115%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--face) 55%, transparent) 0%, color-mix(in srgb, var(--face) 14%, transparent) 42%, transparent 68%);
+  animation:
+    fade 0.6s ease-out var(--lands) both,
+    breathe 2.6s ease-in-out calc(var(--lands) + 0.6s) infinite;
+}
+.ring {
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--light);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--face) 70%, transparent);
+  opacity: 0;
+  animation: shockwave 0.95s cubic-bezier(0.15, 0.7, 0.3, 1) var(--lands) both;
+}
+.ringLate {
+  border-width: 1px;
+  animation-delay: calc(var(--lands) + 0.14s);
+  animation-duration: 1.2s;
+}
+
+/* The sparks fly from the middle along their own angle, and fade on the way. */
+.sparks {
+  position: relative;
+  width: 0;
+  height: 0;
+}
+.sparks i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--s);
+  height: calc(var(--s) * 2.8);
+  border-radius: 2px;
+  opacity: 0;
+  transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(-1 * var(--d))) scale(0.3);
+  animation: spark var(--t) cubic-bezier(0.1, 0.8, 0.3, 1) calc(var(--lands) + var(--late)) both;
+}
+.shade0 {
+  background: var(--light);
+  box-shadow: 0 0 8px var(--light);
+}
+.shade1 {
+  background: var(--face);
+  box-shadow: 0 0 8px var(--face);
+}
+.shade2 {
+  background: #ffffff;
+  box-shadow: 0 0 6px var(--face);
+}
+
+.from,
+.to {
+  display: grid;
+  place-items: center;
+}
+.from svg,
+.to svg {
+  width: auto;
+  height: min(30vh, 150px);
+}
+.to svg {
+  height: min(36vh, 176px);
+  filter: drop-shadow(0 0 22px color-mix(in srgb, var(--face) 55%, transparent)) drop-shadow(0 10px 0 #0006);
+}
+.big .to svg {
+  height: min(40vh, 200px);
+}
+/* The old insignia: in, held, shaken, broken. */
+.from {
+  opacity: 0;
+  animation: outgoing var(--lands) ease-in both;
+}
+/* The new one: slammed down from above the screen, then floating. */
+.to {
+  animation: slam 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.15) var(--lands) both;
+}
+.float {
+  display: grid;
+  animation: float 3.2s ease-in-out calc(var(--lands) + 0.8s) infinite;
+}
+
+.eyebrow,
+.title,
+.line,
+.note,
+.continue {
+  animation: rise 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--face);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  animation-delay: calc(var(--lands) + 0.25s);
+}
+.eyebrow::before,
+.eyebrow::after {
+  content: "";
+  width: 34px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--face));
+}
+.eyebrow::after {
+  transform: scaleX(-1);
+}
+.title {
+  margin-top: 10px;
+  font-size: clamp(44px, 8.5vw, 88px);
+  font-weight: 900;
+  letter-spacing: -2.5px;
+  line-height: 1;
+  background: linear-gradient(180deg, var(--light) 10%, var(--face) 55%, var(--shadow) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 26px color-mix(in srgb, var(--face) 38%, transparent));
+  overflow-wrap: anywhere;
+  animation-delay: calc(var(--lands) + 0.35s);
+}
+.big .title {
+  font-size: clamp(52px, 11vw, 112px);
+  letter-spacing: -3.5px;
+}
+.line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 16px;
+  color: #c9d3e2;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  animation-delay: calc(var(--lands) + 0.5s);
+}
+.line b {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--face) 16%, #0b0f16);
+  border: 1px solid color-mix(in srgb, var(--face) 45%, transparent);
+  color: var(--light);
+  font-size: 13px;
+  font-weight: 900;
+}
+.note {
+  max-width: 420px;
+  margin-top: 8px;
+  color: #8e9cb1;
+  font-size: 13px;
+  line-height: 1.55;
+  animation-delay: calc(var(--lands) + 0.6s);
+}
+.continue {
+  margin-top: 26px;
+  min-width: 170px;
+  min-height: 46px;
+  padding: 0 26px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--face) 55%, transparent);
+  background: color-mix(in srgb, var(--face) 14%, #0b0f16);
+  color: var(--light);
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 0 #0008;
+  animation-delay: 1.75s;
+}
+.continue:hover {
+  background: color-mix(in srgb, var(--face) 24%, #0b0f16);
+}
+.continue:focus-visible {
+  outline: 2px solid var(--light);
+  outline-offset: 4px;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes raysIn {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes spin {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+@keyframes flash {
+  0% {
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes breathe {
+  50% {
+    transform: scale(1.08);
+    opacity: 0.8;
+  }
+}
+@keyframes shockwave {
+  from {
+    opacity: 0.95;
+    transform: scale(0.35);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+@keyframes spark {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) rotate(var(--a)) translateY(-20px) scale(1);
+  }
+  70% {
+    opacity: 0.9;
+  }
+}
+@keyframes outgoing {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  16% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  55% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  62% {
+    transform: translateX(-5px) rotate(-3deg);
+  }
+  69% {
+    transform: translateX(5px) rotate(3deg);
+  }
+  76% {
+    transform: translateX(-6px) rotate(-4deg) scale(1.03);
+  }
+  83% {
+    transform: translateX(6px) rotate(4deg) scale(1.05);
+    filter: brightness(1.6);
+  }
+  92% {
+    opacity: 1;
+    transform: scale(1.08);
+    filter: brightness(2.4) blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+    filter: brightness(3) blur(8px);
+  }
+}
+@keyframes slam {
+  0% {
+    opacity: 0;
+    transform: translateY(-38vh) scale(2.2);
+    filter: blur(10px);
+  }
+  45% {
+    opacity: 1;
+    transform: translateY(0) scale(0.88);
+    filter: blur(0);
+  }
+  70% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes float {
+  50% {
+    transform: translateY(-7px);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@media (max-width: 520px) {
+  .line {
+    font-size: 13px;
+  }
+  .title {
+    letter-spacing: -1.5px;
+  }
+  .big .title {
+    letter-spacing: -2px;
+  }
+}

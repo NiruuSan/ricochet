@@ -41,6 +41,9 @@ const METALS: Record<RankLook, Metal> = {
 /** The colour a rank is known by, for charts and accents. */
 export const rankColor = (tier: RankLook) => METALS[tier].face;
 
+/** A rank's metal from its highlight to its shade, for what is drawn around the insignia. */
+export const rankMetal = (tier: RankLook) => ({ light: METALS[tier].light, face: METALS[tier].face, shadow: METALS[tier].shadow });
+
 /** Ranks that wear wings, and the ones with a wreath as well. */
 const WINGED: RankLook[] = ["platinum", "diamond", "bouncer"];
 const WREATHED: RankLook[] = ["diamond", "bouncer"];

@@ -13,6 +13,7 @@ import { currency, signedAmount, units, amount } from "../format";
 import { themeStyle, themeById } from "../theme";
 import { playSound } from "../sound";
 import { sharedLink, shareResult, useReferralCode } from "../share";
+import { celebrated, RankUp, rankUpOf, rememberCelebration, type RankUpKind } from "../rank-up";
 import styles from "./screens.module.css";
 
 const POLL_MS = 4_000;
@@ -237,6 +238,20 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
     else if (settledResult === "loss" || settledResult === "draw") playSound("lose", 1, kit);
   }, [settledResult, theme]);
 
+  // A promotion, a first rank or a place among the Bouncers takes the whole
+  // screen, once per match, a moment after the result itself has landed.
+  const matchId = target.kind === "match" ? target.matchId : null;
+  const rankUp = recap?.status === "settled" ? rankUpOf(recap.ratingChange, recap.you.ranked) : null;
+  const [celebrating, setCelebrating] = useState<RankUpKind | null>(null);
+  useEffect(() => {
+    if (!rankUp || !matchId || celebrated(matchId)) return;
+    const timer = setTimeout(() => {
+      rememberCelebration(matchId);
+      setCelebrating(rankUp);
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [rankUp, matchId]);
+
   // Close on Escape, like any full-screen overlay.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -371,6 +386,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
           </div>
         </div>
         {!practice && recap?.ranked && <RankedResult change={recap.ratingChange} settled={settled} cancelled={result === "cancelled"} />}
+        {celebrating && recap?.ratingChange && <RankUp change={recap.ratingChange} kind={celebrating} current={recap.you.ranked} onDone={() => setCelebrating(null)} />}
         {practice && guest && (
           <Link className={`btn btn-primary ${styles.guestCta}`} href="/signup">
             Play a real rival · {STARTING_GEMS.toLocaleString("en")} free gems <ArrowRight />

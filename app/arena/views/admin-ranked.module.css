@@ -67,6 +67,11 @@
   color: #e9eef6;
   font-variant-numeric: tabular-nums;
 }
+.previews {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 @media (max-width: 640px) {
   .value {
     font-size: 8.5px;

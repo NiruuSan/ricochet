@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
-import { RANK_TIERS, RANKS, rankName, type RankTier } from "@/lib/levels";
+import { PartyPopper, RefreshCw } from "lucide-react";
+import type { PlayerRank, RatingChange } from "@/lib/api-types";
+import { RANK_TIERS, RANKS, rankFor, rankName, type RankTier } from "@/lib/levels";
 import { request } from "../api";
 import { RankEmblem } from "../rank-badge";
 import { rankColor } from "../rank-art";
+import { RankUp, type RankUpKind } from "../rank-up";
 import styles from "./admin.module.css";
 import own from "./admin-ranked.module.css";
 
@@ -14,6 +16,15 @@ type Distribution = { season: number; startsAt: number; endsAt: number; division
 const REFRESH_MS = 60_000;
 const day = (at: number) => new Date(at).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const share = (n: number, of: number) => (of ? `${((n / of) * 100).toFixed(n && n / of < 0.01 ? 1 : 0)}%` : "—");
+
+/** A made-up result of each kind, to watch the celebration without playing for it. */
+const change = (before: PlayerRank, after: PlayerRank): RatingChange => ({ before: before.rating, after: after.rating, delta: after.rating - before.rating, unrated: null, placement: !before.placed, rankBefore: before, rankAfter: after });
+const PREVIEWS: { kind: RankUpKind; label: string; change: RatingChange; current?: PlayerRank }[] = [
+  { kind: "division", label: "Division", change: change(rankFor(984), rankFor(1006)) },
+  { kind: "tier", label: "New tier", change: change(rankFor(884), rankFor(907)) },
+  { kind: "placed", label: "Placement", change: change(rankFor(712, { placementsLeft: 1 }), rankFor(946)) },
+  { kind: "bouncer", label: "Bouncer", change: change(rankFor(1688), rankFor(1709)), current: rankFor(1709, { bouncer: true, position: 37 }) },
+];
 
 /**
  * The season's ladder as a bar chart, one bar per division and one for the
@@ -25,6 +36,7 @@ export function AdminRanked() {
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
   const [now, setNow] = useState(0);
+  const [preview, setPreview] = useState<(typeof PREVIEWS)[number] | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -133,6 +145,25 @@ export function AdminRanked() {
           )}
         </div>
       </section>
+
+      <section className={styles.section}>
+        <div className={styles.panel}>
+          <div className={styles.panelHead}>
+            <h3>
+              <PartyPopper size={16} /> Rank-up celebrations
+            </h3>
+            <span>What a player sees, once, when a ranked match moves them up</span>
+          </div>
+          <div className={own.previews}>
+            {PREVIEWS.map((item) => (
+              <button key={item.kind} className="btn" onClick={() => setPreview(item)}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+      {preview && <RankUp key={preview.kind} change={preview.change} kind={preview.kind} current={preview.current} onDone={() => setPreview(null)} />}
     </>
   );
 }
