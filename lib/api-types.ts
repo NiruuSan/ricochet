@@ -2,9 +2,9 @@
 // client. Nothing here may carry another player's platform user ID.
 import type { Game } from "./engine";
 import type { Fairness } from "./fairness";
-import type { PlayerLevel } from "./levels";
+import type { AccountLevel, PlayerRank } from "./levels";
 
-export type { PlayerLevel, RankTier } from "./levels";
+export type { AccountLevel, PlayerRank, RankTier } from "./levels";
 
 /** `gems` is the free in-game currency; `devnet` is Solana test-network SOL, in lamports. */
 export type Asset = "gems" | "devnet";
@@ -93,7 +93,7 @@ export type MatchSummary = {
   net: number;
 };
 
-export type Leader = { name: string; avatar: string | null; is_you: number; pnl: number; games: number; level: PlayerLevel };
+export type Leader = { name: string; avatar: string | null; is_you: number; pnl: number; games: number; ranked: PlayerRank };
 
 export type LaunchStatus = { mode: string; configured: boolean; mainnetEnabled: boolean; message: string };
 
@@ -103,8 +103,10 @@ export type Profile = {
   balance: number;
   avatar: string | null;
   created: number;
-  /** Rank from everything wagered; nothing ever resets it (lib/experience.ts). */
-  level: PlayerLevel;
+  /** Level from everything ever wagered; it never goes down, and sets the cashback (lib/levels.ts). */
+  level: AccountLevel;
+  /** This season's ranked rank (lib/ranked.ts). */
+  ranked: PlayerRank;
 };
 export type PublicPlayerProfile = {
   publicId: string;
@@ -112,8 +114,9 @@ export type PublicPlayerProfile = {
   avatar: string | null;
   created: number;
   isYou: boolean;
-  /** Rank from devnet SOL wagered; public. */
-  level: PlayerLevel;
+  /** Level from devnet SOL wagered, and this season's ranked rank; both public. */
+  level: AccountLevel;
+  ranked: PlayerRank;
   stats: Record<Asset, { pnl: number; games: number; wins: number }>;
   /** Where the viewer stands with this player; null when nobody is signed in. */
   friendship: Friendship | null;
@@ -154,7 +157,7 @@ export type ProfilePerformance = {
 };
 
 /** One player's side of a finished run, for the end-of-match screen. */
-export type RecapSide = { name: string; avatar: string | null; level?: PlayerLevel; score: number; balls: number; clears: number; rounds: number; forfeit: boolean; board: Game };
+export type RecapSide = { name: string; avatar: string | null; ranked?: PlayerRank; score: number; balls: number; clears: number; rounds: number; forfeit: boolean; board: Game };
 
 export type MatchRecap = {
   matchId: string;
@@ -176,7 +179,31 @@ export type MatchRecap = {
   /** The player's own run, as a replay link (`/watch/<watchId>`): what a shared result points to. */
   watchId: string;
   /** The opponent's stats appear only once the match has settled; scores stay hidden until both finish. */
-  opponent: { name: string; avatar: string | null; level: PlayerLevel; stats: RecapSide | null } | null;
+  opponent: { name: string; avatar: string | null; ranked: PlayerRank; stats: RecapSide | null } | null;
+  /** A ranked match: whether it counts, and once settled what it did to your rating. */
+  ranked: boolean;
+  ratingChange: RatingChange | null;
+};
+
+/** What a ranked match did to one player's rating (lib/ranked.ts). */
+export type RatingChange = {
+  before: number;
+  after: number;
+  delta: number;
+  unrated: "repeat" | null;
+  placement: boolean;
+  rankBefore: PlayerRank;
+  rankAfter: PlayerRank;
+};
+
+/** The season's ranked table (lib/ranked.ts seasonStandings). */
+export type SeasonStanding = { name: string; avatar: string | null; rank: PlayerRank; games: number; wins: number; isYou: boolean };
+export type SeasonBoard = {
+  season: number;
+  startsAt: number;
+  endsAt: number;
+  standings: SeasonStanding[];
+  you: (SeasonStanding & { peak: number; placementsLeft: number }) | null;
 };
 
 export type MatchNotification = {
@@ -346,7 +373,7 @@ export type ChallengeNotification = { matchId: string; invite: string; asset: As
  * who sent it and for how much. `open` is false once someone took the seat;
  * `direct` when it was sent to one player by name.
  */
-export type ChallengePreview = { from: string; avatar: string | null; level: PlayerLevel; asset: Asset; stake: number; open: boolean; direct: boolean };
+export type ChallengePreview = { from: string; avatar: string | null; ranked: PlayerRank; asset: Asset; stake: number; open: boolean; direct: boolean };
 
 export type Snapshot = {
   /** Friend requests waiting for an answer, and messages waiting to be read. */
@@ -505,7 +532,7 @@ export type TournamentSummary = {
 };
 
 export type TournamentStanding = {
-  level: PlayerLevel;
+  ranked: PlayerRank;
   rank: number | null;
   name: string;
   avatar: string | null;

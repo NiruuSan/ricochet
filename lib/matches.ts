@@ -1,6 +1,7 @@
 import { adminId, database, type Statement } from "@/db/raw";
 import { wageredSql } from "./experience";
-import { experienceFromWagered, levelFor } from "./levels";
+import { accountLevelFor, experienceFromWagered } from "./levels";
+import { applyRankedResult, eligibleSeat, ranksFor, ratingChangeFor } from "./ranked";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
 import { inspectShot, reportMessage, type AimTrail, type Finding, type ShotProof } from "./anti-cheat-rules";
 import { shotKeyFor, validSignature } from "./shot-key";
@@ -32,7 +33,7 @@ export class GameError extends Error {
 }
 
 type RunRow = { user_id: string; done: number; forfeit: number; score: number };
-type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number; row_key: string | null; disqualified?: string | null };
+type MatchRow = { id: string; seed: number; stake: number; asset: Asset; p1: string; p2: string | null; settled: number; ruleset: number; row_key: string | null; disqualified?: string | null; ranked?: number };
 
 const PUBLIC_RUN = "r.id, r.match_id, r.state, r.revision, r.score, r.done, r.forfeit, r.clears, m.asset, m.ruleset, m.invite, r.trap";
 
@@ -181,6 +182,9 @@ export async function settle(matchId: string) {
     ops.push(notificationInsert(db, `${matchId}:result:${me.user_id === m.p1 ? "p1" : "p2"}`, me.user_id, "match_result", data, now));
   }
   await db.batch(ops);
+  // A ranked match moves both ratings, once (lib/ranked.ts). The money is settled
+  // whatever happens here: a rating that failed to move can be moved again.
+  if (m.ranked) await applyRankedResult(matchId).catch((e) => console.error("A ranked result could not be applied", e));
 }
 
 /**
@@ -331,28 +335,30 @@ export async function leaderboard(viewer: string | null, asset: Asset): Promise<
   const sql =
     asset === "gems"
       ? `WITH games AS (${SETTLED_GAMES})
-         SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT g.id) AS games, ${wageredSql("p.id")} AS wagered
+         SELECT p.id AS uid, p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, COALESCE(SUM(l.amount), 0) AS pnl, COUNT(DISTINCT g.id) AS games
          FROM players p
          JOIN ledger l ON l.user_id = p.id AND l.kind IN (${GEM_KINDS})
          JOIN games g ON g.id = l.match_id
          WHERE p.deleted IS NULL
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`
       : `WITH games AS (${SETTLED_GAMES})
-         SELECT p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT g.id) AS games, ${wageredSql("p.id")} AS wagered
+         SELECT p.id AS uid, p.name, p.avatar, COALESCE(p.id = ?, 0) AS is_you, SUM(l.amount) AS pnl, COUNT(DISTINCT g.id) AS games
          FROM players p
          JOIN cash_accounts a ON a.user_id = p.id AND a.network = 'devnet'
          JOIN cash_ledger l ON l.account_id = a.id AND l.kind IN (${CASH_KINDS})
          JOIN games g ON g.id = l.reference
          WHERE p.deleted IS NULL
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
-  const { results } = await database().prepare(sql).bind(asset, asset, viewer).all<Omit<Leader, "level"> & { wagered: number }>();
-  return results.map(({ wagered, ...l }) => ({ ...l, avatar: avatarUrl(l.avatar), level: levelFor(experienceFromWagered(wagered)) }));
+  const { results } = await database().prepare(sql).bind(asset, asset, viewer).all<Omit<Leader, "ranked"> & { uid: string }>();
+  const ranks = await ranksFor(results.map((l) => l.uid));
+  // The id only finds the rank: it never leaves the server.
+  return results.map(({ uid, ...l }) => ({ ...l, avatar: avatarUrl(l.avatar), ranked: ranks.get(uid)! }));
 }
 
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
   const db = database();
   await settleFinishedMatches(uid);
-  const [player, history, active, cash, inbox, tournaments, daily, friends, quests, cashback] = await Promise.all([
+  const [player, history, active, cash, inbox, tournaments, daily, friends, quests, cashback, ranks] = await Promise.all([
     db
       .prepare(
         `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
@@ -396,6 +402,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     friendAlerts(uid),
     questsReady(uid),
     rewardsReady(uid),
+    ranksFor([uid]),
   ]);
   const admin = adminId();
   return {
@@ -408,7 +415,8 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
       balance: player.balance,
       avatar: avatarUrl(player.avatar),
       created: player.created,
-      level: levelFor(experienceFromWagered(player.wagered)),
+      level: accountLevelFor(experienceFromWagered(player.wagered)),
+      ranked: ranks.get(uid)!,
     },
     suspension: player?.suspension ? { reason: player.suspension, restricted: !!player.restricted, appealed: !!player.appealed_at } : null,
     theme: themeById(player?.theme).id,
@@ -446,8 +454,8 @@ type RecapRow = {
   other_clears: number | null;
   other_done: number | null;
   other_forfeit: number | null;
-  wagered: number;
-  other_wagered: number;
+  other_id: string | null;
+  ranked: number;
   other_name: string | null;
   other_avatar: string | null;
   bonus: number | null;
@@ -470,11 +478,10 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
   const load = () =>
     db
       .prepare(
-        `SELECT m.stake, m.asset, m.p2, m.settled, m.cancelled, m.winner, m.fee,
+        `SELECT m.stake, m.asset, m.p2, m.settled, m.cancelled, m.winner, m.fee, m.ranked,
            r.id AS run_id, r.user_id AS me, r.state, r.clears, r.done, r.forfeit, p.name, p.avatar,
            o.state AS other_state, o.clears AS other_clears, o.done AS other_done, o.forfeit AS other_forfeit,
-           op.name AS other_name, op.avatar AS other_avatar,
-           ${wageredSql("p.id")} AS wagered, ${wageredSql("op.id")} AS other_wagered,
+           op.id AS other_id, op.name AS other_name, op.avatar AS other_avatar,
            (SELECT amount FROM ledger WHERE id = ?) AS bonus,
            (SELECT amount FROM cash_ledger WHERE id = ?) AS rebate
          FROM runs r
@@ -496,6 +503,10 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
   const result: MatchResult | null = !settled ? null : row.cancelled ? "cancelled" : row.winner === null ? "draw" : row.winner === uid ? "win" : "loss";
   const status = !row.done ? "playing" : settled ? "settled" : !row.p2 ? "waiting" : "opponent_playing";
   const reveal = settled && !row.cancelled && row.other_state !== null;
+  const [ranks, ratingChange] = await Promise.all([
+    ranksFor([uid, row.other_id ?? ""]),
+    settled && row.ranked && !row.cancelled ? ratingChangeFor(matchId, uid) : Promise.resolve(null),
+  ]);
   return {
     matchId,
     asset: row.asset,
@@ -505,16 +516,18 @@ export async function matchRecap(uid: string, matchIdInput: unknown): Promise<Ma
     net: settled ? netResult(result, row.stake, row.fee) : null,
     bonusGems: row.bonus ?? 0,
     rebate: row.rebate ?? 0,
-    you: { ...recapSide(row.name, row.avatar, row.state, row.clears, row.forfeit), level: levelFor(experienceFromWagered(row.wagered)) },
+    you: { ...recapSide(row.name, row.avatar, row.state, row.clears, row.forfeit), ranked: ranks.get(uid)! },
     watchId: `m-${row.run_id}`,
     opponent: row.other_name
       ? {
           name: row.other_name,
-          level: levelFor(experienceFromWagered(row.other_wagered)),
+          ranked: ranks.get(row.other_id!)!,
           avatar: avatarUrl(row.other_avatar),
           stats: reveal ? recapSide(row.other_name, row.other_avatar, row.other_state!, row.other_clears ?? 0, row.other_forfeit ?? 0) : null,
         }
       : null,
+    ranked: !!row.ranked,
+    ratingChange,
   };
 }
 
@@ -557,10 +570,12 @@ async function enterMatch(uid: string, stake: number, asset: Asset, joining: Mat
     ops.push(db.prepare(`UPDATE matches SET p2 = ? WHERE id = ? AND p2 IS NULL AND settled = 0 AND (invited IS NULL OR invited = ?) AND ${JOINABLE}`).bind(uid, match.id, uid));
   } else {
     match = { id: crypto.randomUUID(), seed: crypto.getRandomValues(new Uint32Array(1))[0], stake, asset, p1: uid, p2: null, settled: 0, ruleset: RULESET, row_key: newRowKey() };
+    // A public SOL match is ranked. A challenge between friends, or a gem match, never is.
+    const ranked = asset === "devnet" && !invite && stake > 0 ? 1 : 0;
     ops.push(
       db
-        .prepare("INSERT INTO matches(id, seed, stake, asset, p1, created, ruleset, row_key, invite, invited) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-        .bind(match.id, match.seed, stake, asset, uid, now, RULESET, match.row_key, invite?.code ?? null, invite?.invited ?? null),
+        .prepare("INSERT INTO matches(id, seed, stake, asset, p1, created, ruleset, row_key, invite, invited, ranked) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .bind(match.id, match.seed, stake, asset, uid, now, RULESET, match.row_key, invite?.code ?? null, invite?.invited ?? null, ranked),
     );
   }
   // The run and the entry only exist if this player really holds a seat, which
@@ -600,20 +615,41 @@ async function enterMatch(uid: string, stake: number, asset: Asset, joining: Mat
   return publicRun(row);
 }
 
-/** Matchmaking: takes the oldest open seat at this entry, or opens one. */
+/**
+ * Matchmaking: takes the oldest open seat at this entry, or opens one. A SOL
+ * match is ranked, so its seat goes only to somebody within a tier of the
+ * player who opened it — further the longer it has waited (lib/ranked.ts).
+ */
 export async function startMatch(uid: string, stakeInput: unknown, assetInput: unknown): Promise<Run> {
   const { asset, stake, active } = await assertCanEnter(uid, stakeInput, assetInput);
   if (active) return active;
   const rulesets = SUPPORTED_RULESETS.map(Number).join(", ");
-  const match = await database()
+  const { results: seats } = await database()
     .prepare(
-      `SELECT id, seed, stake, asset, p1, p2, settled, ruleset, row_key FROM matches
+      `SELECT id, seed, stake, asset, p1, p2, settled, ruleset, row_key, created FROM matches
        WHERE stake = ? AND asset = ? AND p2 IS NULL AND p1 <> ? AND settled = 0
          AND ruleset IN (${rulesets}) AND ${JOINABLE} AND ${PUBLIC_SEAT}
-       ORDER BY created ASC LIMIT 1`,
+       ORDER BY created ASC LIMIT ?`,
     )
-    .bind(stake, asset, uid)
+    .bind(stake, asset, uid, asset === "devnet" ? 50 : 1)
+    .all<MatchRow & { created: number }>();
+  const match = asset === "devnet" ? await eligibleSeat(uid, seats) : (seats[0] ?? null);
+  return enterMatch(uid, stake, asset, match, null);
+}
+
+/**
+ * The house's players: sits at one particular open seat, whatever the ranks —
+ * lib/bots.ts has already picked a player of the right strength for it. A bot
+ * never opens a seat of its own.
+ */
+export async function takeSeat(uid: string, matchId: string): Promise<Run> {
+  const match = await database()
+    .prepare(`SELECT id, seed, stake, asset, p1, p2, settled, ruleset, row_key FROM matches WHERE id = ? AND p2 IS NULL AND settled = 0 AND p1 <> ? AND ${PUBLIC_SEAT} AND ${JOINABLE}`)
+    .bind(matchId, uid)
     .first<MatchRow>();
+  if (!match) throw new GameError("That seat has just been taken.", 409);
+  const { asset, stake, active } = await assertCanEnter(uid, match.stake, match.asset);
+  if (active) throw new GameError("This player is already in a match.", 409);
   return enterMatch(uid, stake, asset, match, null);
 }
 
@@ -656,17 +692,17 @@ export async function challengePreview(codeInput: unknown): Promise<ChallengePre
   if (!/^[a-z0-9]{4,32}$/.test(code)) return null;
   const row = await database()
     .prepare(
-      `SELECT m.stake, m.asset, m.p2, m.invited, p.name, p.avatar, ${wageredSql("p.id")} AS wagered
+      `SELECT m.stake, m.asset, m.p2, m.invited, p.id AS uid, p.name, p.avatar
        FROM matches m JOIN players p ON p.id = m.p1
        WHERE m.invite = ? AND m.settled = 0 AND p.deleted IS NULL`,
     )
     .bind(code)
-    .first<{ stake: number; asset: Asset; p2: string | null; invited: string | null; name: string; avatar: string | null; wagered: number }>();
+    .first<{ stake: number; asset: Asset; p2: string | null; invited: string | null; uid: string; name: string; avatar: string | null }>();
   if (!row) return null;
   return {
     from: row.name,
     avatar: avatarUrl(row.avatar),
-    level: levelFor(experienceFromWagered(row.wagered)),
+    ranked: (await ranksFor([row.uid])).get(row.uid)!,
     asset: row.asset,
     stake: row.stake,
     open: !row.p2,

@@ -9,7 +9,7 @@ import { ENTRY_BATCH, ShowMore } from "@/components/ui/show-more";
 import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, ProfileStats, PublicPlayerProfile } from "@/lib/api-types";
 import type { PlayerState } from "../arena";
 import { request } from "../api";
-import { RankEmblem, RankProgress } from "../rank-badge";
+import { LevelProgress, RankEmblem, RankProgress } from "../rank-badge";
 import { Avatar } from "../avatar";
 import { assetName, currency, fullSol, shortId } from "../format";
 import { ordinal } from "../tournament-format";
@@ -230,9 +230,9 @@ export function ProfileDashboard({
         </div>
       </div>
       <div className={styles.rankShowcase}>
-        <div className={styles.rankArt} aria-hidden="true"><div className={styles.rankRing} /><RankEmblem tier={profile.level.tier} division={profile.level.division} size={110} /></div>
+        <div className={styles.rankArt} aria-hidden="true"><div className={styles.rankRing} /><RankEmblem tier={profile.ranked.tier} division={profile.ranked.division} size={110} /></div>
         <div className={styles.rankCaption}>EVERY RUN. A LITTLE HIGHER.</div>
-        <div className={styles.rankProgress}><RankProgress level={profile.level} own={!!profile.isYou} /></div>
+        <div className={styles.rankProgress}><RankProgress rank={profile.ranked} /><LevelProgress level={profile.level} own={!!profile.isYou} /></div>
       </div>
     </header>}
     <div className={styles.assetBar}>

@@ -201,7 +201,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
               {/* The account menu: where the profile, the wallet and the way out live. */}
               {/* The rank is the one mark of standing that has to be played
                   for, so it travels with the avatar on every page. */}
-              <RankBadge level={data.player.level} className="top-rank" />
+              <RankBadge rank={data.player.ranked} className="top-rank" />
               <Menu
                 label="Your account"
                 triggerClassName="avatar-link"

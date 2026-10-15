@@ -673,6 +673,44 @@
 .negative {
   color: #ff7a8a;
 }
+/* What a ranked match did to the rating. */
+.ranked {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 12px 16px;
+  border: 1px solid #ffffff14;
+  border-radius: 6px;
+  background: #0a0d12;
+  color: #f6f8fd;
+}
+.ranked > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ranked small {
+  color: #93a1b8;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+}
+.ranked b {
+  font-size: 20px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.ranked span {
+  color: #8e9cb1;
+  font-size: 12px;
+}
+.rankedUp {
+  border-color: #c6f56455;
+  /* Lit from the left, over an opaque ground: the result page behind is bright. */
+  background: linear-gradient(90deg, #c6f5641f, transparent 70%), #0a0d12;
+}
 .payoutActions {
   display: flex;
   flex-direction: column;

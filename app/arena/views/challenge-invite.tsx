@@ -62,7 +62,7 @@ export function ChallengeInvite({ code, authenticated, onClose }: { code: string
             </div>
             <DialogTitle className={styles.title}>{challenge.from} challenged you</DialogTitle>
             <div className={styles.rank}>
-              <RankBadge level={challenge.level} />
+              <RankBadge rank={challenge.ranked} />
             </div>
             <DialogDescription className={styles.copy}>
               {open

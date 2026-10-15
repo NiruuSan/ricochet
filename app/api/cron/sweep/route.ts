@@ -5,6 +5,7 @@ import { json } from "@/lib/http";
 import { ensureDailyTournaments, settleDueTournaments } from "@/lib/tournaments";
 import { cleanupBugAttachments } from "@/lib/bug-attachments";
 import { tickBots } from "@/lib/bots";
+import { decayInactive } from "@/lib/ranked";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,9 @@ export async function GET(req: Request) {
     const attachmentsRemoved = await cleanupBugAttachments();
     // The house's players, in case nobody has loaded a page in a while.
     const housePlayers = await tickBots();
-    return json({ ok: true, ...swept, dailyCups, attachmentsRemoved, housePlayers });
+    // Diamond and up, two weeks without a ranked match costs a little RR a day.
+    const decayed = await decayInactive();
+    return json({ ok: true, ...swept, dailyCups, attachmentsRemoved, housePlayers, decayed });
   } catch (e) {
     console.error(e);
     return json({ error: "The sweep failed." }, 503);

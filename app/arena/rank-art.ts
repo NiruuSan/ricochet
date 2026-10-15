@@ -24,7 +24,11 @@ type Metal = {
   rim: string;
 };
 
-const METALS: Record<RankTier, Metal> = {
+/** A rank to draw: a tier, or "unranked" before the placement games are played. */
+export type RankLook = RankTier | "unranked";
+
+const METALS: Record<RankLook, Metal> = {
+  unranked: { light: "#aab3c0", face: "#5d6674", shadow: "#363d48", edge: "#1a1e25", plate: "#1b2029", rim: "#0d1015" },
   iron: { light: "#c9d0da", face: "#7e8897", shadow: "#47505d", edge: "#1f242b", plate: "#23282f", rim: "#111418" },
   bronze: { light: "#ffe0bd", face: "#d8925a", shadow: "#8f5226", edge: "#4a2610", plate: "#3d2214", rim: "#1c0e07" },
   silver: { light: "#ffffff", face: "#dfe7f3", shadow: "#94a3ba", edge: "#46526a", plate: "#24304a", rim: "#101626" },
@@ -34,9 +38,12 @@ const METALS: Record<RankTier, Metal> = {
   bouncer: { light: "#fbffe2", face: "#cff76c", shadow: "#7ca52a", edge: "#3a5410", plate: "#1d2a09", rim: "#0b1103" },
 };
 
+/** The colour a rank is known by, for charts and accents. */
+export const rankColor = (tier: RankLook) => METALS[tier].face;
+
 /** Ranks that wear wings, and the ones with a wreath as well. */
-const WINGED: RankTier[] = ["platinum", "diamond", "bouncer"];
-const WREATHED: RankTier[] = ["diamond", "bouncer"];
+const WINGED: RankLook[] = ["platinum", "diamond", "bouncer"];
+const WREATHED: RankLook[] = ["diamond", "bouncer"];
 
 const CX = 50;
 const CY = 50;
@@ -93,7 +100,7 @@ export type RankArt = { viewBox: string; width: number; body: string };
  * `width` is relative to a height of 1: winged ranks are wider. `id` keeps the
  * gradients of two badges on one page apart.
  */
-export function rankArt(tier: RankTier, division: 1 | 2 | 3 | null, id: string, compact = false): RankArt {
+export function rankArt(tier: RankLook, division: 1 | 2 | 3 | null, id: string, compact = false): RankArt {
   const m = METALS[tier];
   const winged = WINGED.includes(tier);
   const wreathed = !compact && WREATHED.includes(tier);
@@ -150,7 +157,7 @@ export function rankArt(tier: RankTier, division: 1 | 2 | 3 | null, id: string, 
 }
 
 /** What is struck on the plate: the rank's mark, `n` times over where it counts. */
-function mark(tier: RankTier, n: number, compact: boolean, emblem: string) {
+function mark(tier: RankLook, n: number, compact: boolean, emblem: string) {
   const shapes: string[] = [];
   const poly = (p: [number, number][]) => shapes.push(`<polygon points="${pts(p)}" ${emblem}/>`);
   const chevrons = (count: number, top: number, w = 32, t = 6.5, depth = 9, gap = 9) => {
@@ -159,6 +166,15 @@ function mark(tier: RankTier, n: number, compact: boolean, emblem: string) {
   /** The height a stack of chevrons takes, to centre it. */
   const stack = (count: number, t = 6.5, depth = 9, gap = 9) => depth + t + (count - 1) * gap;
 
+  if (tier === "unranked") {
+    // Not yet placed: a question mark struck on the plate.
+    const w = compact ? 5.5 : 4.2;
+    shapes.push(
+      `<path d="M${CX - 10} ${CY - 8}c0-7 4.5-11 10-11s10 4 10 10c0 7-9 7-9 15" fill="none" stroke="${METALS.unranked.light}" stroke-width="${w}" stroke-linecap="round"/>`,
+      `<circle cx="${CX + 1}" cy="${CY + 17}" r="${w * 0.75}" fill="${METALS.unranked.light}"/>`,
+    );
+    return shapes.join("");
+  }
   if (compact) {
     switch (tier) {
       case "iron":

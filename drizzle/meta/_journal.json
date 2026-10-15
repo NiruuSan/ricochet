@@ -253,6 +253,13 @@
       "when": 1792063629418,
       "tag": "0035_wallet_sign_in",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1792236429418,
+      "tag": "0036_ranked",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { RankBadge } from "../rank-badge";
-import type { PlayerLevel } from "@/lib/api-types";
+import type { PlayerRank } from "@/lib/api-types";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowUpRight, Crown, Trophy } from "lucide-react";
@@ -8,7 +8,7 @@ import styles from "./podium.module.css";
 
 export type PodiumEntry = {
   name: string;
-  level?: PlayerLevel;
+  ranked?: PlayerRank;
   avatar: string | null;
   href: string;
   /** Displayed place; tied players can share one. */
@@ -50,7 +50,7 @@ export function Podium({ entries, titles = DEFAULT_TITLES, label = "Top three pl
               <span>#{p.rank}</span>
             </div>
             <h2>{p.name}</h2>
-            {p.level && <RankBadge level={p.level} />}
+            {p.ranked && <RankBadge rank={p.ranked} />}
             <span className={styles.podiumMeta}>
               {p.meta}
               {p.isYou && <span className={styles.you}>YOU</span>}

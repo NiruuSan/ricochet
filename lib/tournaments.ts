@@ -1,5 +1,4 @@
-import { wageredSql } from "./experience";
-import { experienceFromWagered, levelFor } from "./levels";
+import { ranksFor } from "./ranked";
 import { database, type Statement } from "@/db/raw";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, validAngle, type Game } from "./engine";
 import { inspectShot } from "./anti-cheat-rules";
@@ -619,9 +618,9 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
   const [t, entries] = await Promise.all([
     db.prepare(`${SUMMARY_SQL} WHERE t.id = ?`).bind(id).first<SummaryRow>(),
     db
-      .prepare(`SELECT e.*, p.name, p.avatar, ${wageredSql("p.id")} AS wagered FROM tournament_entries e JOIN players p ON p.id = e.user_id WHERE e.tournament_id = ?`)
+      .prepare(`SELECT e.*, p.name, p.avatar FROM tournament_entries e JOIN players p ON p.id = e.user_id WHERE e.tournament_id = ?`)
       .bind(id)
-      .all<EntryRow & { name: string; avatar: string | null; wagered: number }>(),
+      .all<EntryRow & { name: string; avatar: string | null }>(),
   ]);
   if (!t) throw new GameError("Tournament not found.", 404);
   const you = uid ? entries.results.find((e) => e.user_id === uid) : undefined;
@@ -633,10 +632,12 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
   const watchId = (e: EntryRow & { user_id: string }) => (e.state !== null && (!blocked || e.user_id === uid) ? `t-${e.id}` : null);
   // While running, rank provisionally with the current pot; once settled, show what was paid.
   const projected = distribute(base.pot, t.payout, ranked.map((e) => e.score));
+  // Everyone's ranked rank beside their name, in one read for the whole field.
+  const ranks = await ranksFor(entries.results.map((e) => e.user_id), now);
   const standings: TournamentStanding[] = [
     ...ranked.map((e, i) => ({
       rank: live ? projected.ranks[i] : e.rank,
-      level: levelFor(experienceFromWagered(e.wagered)),
+      ranked: ranks.get(e.user_id)!,
       name: e.name,
       avatar: avatarUrl(e.avatar),
       score: e.score,
@@ -648,7 +649,7 @@ export async function tournamentDetail(uid: string | null, idInput: unknown, now
     })),
     ...entries.results
       .filter((e) => e.state === null)
-      .map((e) => ({ rank: null, level: levelFor(experienceFromWagered(e.wagered)), name: e.name, avatar: avatarUrl(e.avatar), score: 0, done: !!e.done, started: false, payout: 0, isYou: e.user_id === uid, watchId: null })),
+      .map((e) => ({ rank: null, ranked: ranks.get(e.user_id)!, name: e.name, avatar: avatarUrl(e.avatar), score: 0, done: !!e.done, started: false, payout: 0, isYou: e.user_id === uid, watchId: null })),
   ];
   const ladder = distribute(base.status === "registration" ? base.maxPot : base.pot, t.payout, PAYOUT_SHARES[t.payout].map((_, i) => -i));
   return { ...base, prizes: ladder.amounts, standings: standings.slice(0, 200), yourStanding: standings.find((s) => s.isYou) ?? null };

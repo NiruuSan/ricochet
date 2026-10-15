@@ -5,8 +5,8 @@ import { Form } from "@/components/ui/form";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crown, Flag, Gem, Info, RefreshCw, Search, Sparkles, Swords, Trophy, Wallet, X } from "lucide-react";
-import { RankBadge } from "../rank-badge";
+import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crown, Flag, Gem, Info, Medal, RefreshCw, Search, Sparkles, Swords, Trophy, Wallet, X } from "lucide-react";
+import { RankBadge, rankDetail } from "../rank-badge";
 import { Avatar } from "../avatar";
 import type { Asset, Leader } from "@/lib/api-types";
 import { request } from "../api";
@@ -15,6 +15,7 @@ import type { PlayerState } from "../arena";
 import styles from "./leaderboard.module.css";
 import { Podium } from "./podium";
 import { WeeklyRaceBoard } from "./weekly-race";
+import { SeasonBoardView } from "./season-board";
 
 type Board = Omit<Leader, "is_you">;
 type CachedBoard = { rows: Board[]; updated: number };
@@ -34,10 +35,11 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
   const [errors, setErrors] = useState<Partial<Record<Asset, string>>>({});
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  // "race" shows the weekly race; race notifications link to it as ?board=race.
-  const raceLink = useSyncExternalStore(noSubscription, () => new URLSearchParams(window.location.search).get("board") === "race", () => false);
-  const [chosenBoard, setBoard] = useState<"profit" | "race" | null>(null);
-  const boardMode = chosenBoard ?? (raceLink ? "race" : "profit");
+  // "race" shows the weekly race and "season" the ranked season; links open
+  // them as ?board=race and ?board=season.
+  const linked = useSyncExternalStore(noSubscription, () => new URLSearchParams(window.location.search).get("board"), () => null);
+  const [chosenBoard, setBoard] = useState<"profit" | "race" | "season" | null>(null);
+  const boardMode = chosenBoard ?? (linked === "race" ? "race" : linked === "season" ? "season" : "profit");
 
   useEffect(() => {
     let active = true;
@@ -95,12 +97,13 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
         {(["devnet", "gems"] as const).map((which) => <button key={which} aria-pressed={boardMode === "profit" && asset === which} onClick={() => { setAsset(which); setBoard("profit"); setPage(0); }}>
           {which === "devnet" ? <Wallet size={16} /> : <Gem size={16} />}{assetName(which)}
         </button>)}
+        <button aria-pressed={boardMode === "season"} onClick={() => setBoard("season")}><Medal size={16} />Ranked season</button>
         <button aria-pressed={boardMode === "race"} onClick={() => setBoard("race")}><Flag size={16} />Weekly race</button>
       </div>
-      <div className={styles.boardScope}><span>{boardMode === "race" ? "THIS WEEK" : "ALL TIME"}</span><span>TOP 50</span></div>
+      <div className={styles.boardScope}><span>{boardMode === "race" ? "THIS WEEK" : boardMode === "season" ? "THIS SEASON" : "ALL TIME"}</span><span>TOP 50</span></div>
     </div>
 
-    {boardMode === "race" ? <WeeklyRaceBoard me={me} /> : <>
+    {boardMode === "race" ? <WeeklyRaceBoard me={me} /> : boardMode === "season" ? <SeasonBoardView me={me} mine={data.player?.ranked} /> : <>
 
     {error && <div className={styles.error} role="alert"><Info size={17} /><span>{rows ? "Could not refresh. Showing the last available standings." : error}</span><button onClick={refresh} disabled={refreshing}>Try again</button></div>}
     {rows?.length ? (
@@ -136,7 +139,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
             <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" className={styles.matchesColumn}>Games</th><th scope="col">Net profit <ArrowDown size={12} aria-hidden /></th><th scope="col" className={styles.arrowColumn}><span className={styles.srOnly}>Profile</span></th></tr></thead>
             <tbody>{visible.map((p) => <tr key={p.name} className={p.name === me ? styles.myRow : undefined}>
               <td><span className={`${styles.rank} ${p.rank <= 3 ? styles[`rank${p.rank}`] : ""}`}>{p.rank === 1 ? <Crown size={16} aria-label="First place" /> : String(p.rank).padStart(2, "0")}</span></td>
-              <td><Link href={profileHref(p.name)} className={styles.playerLink}><Avatar name={p.name} src={p.avatar} size={36} /><span><b>{p.name}{p.level && <RankBadge level={p.level} />}{p.name === me && <small className={styles.you}>YOU</small>}</b><small className={styles.mobileMatches}>{count(p.games)} {p.games === 1 ? "game" : "games"}</small></span></Link></td>
+              <td><Link href={profileHref(p.name)} className={styles.playerLink}><Avatar name={p.name} src={p.avatar} size={36} /><span><b>{p.name}{p.ranked && <RankBadge rank={p.ranked} />}{p.name === me && <small className={styles.you}>YOU</small>}</b><small className={styles.mobileMatches}>{count(p.games)} {p.games === 1 ? "game" : "games"}</small></span></Link></td>
               <td className={styles.matchesColumn}>{count(p.games)}</td>
               <td className={styles.profit}><strong className={p.pnl > 0 ? styles.positive : p.pnl < 0 ? styles.negative : styles.neutral}>{signedAmount(p.pnl, asset)}</strong><span>{currency(asset)}</span></td>
               <td className={styles.arrowColumn}><Link href={profileHref(p.name)} aria-label={`View ${p.name}'s profile`}><ArrowUpRight size={16} /></Link></td>
@@ -158,7 +161,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
         <section className={styles.personalCard}>
           <div className={styles.cardLabel}><Swords size={15} />{mine ? "YOUR POSITION" : "YOUR NEXT MOVE"}</div>
           {mine ? <>
-            <div className={styles.myIdentity}><Avatar name={mine.name} src={mine.avatar} size={42} /><div><b>{mine.name}</b><span>{mine.level ? `${mine.level.name} · ${mine.level.xp.toLocaleString("en")} XP` : "Your place in the pack"}</span></div></div>
+            <div className={styles.myIdentity}><Avatar name={mine.name} src={mine.avatar} size={42} /><div><b>{mine.name}</b><span>{mine.ranked ? rankDetail(mine.ranked) : "Your place in the pack"}</span></div></div>
             <div className={styles.myRank}>#{myIndex + 1}<span>of {rows!.length} ranked players</span></div>
             <div className={styles.myProfit}><span>Net profit</span><b className={mine.pnl < 0 ? styles.negative : styles.positive}>{signedAmount(mine.pnl, asset)} {currency(asset)}</b></div>
             <a className={styles.positionLink} href="#standings" onClick={() => { setSearch(""); setPage(Math.floor(myIndex / PAGE_SIZE)); }}>Find my position <ArrowRight size={15} /></a>
@@ -178,6 +181,6 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
       </aside>
     </div>
     </>}
-    <p className={styles.footnote}><Info size={13} />{boardMode === "race" || asset === "devnet" ? "Devnet SOL is test currency with no monetary value." : "Gems are free in-game currency with no monetary value."}</p>
+    <p className={styles.footnote}><Info size={13} />{boardMode !== "profit" || asset === "devnet" ? "Devnet SOL is test currency with no monetary value." : "Gems are free in-game currency with no monetary value."}</p>
   </section>;
 }

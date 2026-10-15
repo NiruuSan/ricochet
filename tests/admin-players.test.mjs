@@ -112,8 +112,11 @@ try {
   }
   sqlite.prepare("INSERT INTO cash_ledger VALUES('k-entry', ?, 'match_entry', ?, 'm2', 0)").run(cashAccountId(KEEP), -10 * SOL);
   sqlite.prepare("INSERT INTO daily_claims(user_id, day, streak, amount, created) VALUES(?, 20300, 4, 350, 0)").run(KEEP);
-  const ranked = await playerLevel(KEEP);
-  assert.ok(ranked.tier !== (await playerLevel(RIVAL)).tier || ranked.division !== (await playerLevel(RIVAL)).division, "Wagering a match moved their rank");
+  const levelled = await playerLevel(KEEP);
+  assert.ok(levelled.level > (await playerLevel(RIVAL)).level, "Wagering a match moved their level");
+  // A ranked record of their own, with a rating change for the match.
+  sqlite.prepare("INSERT INTO ranked_ratings(user_id, season, rating, games, wins, placements, peak, shield, last_played, created) VALUES(?, 1, 900, 5, 4, 5, 900, 0, 0, 0)").run(KEEP);
+  sqlite.prepare("INSERT INTO rating_changes(match_id, user_id, season, opponent_id, before, after, delta, opponent_rating, score, opponent_score, created) VALUES('m2', ?, 1, ?, 850, 900, 50, 800, 800, 800, 0)").run(KEEP, RIVAL);
 
   await assert.rejects(() => resetPlayerStats(ADMIN, "Keeper", ""), /note explaining/);
   await assert.rejects(() => resetPlayerStats(ADMIN, "Nobody", "who?"), /No player by that name/);
@@ -128,12 +131,14 @@ try {
   assert.equal(count("SELECT COUNT(*) AS n FROM cash_ledger WHERE id = 'k-entry'"), 1, "Every line of the ledger stays");
   assert.equal(balance(KEEP), funds, "And so does the balance it explains");
   assert.equal(sqlite.prepare("SELECT balance FROM players WHERE id = ?").get(KEEP).balance, gems);
-  assert.deepEqual(await playerLevel(KEEP), await playerLevel("github:nobody"), "The rank is back where a new player starts");
+  assert.deepEqual(await playerLevel(KEEP), await playerLevel("github:nobody"), "The level is back where a new player starts");
+  assert.equal(count("SELECT COUNT(*) AS n FROM ranked_ratings WHERE user_id = ?", KEEP), 0, "So is the ranked rating");
+  assert.equal(count("SELECT COUNT(*) AS n FROM rating_changes WHERE match_id = 'm2'"), 0, "And what the match did to it");
   assert.equal(count("SELECT COUNT(*) AS n FROM players WHERE id = ?", KEEP), 1, "The account itself is untouched");
   assert.equal(count("SELECT COUNT(*) AS n FROM admin_audit WHERE action = 'player_stats_reset' AND target_user_id = ?", KEEP), 1, "The reset is on the record");
 
   console.log(
-    "PASS: admin player register (names only, balances, runs), deletion refused without a reason, a valid code, or with a game in play, never the administrator's own, funds swept to the treasury with the pool conserved, every table emptied, the rival untouched, and the decision kept in the audit log; statistics reset (games, matches on both sides and streaks removed, ledger and balances untouched, rank back to the start, account kept, audited).",
+    "PASS: admin player register (names only, balances, runs), deletion refused without a reason, a valid code, or with a game in play, never the administrator's own, funds swept to the treasury with the pool conserved, every table emptied, the rival untouched, and the decision kept in the audit log; statistics reset (games, matches on both sides and streaks removed, ledger and balances untouched, level and ranked rating back to the start, account kept, audited).",
   );
 } finally {
   close();

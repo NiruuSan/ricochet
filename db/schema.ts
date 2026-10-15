@@ -110,6 +110,8 @@ export const matches = sqliteTable(
     invite: text("invite"),
     // The only player who may take the seat, when the challenge names one.
     invited: text("invited"),
+    // 1 for a public SOL match, which moves both players' ranked rating (lib/ranked.ts).
+    ranked: integer("ranked").notNull().default(0),
   },
   (t) => [
     uniqueIndex("match_invite").on(t.invite),
@@ -698,4 +700,47 @@ export const shotAnalysis = sqliteTable(
     created: integer("created").notNull(),
   },
   (t) => [primaryKey({ columns: [t.runKey, t.revision] }), index("shot_analysis_user").on(t.userId, t.created)],
+);
+
+// Ranked play (lib/ranked.ts): one rating per player per season, and what each
+// ranked match did to it.
+export const rankedRatings = sqliteTable(
+  "ranked_ratings",
+  {
+    userId: text("user_id").notNull(),
+    season: integer("season").notNull(),
+    rating: integer("rating").notNull(),
+    games: integer("games").notNull().default(0),
+    wins: integer("wins").notNull().default(0),
+    // Ranked games to play before the rank shows.
+    placements: integer("placements").notNull(),
+    peak: integer("peak").notNull(),
+    // Losses left that cannot drop the player out of the division they just reached.
+    shield: integer("shield").notNull().default(0),
+    lastPlayed: integer("last_played"),
+    // When inactivity last cost the player RR, so a day is never charged twice.
+    decayed: integer("decayed"),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.season] }), index("ranked_by_rating").on(t.season, t.rating)],
+);
+
+export const ratingChanges = sqliteTable(
+  "rating_changes",
+  {
+    matchId: text("match_id").notNull(),
+    userId: text("user_id").notNull(),
+    season: integer("season").notNull(),
+    opponentId: text("opponent_id").notNull(),
+    before: integer("before").notNull(),
+    after: integer("after").notNull(),
+    delta: integer("delta").notNull(),
+    opponentRating: integer("opponent_rating").notNull(),
+    score: integer("score").notNull(),
+    opponentScore: integer("opponent_score").notNull(),
+    // Why a ranked match moved nothing (the same opponent too often), when it did not.
+    unrated: text("unrated"),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.matchId, t.userId] }), index("rating_change_pair").on(t.userId, t.opponentId, t.created)],
 );

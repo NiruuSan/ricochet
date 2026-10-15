@@ -58,6 +58,9 @@ const GAME_ROWS = [
   // The shot log of every run of theirs, and of every match they were in.
   "DELETE FROM run_shots WHERE run_key IN (SELECT 'm-' || r.id FROM runs r WHERE r.user_id = ? OR r.match_id IN (SELECT m.id FROM matches m WHERE m.p1 = ? OR m.p2 = ?))",
   "DELETE FROM runs WHERE user_id = ? OR match_id IN (SELECT m.id FROM matches m WHERE m.p1 = ? OR m.p2 = ?)",
+  // Their ranked record, every season of it, and what their matches did to anyone's rating.
+  "DELETE FROM rating_changes WHERE user_id = ? OR match_id IN (SELECT m.id FROM matches m WHERE m.p1 = ? OR m.p2 = ?)",
+  "DELETE FROM ranked_ratings WHERE user_id = ?",
   "DELETE FROM matches WHERE p1 = ? OR p2 = ?",
   "DELETE FROM run_shots WHERE run_key IN (SELECT 't-' || e.id FROM tournament_entries e WHERE e.user_id = ?)",
   "DELETE FROM tournament_entries WHERE user_id = ?",

@@ -2,8 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Coins, Gem, HandCoins } from "lucide-react";
-import type { PlayerLevel, RankTier } from "@/lib/api-types";
-import { RankEmblem } from "../rank-badge";
+import type { AccountLevel } from "@/lib/api-types";
 import { request } from "../api";
 import { amount, assetName, currency, units } from "../format";
 import type { PlayerState } from "../arena";
@@ -13,7 +12,7 @@ import styles from "./cashback.module.css";
 // What the player gets back, and the grid it came from. The money side of it is
 // in lib/rewards.ts; this only shows it and asks for the tap.
 
-type Tier = { tier: RankTier; share: number; gems: boolean };
+type Tier = { from: number; share: number; gems: boolean };
 type Reward = {
   scope: "weekly" | "monthly";
   period: number;
@@ -21,21 +20,14 @@ type Reward = {
   closesAt: number;
   amount: number;
   asset: "devnet" | "gems";
-  rank: PlayerLevel;
+  level: AccountLevel;
   share: number;
   claimed: boolean;
 };
 type Board = { tiers: Tier[]; rewards: Reward[] };
 
-const TIER_NAMES: Record<RankTier, string> = {
-  iron: "Iron",
-  bronze: "Bronze",
-  silver: "Silver",
-  gold: "Gold",
-  platinum: "Platinum",
-  diamond: "Diamond",
-  bouncer: "Bouncer",
-};
+/** "Level 10+", the way a step of the ladder reads. */
+const stepName = (tier: Tier) => `Level ${tier.from}${tier.from < 60 ? "+" : ""}`;
 
 const day = (at: number) => new Date(at).toLocaleDateString("en", { day: "numeric", month: "short" });
 const value = (reward: Pick<Reward, "amount" | "asset">) =>
@@ -73,10 +65,13 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
   };
 
   const waiting = board?.rewards.filter((r) => !r.claimed) ?? [];
-  // The rank the player is on, and the one worth climbing to.
-  const mine = player.data.player?.level.tier;
-  const at = board?.tiers.findIndex((t) => t.tier === mine) ?? -1;
-  const next = at >= 0 ? board?.tiers[at + 1] : undefined;
+  // The step the player's level is on, and the one worth climbing to. A level
+  // never goes down, so a step once reached is kept.
+  const level = player.data.player?.level.level ?? 1;
+  const at = board ? [...board.tiers].reverse().findIndex((t) => level >= t.from) : -1;
+  const index = board && at >= 0 ? board.tiers.length - 1 - at : -1;
+  const mine = index >= 0 ? board?.tiers[index] : undefined;
+  const next = index >= 0 ? board?.tiers[index + 1] : undefined;
 
   return (
     <section className={styles.panel}>
@@ -86,7 +81,10 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
         </span>
         <div>
           <h2>Cashback</h2>
-          <p>Part of the house fee comes back every week, and again at the end of a month you kept playing. The higher your rank, the bigger the share.</p>
+          <p>
+            Part of the house fee comes back every week, and again at the end of a month you kept playing. The higher your level, the bigger the share — and a level
+            is never lost, whatever the ranked season does to your rank.
+          </p>
         </div>
       </header>
 
@@ -109,7 +107,7 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
               <div className={styles.copy}>
                 <b>{reward.scope === "weekly" ? "Last week" : "Last month"}</b>
                 <p>
-                  <RankEmblem tier={reward.rank.tier} division={reward.rank.division} size={15} /> {reward.rank.name} · {reward.share}%
+                  Level {reward.level.level} · {reward.share}%
                 </p>
                 <small>
                   {day(reward.period)} – {day(reward.endedAt - 1)} · claim before {day(reward.closesAt)}
@@ -131,11 +129,10 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
       {board && (
         <ul className={styles.ladder}>
           {board.tiers.map((tier) => {
-            const here = mine === tier.tier;
+            const here = mine === tier;
             return (
-              <li key={tier.tier} className={`${here ? styles.here : ""} ${tier.gems ? styles.inGems : ""}`}>
-                <RankEmblem tier={tier.tier} division={null} size={17} />
-                <span>{TIER_NAMES[tier.tier]}</span>
+              <li key={tier.from} className={`${here ? styles.here : ""} ${tier.gems ? styles.inGems : ""}`}>
+                <span>{stepName(tier)}</span>
                 <b>{tier.share}%</b>
                 {here && <em>You</em>}
               </li>
@@ -146,11 +143,11 @@ export function CashbackPanel({ player }: { player: PlayerState }) {
       <p className={styles.footnote}>
         {next ? (
           <>
-            Reach <b>{TIER_NAMES[next.tier]}</b> and every week comes back at <b>{next.share}%</b>
+            Reach <b>level {next.from}</b> and every week comes back at <b>{next.share}%</b>
             {next.gems ? "" : `, paid in ${currency("devnet")}`}.{" "}
           </>
         ) : null}
-        Iron to Silver comes back in gems; Gold and above in {currency("devnet")}.
+        Levels 1 to 29 come back in gems; level 30 and above in {currency("devnet")}.
       </p>
       {waiting.length > 0 && <p className={styles.footnote}>A period that closes unclaimed is gone, so take it while it is there.</p>}
     </section>

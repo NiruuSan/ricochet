@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Banknote, Bot, Bug, Flag, Gamepad2, Gauge, Handshake, Lock, ShieldAlert, ShieldCheck, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
+import { Banknote, Bot, Bug, Flag, Gamepad2, Gauge, Handshake, Lock, Medal, ShieldAlert, ShieldCheck, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
 import type { AdminOverview } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -15,6 +15,7 @@ import { AdminReports } from "./admin-reports";
 import { AdminBots } from "./admin-bots";
 import { AdminBugReports } from "./admin-bug-reports";
 import { AdminRace } from "./admin-race";
+import { AdminRanked } from "./admin-ranked";
 import { AdminTournaments } from "./admin-tournaments";
 import { AdminSecurity } from "./admin-security";
 import { AdminVolume } from "./volume-chart";
@@ -39,6 +40,7 @@ const SECTIONS = {
   bots: { label: "House players", icon: Bot, title: "House players", blurb: "The players the house sits at the tables while the site fills up, and the button that retires them at launch." },
   games: { label: "Games", icon: Gamepad2, title: "Games in progress", blurb: "Every 1v1 match that has not settled, most recently played first. Tournament runs are ended from Tournaments.", queue: "games" },
   tournaments: { label: "Tournaments", icon: Trophy, title: "Tournaments", blurb: "Schedule a cup, watch it fill, end it early or refund it." },
+  ranked: { label: "Ranked", icon: Medal, title: "Ranked season", blurb: "How this season's players spread over the ranks, and when the next season starts. Bots are left out." },
   race: { label: "Weekly race", icon: Zap, title: "Weekly race", blurb: "The best single score of the week, what each place pays, and the button that pays it." },
   "anti-cheat": { label: "Anti-cheat", icon: ShieldAlert, title: "Anti-cheat", blurb: "Suspensions, the players worth a look, and every signal the game recorded.", queue: "cases" },
   reports: { label: "Reports", icon: Flag, title: "Player reports", blurb: "What players have said about each other. Suspensions are still made from Anti-cheat.", queue: "reports" },
@@ -51,7 +53,7 @@ type TabKey = keyof typeof SECTIONS;
 
 const GROUPS: { name: string; tabs: TabKey[] }[] = [
   { name: "House", tabs: ["overview", "treasury", "bots"] },
-  { name: "Play", tabs: ["games", "tournaments", "race"] },
+  { name: "Play", tabs: ["games", "tournaments", "ranked", "race"] },
   { name: "Integrity", tabs: ["anti-cheat", "reports", "security"] },
   { name: "People", tabs: ["players", "partners", "bugs"] },
 ];
@@ -144,6 +146,8 @@ export function AdminView({ player }: { player: PlayerState }) {
             <AdminGames />
           ) : tab === "tournaments" ? (
             <AdminTournaments solConfigured={!!data.launch?.configured} />
+          ) : tab === "ranked" ? (
+            <AdminRanked />
           ) : tab === "race" ? (
             <AdminRace />
           ) : tab === "anti-cheat" ? (

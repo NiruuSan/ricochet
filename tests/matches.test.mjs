@@ -305,8 +305,10 @@ assert.ok(!JSON.stringify(overview).includes("user-"), "The overview carries no 
   recap = await matches.matchRecap(ALICE, aliceStart.match_id);
   assert.equal(recap.status, "opponent_playing");
   assert.equal(recap.opponent.name, "dan");
-  assert.deepEqual(recap.you.level, await (await import("../lib/experience.ts")).playerLevel(ALICE));
-  assert.deepEqual(recap.opponent.level, await (await import("../lib/experience.ts")).playerLevel(DAN));
+  const { rankOf } = await import("../lib/ranked.ts");
+  assert.deepEqual(recap.you.ranked, await rankOf(ALICE));
+  assert.deepEqual(recap.opponent.ranked, await rankOf(DAN));
+  assert.equal(recap.ranked, false, "A gem match is never ranked");
   assert.equal(recap.opponent.stats, null, "The opponent's score stays hidden until they finish");
   assert.deepEqual([recap.you.score, recap.you.clears, recap.you.forfeit, recap.you.balls], [cleared.state.score, 1, true, cleared.state.balls]);
   const danView = await matches.matchRecap(DAN, aliceStart.match_id);
@@ -317,6 +319,7 @@ assert.ok(!JSON.stringify(overview).includes("user-"), "The overview carries no 
   recap = await matches.matchRecap(ALICE, aliceStart.match_id);
   assert.deepEqual([recap.status, recap.result, recap.net], ["settled", "win", recapStake]);
   assert.equal(recap.bonusGems, 0, "Gem matches earn no gem bonus");
+  assert.equal(recap.ratingChange, null, "and move no rating");
   assert.deepEqual([recap.opponent.stats.score, recap.opponent.stats.forfeit], [0, true]);
   await matches.settle(aliceStart.match_id);
   const aliceInbox = await notifications.listNotifications(ALICE);

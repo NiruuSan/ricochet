@@ -1,0 +1,27 @@
+/* The ranked season's table, on top of the leaderboard's own styles. */
+.table th:nth-child(4),
+.table td:nth-child(4) {
+  text-align: right;
+}
+.rating {
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.record {
+  color: #8e9cb1;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bouncerCount {
+  color: #f1c96b;
+}
+.rr {
+  color: #d9e3f1;
+  font-variant-numeric: tabular-nums;
+}
+.mine {
+  margin-top: 14px;
+}

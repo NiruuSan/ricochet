@@ -1,5 +1,5 @@
 import { database } from "@/db/raw";
-import { experienceFromWagered, levelFor, type PlayerLevel } from "./levels";
+import { accountLevelFor, experienceFromWagered, type AccountLevel } from "./levels";
 
 /**
  * Lamports a player has wagered on finished competition, as a scalar subquery on
@@ -8,7 +8,7 @@ import { experienceFromWagered, levelFor, type PlayerLevel } from "./levels";
  * - match entries once the match is settled; cancelled matches do not count;
  * - tournament entries once the tournament is settled, cancelled or deleted,
  *   minus refunds, so a refunded entry counts for nothing.
- * Ledger rows are never deleted, so experience never goes down — a rank is
+ * Ledger rows are never deleted, so experience never goes down — a level is
  * earned once and kept, which is what makes it worth climbing for (the cashback
  * grid in lib/rewards.ts reads it).
  */
@@ -21,7 +21,8 @@ export const wageredSql = (player: string) => `(
       OR (l.kind IN ('tournament_entry', 'tournament_refund') AND (t.id IS NULL OR t.status IN ('settled', 'cancelled'))))
 )`;
 
-export async function playerLevel(playerId: string): Promise<PlayerLevel> {
+/** The account level: what a player has ever staked, which never goes down. */
+export async function playerLevel(playerId: string): Promise<AccountLevel> {
   const row = await database().prepare(`SELECT ${wageredSql("?")} AS wagered`).bind(playerId).first<{ wagered: number }>();
-  return levelFor(experienceFromWagered(row?.wagered ?? 0));
+  return accountLevelFor(experienceFromWagered(row?.wagered ?? 0));
 }

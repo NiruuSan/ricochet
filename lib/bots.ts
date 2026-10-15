@@ -1,6 +1,8 @@
 import { database, type Statement } from "@/db/raw";
 import { initial, simulate, simulateShot, ShotError, type Game } from "./engine";
-import { GameError, settle, startMatch } from "./matches";
+import { GameError, settle, takeSeat } from "./matches";
+import { botSkillFor, ranksFor, setBotRatings } from "./ranked";
+import { RANKED, seasonAt } from "./ranked-rules";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
 import { rowsFor } from "./secret-rows";
 import { endIfEveryoneFinished, escrowOwner, registerForTournament, tournamentStatus } from "./tournaments";
@@ -238,7 +240,25 @@ export async function ensureBots(now = Date.now()) {
       }
     }
   }
+  await rateBots(config, now);
   await fundBots(now);
+}
+
+/**
+ * Each bot in service holds the fixed ranked rating of its skill for the
+ * season (lib/ranked.ts): written when it is missing or the skills changed,
+ * so an ordinary turn reads one row set and writes nothing.
+ */
+async function rateBots(config: BotConfig, now: number) {
+  const serving = await activeBots(config);
+  if (!serving.length) return;
+  const { results } = await database()
+    .prepare("SELECT user_id, rating FROM ranked_ratings WHERE season = ? AND user_id IN (SELECT id FROM players WHERE bot = 1)")
+    .bind(seasonAt(now))
+    .all<{ user_id: string; rating: number }>();
+  const held = new Map(results.map((row) => [row.user_id, row.rating]));
+  const wrong = serving.map((id) => ({ id, skill: skillFor(id, config) })).filter((bot) => held.get(bot.id) !== RANKED.bots[bot.skill]);
+  await setBotRatings(wrong, now);
 }
 
 /**
@@ -478,19 +498,25 @@ export async function tickBots(now = Date.now(), options: { budget?: number; imm
   const roster = await activeBots(config);
   const { results: seats } = await db
     .prepare(
-      `SELECT m.id, m.stake, m.asset FROM matches m JOIN players p ON p.id = m.p1
+      `SELECT m.id, m.stake, m.asset, m.p1 FROM matches m JOIN players p ON p.id = m.p1
        WHERE m.settled = 0 AND m.p2 IS NULL AND m.invite IS NULL AND p.bot = 0 AND m.created < ?
        ORDER BY m.created LIMIT ?`,
     )
     // A seat is given a moment to find a person before the house takes it.
     .bind(immediate ? now : now - 45_000, upTo(4))
-    .all<{ id: string; stake: number; asset: string }>();
+    .all<{ id: string; stake: number; asset: string; p1: string }>();
+  // A ranked seat gets a bot of about the opener's strength: a rookie for an
+  // Iron or Bronze player, a sharp one for Platinum and up.
+  const openers = await ranksFor(seats.filter((s) => s.asset === "devnet").map((s) => s.p1), now);
   for (const seat of seats) {
     if (spent()) break;
-    const free = await freeBot(roster, seat.stake, seat.asset, undefined, now, seat.id);
+    const opener = openers.get(seat.p1);
+    const wanted = opener ? botSkillFor(opener.rating) : null;
+    const matching = wanted ? roster.filter((id) => skillFor(id, config) === wanted) : [];
+    const free = (matching.length ? await freeBot(matching, seat.stake, seat.asset, undefined, now, seat.id) : null) ?? (await freeBot(roster, seat.stake, seat.asset, undefined, now, seat.id));
     if (!free) continue;
     try {
-      await startMatch(free, seat.stake, seat.asset);
+      await takeSeat(free, seat.id);
       budget--;
       done.joined++;
     } catch (e) {

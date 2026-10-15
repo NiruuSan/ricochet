@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   // cache-busting query strings cannot turn into a stream of database reads.
   if (await rateLimited("publicRead", clientKey(req))) return Response.json({ error: TOO_MANY_REQUESTS }, { status: 429, headers: { "Cache-Control": "no-store" } });
     const asset: Asset = new URL(req.url).searchParams.get("asset") === "devnet" ? "devnet" : "gems";
-    const leaders = (await leaderboard(null, asset)).map(({ name, avatar, pnl, games, level }) => ({ name, avatar, pnl, games, level }));
+    const leaders = (await leaderboard(null, asset)).map(({ name, avatar, pnl, games, ranked }) => ({ name, avatar, pnl, games, ranked }));
     return Response.json(leaders, { headers: { "Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=300" } });
   } catch (e) {
     console.error(e);

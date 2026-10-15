@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Check, Eye, Play, Search, Trophy } from "lucide-react";
 import type { TournamentDetail, TournamentStanding } from "@/lib/api-types";
 import { RANK_TIERS, rankName } from "@/lib/levels";
+import type { RankLook } from "../rank-art";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import { amount, assetName } from "../format";
@@ -52,15 +53,15 @@ function TheField({ t }: { t: TournamentDetail }) {
   );
   const total = Math.max(t.entrants, standings.length);
   const sorted = useMemo(
-    () => [...standings].sort((a, b) => Number(b.isYou) - Number(a.isYou) || b.level.xp - a.level.xp || a.name.localeCompare(b.name)),
+    () => [...standings].sort((a, b) => Number(b.isYou) - Number(a.isYou) || b.ranked.rating - a.ranked.rating || a.name.localeCompare(b.name)),
     [standings],
   );
-  const strongest = useMemo(() => [...standings].sort((a, b) => b.level.xp - a.level.xp), [standings]);
+  const strongest = useMemo(() => [...standings].sort((a, b) => Number(b.ranked.placed) - Number(a.ranked.placed) || b.ranked.rating - a.ranked.rating), [standings]);
   const tiers = useMemo(
     () =>
-      [...RANK_TIERS]
-        .reverse()
-        .map((tier) => ({ tier, count: standings.filter((s) => s.level.tier === tier).length }))
+      ([...RANK_TIERS].reverse() as RankLook[])
+        .concat("unranked")
+        .map((tier) => ({ tier, count: standings.filter((s) => s.ranked.tier === tier).length }))
         .filter((t) => t.count),
     [standings],
   );
@@ -84,7 +85,7 @@ function TheField({ t }: { t: TournamentDetail }) {
             </span>
             {strongest[0] && (
               <small>
-                Strongest: {strongest[0].name}, {strongest[0].level.name}
+                Strongest: {strongest[0].name}, {strongest[0].ranked.name}
               </small>
             )}
           </span>
@@ -93,9 +94,9 @@ function TheField({ t }: { t: TournamentDetail }) {
           <small>Field by rank</small>
           <ul>
             {tiers.map(({ tier, count }) => (
-              <li key={tier} title={`${count} ${rankName(tier, null)}`}>
+              <li key={tier} title={`${count} ${tier === "unranked" ? "unranked" : rankName(tier, null)}`}>
                 <RankEmblem tier={tier} division={null} size={18} />
-                <b>{count}</b> {rankName(tier, null)}
+                <b>{count}</b> {tier === "unranked" ? "Unranked" : rankName(tier, null)}
               </li>
             ))}
           </ul>
@@ -112,7 +113,7 @@ function TheField({ t }: { t: TournamentDetail }) {
                 <Avatar name={s.name} src={s.avatar} size={32} />
                 <span className={styles.fieldName}>
                   <b>{s.name}</b>
-                  <RankBadge level={s.level} />
+                  <RankBadge rank={s.ranked} />
                 </span>
                 {s.isYou && <span className={styles.youTag}>You</span>}
               </Link>
@@ -148,7 +149,7 @@ function StandingRow({ s, t }: { s: TournamentStanding; t: TournamentDetail }) {
         <span>
           <span className={styles.name}>
             {s.name}
-            <RankBadge level={s.level} />
+            <RankBadge rank={s.ranked} />
             {s.isYou && <span className={styles.youTag}>You</span>}
           </span>
           {state && <span className={`${styles.state2} ${state.live ? styles.playing : ""}`}>{state.label}</span>}
@@ -415,7 +416,7 @@ export function TournamentDetailView({ id, player }: { id: string; player: Playe
                 titles={t.status === "settled" ? ["CHAMPION", "SECOND PLACE", "THIRD PLACE"] : t.status === "cancelled" ? ["TOP SCORE", "SECOND", "THIRD"] : ["IN THE LEAD", "SECOND PLACE", "THIRD PLACE"]}
                 entries={podium.map((s) => ({
                   name: s.name,
-                  level: s.level,
+                  ranked: s.ranked,
                   avatar: s.avatar,
                   href: `/players/${encodeURIComponent(s.name)}`,
                   rank: s.rank!,

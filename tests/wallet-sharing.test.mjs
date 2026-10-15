@@ -120,7 +120,7 @@ try {
     { from: preview.from, asset: preview.asset, stake: preview.stake, open: preview.open, direct: preview.direct },
     { from: "hostess", asset: "gems", stake: 100, open: true, direct: false },
   );
-  assert.ok(preview.level.tier, "The sender's rank comes with it");
+  assert.ok(preview.ranked.tier, "The sender's rank comes with it");
   assert.ok(!JSON.stringify(preview).includes(HOST), "No player ID");
   assert.ok(!("seed" in preview) && !("state" in preview), "Nothing of the board");
   assert.equal(await matches.challengePreview("nope"), null);

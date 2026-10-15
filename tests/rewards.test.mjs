@@ -5,9 +5,10 @@ import { createDatabase } from "./helpers/test-env.mjs";
 //
 // The rules holding the cashback up are that it is a share of the fee the
 // player funded — never of what they wagered — and that the share comes from
-// their rank, which is earned slowly from everything they have ever staked. So
-// the cost is bounded by the revenue it came from, the first three ranks cost
-// nothing at all, and a period that has closed cannot be claimed twice or late.
+// their account level, which is earned slowly from everything they have ever
+// staked and never goes down. So the cost is bounded by the revenue it came
+// from, the first three steps cost nothing at all, and a period that has closed
+// cannot be claimed twice or late.
 Object.assign(process.env, {
   SOLANA_NETWORK: "devnet",
   SOLANA_RPC_URL: "https://rpc.invalid",
@@ -56,21 +57,21 @@ try {
   }
 
   // --- The grid -------------------------------------------------------------
-  // The share is set by rank, which is earned from everything ever wagered, so
-  // climbing is worth something for good and one huge week buys nothing.
-  assert.equal(rewards.tierFor("iron").share, 3);
-  assert.equal(rewards.tierFor("gold").share, 6);
-  assert.equal(rewards.tierFor("bouncer").share, 14, "And it stops climbing at the last rank");
-  assert.deepEqual(rewards.TIERS.filter((t) => t.gems).map((t) => t.tier), ["iron", "bronze", "silver"], "The first three ranks are paid in gems, which cost nothing");
-  assert.ok(rewards.TIERS.every((t, i, all) => i === 0 || t.share > all[i - 1].share), "Every rank is worth more than the one below");
+  // The share is set by the account level, which is earned from everything ever
+  // wagered, so climbing is worth something for good and one huge week buys nothing.
+  assert.equal(rewards.tierFor(1).share, 3);
+  assert.equal(rewards.tierFor(30).share, 6);
+  assert.equal(rewards.tierFor(60).share, 14, "And it stops climbing at the last level");
+  assert.deepEqual(rewards.TIERS.filter((t) => t.gems).map((t) => t.from), [1, 10, 20], "The first three steps are paid in gems, which cost nothing");
+  assert.ok(rewards.TIERS.every((t, i, all) => i === 0 || t.share > all[i - 1].share), "Every step is worth more than the one below");
 
   // --- A small week: paid in gems, so the house pays nothing ----------------
   played(ANA, SOL / 2, lastWeek + 3_600_000);
   played(ANA, SOL / 2, lastWeek + 7_200_000);
   const small = await rewards.rewardFor(ANA, "weekly", NOW);
   const fee = Math.floor((SOL * 12) / 100);
-  assert.equal(small.asset, "gems", "One SOL wagered in all is an Iron rank, paid in gems");
-  assert.equal(small.rank.tier, "iron");
+  assert.equal(small.asset, "gems", "One SOL wagered in all is an early level, paid in gems");
+  assert.ok(small.level.level < 10);
   assert.equal(small.share, 3);
   assert.equal(small.amount, Math.floor(Math.floor((fee * 3) / 100) / 20_000), "3% of the fee it funded, in gems");
   const houseBefore = cash(HOUSE);
@@ -84,8 +85,8 @@ try {
   // --- A big week: real SOL, out of the house ------------------------------
   for (let i = 0; i < 6; i++) played(BEN, 5 * SOL, lastWeek + i * 3_600_000);
   const big = await rewards.rewardFor(BEN, "weekly", NOW);
-  assert.equal(big.rank.tier, "bronze", "Thirty SOL wagered in all is still Bronze — the climb is long on purpose");
-  assert.equal(big.asset, "gems", "An entry rank, so it costs the house nothing");
+  assert.ok(big.level.level >= 10 && big.level.level < 20, "Thirty SOL wagered in all is still below level 20 — the climb is long on purpose");
+  assert.equal(big.asset, "gems", "An entry level, so it costs the house nothing");
   assert.equal(big.share, 4);
   const house = cash(HOUSE);
   const before = gems(BEN);
@@ -93,16 +94,16 @@ try {
   assert.equal(gems(BEN) - before, big.amount, "The player was paid");
   assert.equal(cash(HOUSE), house, "And the house parted with nothing real");
 
-  // A Gold player funding the same fees is paid in SOL, and paid more.
+  // A level-30 player funding the same fees is paid in SOL, and paid more.
   sqlite.prepare("INSERT INTO players(id, name, balance, created) VALUES('github:gold', 'Goldie', 0, 0)").run();
   await ensureCashAccount("github:gold");
   sqlite.prepare("INSERT INTO cash_ledger VALUES('gold-float', ?, 'fixture', ?, 'fixture', 0)").run(cashAccountId("github:gold"), 2_000 * SOL);
-  // Three hundred SOL wagered in all is Gold 1; the last thirty of it last week.
+  // Three hundred SOL wagered in all is level 30; the last thirty of it last week.
   played("github:gold", 270 * SOL, lastWeek - WEEK);
   for (let i = 0; i < 6; i++) played("github:gold", 5 * SOL, lastWeek + i * 3_600_000);
   const golden = await rewards.rewardFor("github:gold", "weekly", NOW);
-  assert.equal(golden.rank.tier, "gold");
-  assert.equal(golden.asset, "devnet", "From Gold up, it is real SOL");
+  assert.equal(golden.level.level, 30);
+  assert.equal(golden.asset, "devnet", "From level 30 up, it is real SOL");
   assert.equal(golden.share, 6);
   const fees = Math.floor((30 * SOL * 12) / 100);
   assert.equal(golden.amount, Math.floor((fees * 6) / 100));
@@ -158,7 +159,7 @@ try {
   assert.equal(count("SELECT COUNT(*) AS n FROM cash_ledger WHERE kind = 'tournament_funding'"), 0);
 
   console.log(
-    "PASS: rewards (cashback as a share of the fee funded, entry tiers paid in gems at no cost to the house, SOL from the house above them, one claim per period, cancelled and dust excluded, a monthly bonus that asks for weeks rather than size, a closed account refused; race prizes past the podium in gems; a share that comes from rank rather than from one good week; and a daily cup the house pays nothing for).",
+    "PASS: rewards (cashback as a share of the fee funded, entry tiers paid in gems at no cost to the house, SOL from the house above them, one claim per period, cancelled and dust excluded, a monthly bonus that asks for weeks rather than size, a closed account refused; race prizes past the podium in gems; a share that comes from a level kept for good rather than from one good week; and a daily cup the house pays nothing for).",
   );
 } finally {
   close();

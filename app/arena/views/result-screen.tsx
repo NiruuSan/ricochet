@@ -1,9 +1,10 @@
 "use client";
-import { RankBadge } from "../rank-badge";
+import { RankBadge, RankEmblem } from "../rank-badge";
+import { divisionIndex } from "@/lib/levels";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Swords, ArrowRight, Share2 } from "lucide-react";
-import { STARTING_GEMS, type Asset, type MatchRecap, type RecapSide, type PlayerLevel } from "@/lib/api-types";
+import { STARTING_GEMS, type Asset, type MatchRecap, type RecapSide, type PlayerRank, type RatingChange } from "@/lib/api-types";
 import type { Game } from "@/lib/engine";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -17,7 +18,7 @@ import styles from "./screens.module.css";
 const POLL_MS = 4_000;
 
 export type ResultTarget =
-  | { kind: "practice"; game: Game; clears: number; name: string; avatar: string | null; level?: PlayerLevel }
+  | { kind: "practice"; game: Game; clears: number; name: string; avatar: string | null; ranked?: PlayerRank }
   /** `ready` is false while the final shots are still being saved. */
   | { kind: "match"; matchId: string; ready: boolean };
 
@@ -140,6 +141,51 @@ function PracticeStat({ label, value, main = false }: { label: string; value: nu
   );
 }
 
+/**
+ * What a ranked match did to the player's rating: the RR won or lost, the
+ * rank it leaves them on, a promotion when there was one, and the placement
+ * games still to play before the rank shows.
+ */
+function RankedResult({ change, settled, cancelled }: { change: RatingChange | null; settled: boolean; cancelled: boolean }) {
+  if (cancelled) return null;
+  if (!settled || !change) {
+    return (
+      <div className={styles.ranked}>
+        <div>
+          <small>RANKED</small>
+          <span>RR moves when both runs are in.</span>
+        </div>
+      </div>
+    );
+  }
+  const { delta, rankAfter, rankBefore } = change;
+  const promoted = rankAfter.placed && rankBefore.placed && divisionIndex(rankAfter.rating) > divisionIndex(rankBefore.rating);
+  const demoted = rankAfter.placed && rankBefore.placed && divisionIndex(rankAfter.rating) < divisionIndex(rankBefore.rating);
+  const revealed = rankAfter.placed && !rankBefore.placed;
+  return (
+    <div className={`${styles.ranked} ${promoted || revealed ? styles.rankedUp : ""}`}>
+      <RankEmblem tier={rankAfter.tier} division={rankAfter.division} size={40} />
+      <div>
+        <small>{change.placement ? "PLACEMENT MATCH" : "RANKED"}</small>
+        <b className={delta > 0 ? styles.positive : delta < 0 ? styles.negative : undefined}>{change.unrated ? "No RR" : `${delta > 0 ? "+" : ""}${delta} RR`}</b>
+        <span>
+          {change.unrated
+            ? "Too many ranked matches against this player today: this one counts for nothing."
+            : revealed
+              ? `Placed: ${rankAfter.name}, ${rankAfter.points} RR.`
+              : !rankAfter.placed
+                ? `${rankAfter.placementsLeft} placement ${rankAfter.placementsLeft === 1 ? "match" : "matches"} to go before your rank shows.`
+                : promoted
+                  ? `Promoted to ${rankAfter.name}.`
+                  : demoted
+                    ? `Down to ${rankAfter.name}, ${rankAfter.points} RR.`
+                    : `${rankAfter.name} · ${rankAfter.points} RR`}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /** Practice has no opponent: the player's own run, without a versus layout. */
 function PracticeDetails({ you, theme }: { you: RecapSide; theme?: string | null }) {
   return (
@@ -149,7 +195,7 @@ function PracticeDetails({ you, theme }: { you: RecapSide; theme?: string | null
         <div className={styles.identity}>
           <div className={styles.nameRow}>
             <b>{you.name}</b>
-            {you.level && <RankBadge level={you.level} />}
+            {you.ranked && <RankBadge rank={you.ranked} />}
           </div>
           <span className={`${styles.chip} ${styles.you}`}>PRACTICE RUN</span>
         </div>
@@ -200,7 +246,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
 
   const practice = target.kind === "practice";
   const you: RecapSide | null = practice
-    ? { name: target.name, avatar: target.avatar, level: target.level, score: target.game.score, balls: target.game.balls, clears: target.clears, rounds: target.game.round, forfeit: false, board: target.game }
+    ? { name: target.name, avatar: target.avatar, ranked: target.ranked, score: target.game.score, balls: target.game.balls, clears: target.clears, rounds: target.game.round, forfeit: false, board: target.game }
     : (recap?.you ?? null);
 
   if (!you || (!practice && !recap)) {
@@ -324,6 +370,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
             )}
           </div>
         </div>
+        {!practice && recap?.ranked && <RankedResult change={recap.ratingChange} settled={settled} cancelled={result === "cancelled"} />}
         {practice && guest && (
           <Link className={`btn btn-primary ${styles.guestCta}`} href="/signup">
             Play a real rival · {STARTING_GEMS.toLocaleString("en")} free gems <ArrowRight />
@@ -344,7 +391,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
               <div className={styles.identity}>
                 <div className={styles.nameRow}>
                   <b>{you.name}</b>
-                  {you.level && <RankBadge level={you.level} />}
+                  {you.ranked && <RankBadge rank={you.ranked} />}
                 </div>
                 <span className={`${styles.chip} ${styles.you}`}>YOU</span>
               </div>
@@ -354,7 +401,7 @@ export function ResultScreen({ target, onPlayAgain, onRematch, onClose, onSettle
               <div className={styles.identity}>
                 <div className={styles.nameRow}>
                   <b>{opponent?.name ?? "Open seat"}</b>
-                  {opponent && <RankBadge level={opponent.level} />}
+                  {opponent && <RankBadge rank={opponent.ranked} />}
                 </div>
                 <span className={`${styles.chip} ${status === "opponent_playing" ? styles.live : ""}`}>
                   {status === "opponent_playing" ? "PLAYING" : opponent ? (them?.forfeit ? "FORFEIT" : "OPP") : "WAITING"}

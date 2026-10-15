@@ -2,7 +2,7 @@ import { database, type Statement } from "@/db/raw";
 import { isLockedOut, suspensionMessage } from "./anti-cheat";
 import { REFERRAL_FEES } from "./api-types";
 import { playerLevel } from "./experience";
-import type { PlayerLevel, RankTier } from "./levels";
+import { CASHBACK_STEPS, cashbackFor, type AccountLevel } from "./levels";
 import { GameError } from "./matches";
 import { cashAccountId, ensureCashAccount, HOUSE } from "./payments/accounts";
 import { WEEK, weekStart } from "./weekly-race";
@@ -14,9 +14,11 @@ import { WEEK, weekStart } from "./weekly-race";
 //
 // - it is a share of the *fee the player funded*, never of what they wagered,
 //   so the cost is legible: 6% of the fee is 6% of the revenue on that player;
-// - the share is set by the player's rank, which is earned slowly from lifetime
-//   wagering: the bottom three ranks are paid in gems, which cost nothing, and
-//   a newcomer with one enormous week is still on the bottom rung;
+// - the share is set by the player's account level, which is earned slowly from
+//   lifetime wagering and never goes down: the first three steps are paid in
+//   gems, which cost nothing, and a newcomer with one enormous week is still on
+//   the bottom rung. A share once reached is kept, whatever the ranked season
+//   does to the player's rank;
 // - only the period that just ended can be claimed, and only until the next one
 //   ends. Nothing accrues forever, and nothing is owed to somebody who left.
 //
@@ -36,24 +38,8 @@ const MIN_VOLUME = SOL / 10;
 const MAX_WEEKLY = 5 * SOL;
 const MAX_MONTHLY = 15 * SOL;
 
-/**
- * What comes back, by rank.
- *
- * Rank is earned from everything a player has ever wagered and nothing takes it
- * away (lib/levels.ts), so tying the cashback to it gives the climb a reason
- * beyond the badge: every rank is permanently worth more. It also costs the
- * house less than a grid read off a single week, because a newcomer with one
- * big week is still on the bottom rung.
- */
-export const TIERS: { tier: RankTier; share: number; gems: boolean }[] = [
-  { tier: "iron", share: 3, gems: true },
-  { tier: "bronze", share: 4, gems: true },
-  { tier: "silver", share: 5, gems: true },
-  { tier: "gold", share: 6, gems: false },
-  { tier: "platinum", share: 8, gems: false },
-  { tier: "diamond", share: 11, gems: false },
-  { tier: "bouncer", share: 14, gems: false },
-];
+/** What comes back, by account level: the steps are in lib/levels.ts, where the browser reads them too. */
+export const TIERS = CASHBACK_STEPS;
 
 /** The monthly bonus, for coming back rather than for playing big. */
 export const MONTHLY = {
@@ -63,7 +49,7 @@ export const MONTHLY = {
   weeks: 3,
 };
 
-export const tierFor = (rank: RankTier) => TIERS.find((t) => t.tier === rank) ?? TIERS[0];
+export const tierFor = cashbackFor;
 
 /** UTC month boundaries: the month a moment belongs to, and the one before it. */
 export const monthStart = (at: number) => Date.UTC(new Date(at).getUTCFullYear(), new Date(at).getUTCMonth(), 1);
@@ -122,8 +108,8 @@ export type Reward = {
   /** What the player gets, in lamports when `asset` is devnet, in whole gems otherwise. */
   amount: number;
   asset: "devnet" | "gems";
-  /** The rank that set the share, and the share itself. */
-  rank: PlayerLevel;
+  /** The level that set the share, and the share itself. */
+  level: AccountLevel;
   share: number;
   claimed: boolean;
 };
@@ -137,9 +123,9 @@ export async function rewardFor(uid: string, scope: RewardScope, now = Date.now(
   if (volume < MIN_VOLUME || fees <= 0) return null;
   const weekly = scope === WEEK_SCOPE;
   if (!weekly && weeks < MONTHLY.weeks) return null;
-  // The rank as it stands now, so climbing pays from the next claim on.
-  const rank = await playerLevel(uid);
-  const tier = tierFor(rank.tier);
+  // The level as it stands now, so climbing pays from the next claim on.
+  const level = await playerLevel(uid);
+  const tier = tierFor(level.level);
   const share = weekly ? tier.share : MONTHLY.share;
   const inGems = tier.gems;
   const lamports = Math.min(weekly ? MAX_WEEKLY : MAX_MONTHLY, Math.floor((fees * share) / 100));
@@ -156,7 +142,7 @@ export async function rewardFor(uid: string, scope: RewardScope, now = Date.now(
     closesAt: scope === WEEK_SCOPE ? end + WEEK : monthEnd(end),
     amount,
     asset: inGems ? "gems" : "devnet",
-    rank,
+    level,
     share,
     claimed,
   };

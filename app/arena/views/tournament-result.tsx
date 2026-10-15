@@ -135,7 +135,7 @@ export function TournamentResult({ tournamentId, ready, board, onClose, theme }:
           <span>{title[0]}</span>
           <span>{title[1]}</span>
         </h1>
-        {mine && <RankBadge level={mine.level} />}
+        {mine && <RankBadge rank={mine.ranked} />}
         <p className={screens.summary}>
           {!t || !mine ? (
             "Saving your final score…"
@@ -191,7 +191,7 @@ export function TournamentResult({ tournamentId, ready, board, onClose, theme }:
                       >
                         <Avatar name={s.name} src={s.avatar} size={28} />
                         <span className={styles.identity}>
-                          <b>{s.name}</b> <RankBadge level={s.level} />
+                          <b>{s.name}</b> <RankBadge rank={s.ranked} />
                         </span>
                       </button>
                     </td>

@@ -3,7 +3,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, RotateCcw } from "lucide-react";
 import { MIN_DEPOSIT, PAYOUT_SHARES, STAKES, TOURNAMENT_FEE_PERCENT, winnerPayout } from "@/lib/api-types";
-import { LAMPORTS_PER_XP, RANK_TIERS, RANKS, rankName } from "@/lib/levels";
+import { BOUNCER_FLOOR, CASHBACK_STEPS, DIVISION_RR, LAMPORTS_PER_XP, levelStart, RANK_TIERS, RANKS, rankName } from "@/lib/levels";
+import { RANKED, ratingChange } from "@/lib/ranked-rules";
 import { replayCoach } from "../coach";
 import { RankEmblem } from "../rank-badge";
 import { FactTable, LegalPage, type LegalSection } from "./legal-page";
@@ -32,7 +33,7 @@ function RankLadder() {
           <section key={tier} className={`${ladder.tier} ${ladder[tier]} ${top ? ladder.top : ""}`} aria-label={rankName(tier, null)}>
             <header>
               <b>{rankName(tier, null)}</b>
-              <small>{top ? "The top of the ladder" : `From ${steps[0].xp.toLocaleString("en")} XP`}</small>
+              <small>{top ? `The best ${RANKED.bouncers} this season` : `From ${steps[0].rating.toLocaleString("en")} RR`}</small>
             </header>
             <ol className={ladder.steps}>
               {steps.map((rank) => {
@@ -40,24 +41,20 @@ function RankLadder() {
                   <>
                     <b>{rankName(rank.tier, rank.division)}</b>
                     <small>
-                      {rank.xp ? (
+                      {top ? (
                         <>
-                          {rank.xp.toLocaleString("en")} XP
+                          Top {RANKED.bouncers} of the season
                           <br />
-                          {((rank.xp * LAMPORTS_PER_XP) / 1e9).toLocaleString("en")} SOL
+                          at {BOUNCER_FLOOR.toLocaleString("en")} RR or more
                         </>
                       ) : (
-                        <>
-                          0 XP
-                          <br />
-                          Where everyone starts
-                        </>
+                        <>{rank.tier === "diamond" && rank.division === 3 ? `${rank.rating.toLocaleString("en")} RR and up` : `${rank.rating.toLocaleString("en")}–${(rank.rating + DIVISION_RR - 1).toLocaleString("en")} RR`}</>
                       )}
                     </small>
                   </>
                 );
                 return (
-                  <li key={rank.xp}>
+                  <li key={rank.rating + (top ? 1 : 0)}>
                     <span className={ladder.emblem}>
                       <RankEmblem tier={rank.tier} division={rank.division} size={top ? 80 : 56} />
                     </span>
@@ -71,6 +68,24 @@ function RankLadder() {
       })}
     </div>
   );
+}
+
+/** RR won and lost in a few typical matches, worked out by the game's own arithmetic. */
+function rrExamples() {
+  const gold3 = 11 * DIVISION_RR + 50;
+  const gold1 = 9 * DIVISION_RR + 50;
+  const swing = (rating: number, opponent: number, score: number, other: number) => {
+    const win = ratingChange({ rating, opponent, result: 1, score: Math.max(score, other), opponentScore: Math.min(score, other), placement: false });
+    const loss = ratingChange({ rating, opponent, result: 0, score: Math.min(score, other), opponentScore: Math.max(score, other), placement: false });
+    return [`+${win}`, `${loss}`];
+  };
+  return [
+    ["Same rank, a narrow result", ...swing(gold1, gold1, 1000, 950)],
+    ["Same rank, a rout", ...swing(gold1, gold1, 1000, 400)],
+    ["Gold 3 against Gold 1, a narrow result", ...swing(gold3, gold1, 1000, 950)],
+    ["Gold 3 against Gold 1, a rout", ...swing(gold3, gold1, 1000, 400)],
+    ["Gold 1 against Gold 3, a narrow result", ...swing(gold1, gold3, 1000, 950)],
+  ];
 }
 
 const SECTIONS: LegalSection[] = [
@@ -132,6 +147,10 @@ const SECTIONS: LegalSection[] = [
           If somebody is already waiting at the same entry, you take the other seat on their board. If not, you open a new match and its second seat stays open:
           another player can take it while you play or after you have finished. Scores stay hidden until both runs are over.
         </p>
+        <p>
+          SOL matches are <Link href="#ranked">ranked</Link>: a seat goes to somebody within one tier of the player who opened it — Silver, Gold and Platinum can
+          meet a Gold — and to anyone further once it has waited a while. Gem matches are open to everybody.
+        </p>
         <p>To play somebody in particular, challenge them from their profile or share a challenge link: only the player you named, or someone with the link, can take that seat.</p>
         <h3>If you close the page</h3>
         <p>
@@ -182,6 +201,47 @@ const SECTIONS: LegalSection[] = [
     ),
   },
   {
+    id: "ranked",
+    title: "Ranked play",
+    body: (
+      <>
+        <p>
+          Every public SOL match is ranked. Your rank is a rating in <strong>RR</strong>, won and lost match by match, shown as one of the insignia below: three
+          divisions of a hundred RR in each tier from Iron to Diamond, and Bouncer for the {RANKED.bouncers} best players of the season.
+        </p>
+        <h3>What a match is worth</h3>
+        <p>
+          Before a match, the gap between the two ratings says who is expected to win. Beat somebody ranked above you and you gain a lot; beat somebody below you and
+          you gain little — and if you lose to them, you drop a lot more. The score gap counts too: a rout moves the ratings by up to half as much again as a narrow
+          result, and it is measured against the scores themselves, so a board of a few hundred points counts as much as one of thousands. A draw moves nobody.
+        </p>
+        <FactTable head={["Match", "Win", "Loss"]} rows={rrExamples()} />
+        <h3>Placement</h3>
+        <p>
+          Your first {RANKED.placements} ranked matches place you: they count double, and your rank shows once they are played. In every later season, the first{" "}
+          {RANKED.returningPlacements} matches do the same.
+        </p>
+        <h3>Promotion shield</h3>
+        <p>
+          Reach a new division and the next {RANKED.shield} losses cannot take you back out of it. Each loss still costs RR, down to the division&apos;s floor.
+        </p>
+        <h3>Seasons</h3>
+        <p>
+          A season lasts {Math.round(RANKED.seasonMs / (7 * 86_400_000))} weeks. When a new one starts, every rating is brought halfway back to the middle of Silver and
+          the placement matches begin again, so last season&apos;s best start near the top and everyone has a climb ahead. From Diamond up, two weeks without a ranked
+          match costs {RANKED.decayPerDay} RR a day, never below Diamond 1.
+        </p>
+        <h3>What does not count</h3>
+        <ul>
+          <li>Gem matches, challenges between friends, tournaments and practice.</li>
+          <li>More than {RANKED.repeatLimit} ranked matches against the same player in a day: the next ones move nothing.</li>
+        </ul>
+        <h3>The insignia</h3>
+        <RankLadder />
+      </>
+    ),
+  },
+  {
     id: "tournaments",
     title: "Tournaments",
     body: (
@@ -207,7 +267,7 @@ const SECTIONS: LegalSection[] = [
   },
   {
     id: "progress",
-    title: "Gems, ranks and rewards",
+    title: "Levels, gems and rewards",
     body: (
       <>
         <h3>Gems</h3>
@@ -215,13 +275,20 @@ const SECTIONS: LegalSection[] = [
           Gems are Bounce&apos;s free currency. Every new profile starts with 2,000, and the daily gems in the arena add more each day: 200 on the first day, 50 more for
           each day in a row, up to 500 from the seventh. Gems have no money value and can never be bought, sold, deposited or withdrawn.
         </p>
-        <h3>Ranks</h3>
+        <h3>Your level</h3>
         <p>
-          Every 0.1 SOL of entries earns 1 XP, once the match has settled or the tournament has ended. Refunded entries and cancelled matches earn nothing, gem matches
-          earn no XP, and XP never goes down, whether you win or lose. Iron to Diamond each have three divisions; Bouncer sits on its own at the top. Here is
-          every insignia, with the XP it takes and the SOL of entries that adds up to.
+          Your level is everything you have ever staked: every 0.1 SOL of entries earns 1 XP, once the match has settled or the tournament has ended. Refunded entries
+          and cancelled matches earn nothing, and gem matches earn no XP. It runs from level 1 to 60, it never goes down, and seasons never touch it — it is what
+          sets your cashback, so a share once reached is yours for good.
         </p>
-        <RankLadder />
+        <FactTable
+          head={["Level", "SOL staked in all", "Weekly cashback"]}
+          rows={CASHBACK_STEPS.map((step, i) => [
+            `Level ${step.from}${CASHBACK_STEPS[i + 1] ? `–${CASHBACK_STEPS[i + 1].from - 1}` : ""}`,
+            `${((levelStart(step.from) * LAMPORTS_PER_XP) / 1e9).toLocaleString("en")} SOL`,
+            `${step.share}% of your fees${step.gems ? ", in gems" : ", in SOL"}`,
+          ])}
+        />
         <h3>The weekly race</h3>
         <p>
           From Monday 00:00 UTC to the next Monday, the Weekly race tab of the leaderboard ranks players by their best single score in SOL matches and paid SOL
@@ -230,8 +297,8 @@ const SECTIONS: LegalSection[] = [
         </p>
         <h3>Quests and cashback</h3>
         <p>
-          Quests are on the Quests page, each with its own goal and reward. Cashback gives back part of the house fee you paid, at a share set by your rank, and is
-          claimed from your wallet. Both follow the conditions shown where you claim them.
+          Quests are on the Quests page, each with its own goal and reward. Cashback gives back part of the house fee you paid, at the share your level sets, and is
+          claimed from your wallet every week, with a bonus at the end of a month you kept playing. Both follow the conditions shown where you claim them.
         </p>
       </>
     ),

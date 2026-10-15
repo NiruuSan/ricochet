@@ -1,0 +1,77 @@
+/* One bar per division, then the Bouncers; the tiers labelled underneath. */
+.chart {
+  display: grid;
+  grid-template-columns: repeat(19, minmax(0, 1fr));
+  align-items: end;
+  gap: 4px;
+  height: 220px;
+  padding-top: 18px;
+}
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  min-width: 0;
+}
+.value {
+  min-height: 16px;
+  color: #b9c5d6;
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 1px 1px;
+  opacity: 0.88;
+}
+.column:hover .bar {
+  opacity: 1;
+}
+.division {
+  margin-top: 6px;
+  color: #7f8da3;
+  font-size: 10px;
+  font-weight: 700;
+}
+.tiers {
+  display: flex;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.tiers li {
+  display: flex;
+  flex-basis: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 2px;
+  border-top: 1px solid #2a3546;
+  font-size: 11px;
+  text-align: center;
+}
+.tiers span {
+  color: #a3b0c3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.tiers b {
+  color: #e9eef6;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 640px) {
+  .value {
+    font-size: 8.5px;
+  }
+  .tiers span {
+    display: none;
+  }
+}
