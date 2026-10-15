@@ -61,6 +61,27 @@ function GemBalance({ value }: { value: number }) {
   );
 }
 
+/**
+ * On a computer the board is played at its full size, so a short window
+ * scrolls instead of shrinking it: the game is brought to the middle of the
+ * window when it fits there, and otherwise the bottom of the board is — where
+ * the ball leaves from, with the sound and speed controls. A window tall
+ * enough for the page as it is stays at the top. On a phone or a tablet the
+ * board already plays full screen (globals.css).
+ */
+function centerTheBoard() {
+  if (!window.matchMedia("(min-width: 1025px)").matches) return;
+  const game = document.querySelector(".game-screen");
+  const frame = game?.querySelector(".board-shell");
+  if (!game || !frame) return;
+  const margin = 12;
+  const top = game.getBoundingClientRect().top + window.scrollY;
+  const bottom = frame.getBoundingClientRect().bottom + window.scrollY;
+  const room = window.innerHeight;
+  const target = bottom + margin <= room ? 0 : bottom - top + 2 * margin <= room ? top - (room - (bottom - top)) / 2 : bottom + margin - room;
+  window.scrollTo({ top: Math.max(0, Math.round(target)), behavior: "instant" });
+}
+
 // `short` is what the phone tab bar shows under each icon.
 const NAVIGATION = [
   { href: "/", view: "play", label: "Arena", short: "Arena", Icon: Gamepad2 },
@@ -126,7 +147,20 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
   const playing = view === "play" && session.started;
   useEffect(() => {
     document.body.classList.toggle("playing", playing);
-    return () => document.body.classList.remove("playing");
+    if (!playing) return () => document.body.classList.remove("playing");
+    // The board takes the lobby's place, at its full size: bring it to the
+    // middle of the window now and whenever the window changes size.
+    let frame = requestAnimationFrame(centerTheBoard);
+    const recenter = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(centerTheBoard);
+    };
+    window.addEventListener("resize", recenter);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", recenter);
+      document.body.classList.remove("playing");
+    };
   }, [playing]);
 
   // Load the player; on the arena, pick up a saved run where it was left.

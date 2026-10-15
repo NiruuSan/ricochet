@@ -1688,6 +1688,54 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
     border-radius: 16px;
   }
 }
+/*
+ * On a computer the board keeps its full size. The first-run guide steps out
+ * of the frame and stands beside the board, where the screen has room to
+ * spare: in the frame it would push the bottom of the board out of the window.
+ * On a short window the arena scrolls the board to the middle of the screen
+ * (arena.tsx) and the HUD moves beside it too (screens.module.css).
+ */
+@media (min-width: 1025px) {
+  body.playing .game-screen {
+    position: relative;
+  }
+  body.playing .coach {
+    position: absolute;
+    top: 0;
+    left: calc(100% + 28px);
+    width: min(300px, calc((100vw - 100%) / 2 - 56px));
+    padding: 0;
+    z-index: 3;
+  }
+  body.playing .coach-card {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px 12px;
+    padding: 15px 16px;
+    box-shadow: 0 14px 40px #0006;
+  }
+  body.playing .coach-copy {
+    flex-basis: calc(100% - 42px);
+  }
+  body.playing .coach-side {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    gap: 10px;
+  }
+  body.playing .coach-skip,
+  body.playing .coach-done {
+    margin-left: auto;
+  }
+}
+/* Shorter than the frame itself: the page shows the bottom of the board, where
+   the ball leaves from, so what stands beside it lines up with that end. */
+@media (min-width: 1025px) and (max-height: 829px) {
+  body.playing .coach {
+    top: auto;
+    bottom: 0;
+  }
+}
 /* Landscape on a phone: the board is short, so the frame loses what it can. */
 @media (max-width: 1024px) and (orientation: landscape) and (max-height: 560px) {
   body.playing .game-screen {

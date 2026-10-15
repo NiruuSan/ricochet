@@ -318,6 +318,31 @@
   max-width: 520px;
   margin: 0 auto;
 }
+/* A computer window too short for the HUD above a full-size board: the HUD
+   stands beside the board, to its left, and the board alone fills the height. */
+@media (min-width: 1025px) and (max-height: 883px) {
+  :global(body.playing) .hud {
+    position: absolute;
+    top: 0;
+    right: calc(100% + 28px);
+    width: min(220px, calc((100vw - 100%) / 2 - 56px));
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    margin: 0;
+    text-align: right;
+  }
+  :global(body.playing) .hudVs {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+@media (min-width: 1025px) and (max-height: 829px) {
+  :global(body.playing) .hud {
+    top: auto;
+    bottom: 0;
+  }
+}
 .hud {
   display: flex;
   align-items: center;
