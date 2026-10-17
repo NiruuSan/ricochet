@@ -20,6 +20,7 @@ import { AdminTournaments } from "./admin-tournaments";
 import { AdminSecurity } from "./admin-security";
 import { AdminVolume } from "./volume-chart";
 import { AdminGrowth } from "./admin-growth";
+import { AdminUnlock } from "../admin-confirm";
 import styles from "./admin.module.css";
 
 const REFRESH_MS = 15_000;
@@ -65,9 +66,23 @@ export function AdminView({ player }: { player: PlayerState }) {
   const requestedReview = useSyncExternalStore(noSubscription, () => new URLSearchParams(window.location.search).get("tab") === "anti-cheat", () => false);
   const [chosenTab, setTab] = useState<TabKey | null>(null);
   const tab: TabKey = chosenTab ?? (requestedReview ? "anti-cheat" : "overview");
+  // The admin opens only with a code on this device and network (lib/admin-guard.ts).
+  const [access, setAccess] = useState<"checking" | "locked" | "open">("checking");
 
   useEffect(() => {
     if (!data.isAdmin) return;
+    let active = true;
+    request<{ viewingUntil: number | null }>("/api/admin/elevate").then(
+      (state) => active && setAccess(state.viewingUntil ? "open" : "locked"),
+      () => active && setAccess("locked"),
+    );
+    return () => {
+      active = false;
+    };
+  }, [data.isAdmin]);
+
+  useEffect(() => {
+    if (!data.isAdmin || access !== "open") return;
     let active = true;
     const load = () =>
       request<AdminOverview>("/api/admin").then(
@@ -80,7 +95,7 @@ export function AdminView({ player }: { player: PlayerState }) {
       active = false;
       clearInterval(timer);
     };
-  }, [data.isAdmin]);
+  }, [data.isAdmin, access]);
 
   if (!data.isAdmin) {
     return (
@@ -92,6 +107,14 @@ export function AdminView({ player }: { player: PlayerState }) {
             This area is available only to the configured administrator account.
           </p>
         </section>
+      </section>
+    );
+  }
+
+  if (access !== "open") {
+    return (
+      <section className="subpage">
+        <AdminUnlock checking={access === "checking"} onOpen={() => setAccess("open")} />
       </section>
     );
   }

@@ -1883,6 +1883,18 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
   gap: 6px;
   align-items: center;
 }
+/* The admin, shut until a code opens it on this device (app/arena/admin-confirm.tsx). */
+.admin-unlock {
+  max-width: 460px;
+  margin: 40px auto;
+}
+.admin-unlock h2 {
+  margin-top: 16px;
+}
+.admin-unlock > p {
+  margin: 10px 0 18px;
+  line-height: 1.6;
+}
 .online-list {
   display: flex;
   flex-wrap: wrap;

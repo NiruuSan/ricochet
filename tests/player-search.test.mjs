@@ -7,11 +7,22 @@ const { searchPlayerNames } = await import("../lib/player-search.ts");
 const add = (name) => sqlite.prepare("INSERT INTO players(id, name, created) VALUES(?, ?, 0)").run(name, name);
 // Exercise real endpoint guards and SQL, replacing only authentication.
 globalThis.playerSearchUser = null;
+// The admin reads only once opened with a code on this device (lib/admin-guard.ts).
+globalThis.playerSearchViewing = true;
 const authHook = registerHooks({
   resolve(specifier, context, next) {
+    if (specifier === "@/lib/admin-guard") return { url: "test:player-search-guard", shortCircuit: true };
     return specifier === "@/lib/auth-user" ? { url: "test:player-search-auth", shortCircuit: true } : next(specifier, context);
   },
   load(url, context, next) {
+    if (url === "test:player-search-guard") return { format: "module", shortCircuit: true, source: `
+      export async function adminReader() {
+        const user = globalThis.playerSearchUser;
+        if (user?.userId !== "operator") return { user: null, locked: Response.json({ error: "Administrator access required." }, { status: 403 }) };
+        if (!globalThis.playerSearchViewing) return { user: null, locked: Response.json({ error: "Enter a code.", code: "ADMIN_VIEW_REQUIRED" }, { status: 403 }) };
+        return { user, locked: null };
+      }
+    ` };
     return url === "test:player-search-auth" ? { format: "module", shortCircuit: true, source: `
       export async function currentUser() { return globalThis.playerSearchUser; }
       export async function administrator() { const u = globalThis.playerSearchUser; return u?.userId === 'operator' ? u : null; }
@@ -46,6 +57,10 @@ try {
   assert.equal((await get("scope=admin&q=a")).status, 403, "An ordinary player cannot use admin search");
   assert.deepEqual(await (await get("q=ann")).json(), [], "The endpoint applies friend exclusions");
   globalThis.playerSearchUser = { userId: "operator" };
+  globalThis.playerSearchViewing = false;
+  const shut = await get("scope=admin&q=a");
+  assert.deepEqual([shut.status, (await shut.json()).code], [403, "ADMIN_VIEW_REQUIRED"], "The administrator searches nothing until the admin is opened with a code");
+  globalThis.playerSearchViewing = true;
   const response = await get("scope=admin&q=a");
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.deepEqual(await response.json(), ["Ana", "Ann", "Anna", "Banana", "Player00", "Player01", "Player02", "Player03"], "Admin search returns only public names");

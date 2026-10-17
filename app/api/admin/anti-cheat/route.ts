@@ -1,4 +1,4 @@
-import { elevationRequired } from "@/lib/admin-guard";
+import { adminReader, elevationRequired } from "@/lib/admin-guard";
 import { administrator } from "@/lib/auth-user";
 import { setAntiCheatEnabled } from "@/lib/anti-cheat";
 import { adminBan, adminLift, adminSuspend, antiCheatCase, antiCheatOverview } from "@/lib/anti-cheat-admin";
@@ -9,7 +9,8 @@ import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
+  const { locked } = await adminReader();
+  if (locked) return locked;
   try {
     const name = new URL(req.url).searchParams.get("name");
     return json(name !== null ? await antiCheatCase(name) : await antiCheatOverview());

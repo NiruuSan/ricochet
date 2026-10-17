@@ -51,12 +51,32 @@ try {
   assert.equal(await guard.isElevated("github:2", "session-a", at + 1000), false, "nor another user on the same key");
   assert.equal(await guard.isElevated(ADMIN, "session-a", at + guard.ELEVATION_MS + 1), false, "It closes on its own after 15 minutes");
   assert.equal(await guard.isElevated(ADMIN, null, at + 1000), false, "No session, no window");
+  // The same code opens the admin itself for reading, for longer.
+  assert.equal(opened.viewingUntil, at + guard.VIEWING_MS);
+  assert.equal(await guard.isViewing(ADMIN, "session-a", at + guard.ELEVATION_MS + 1), true, "Reading stays open after changes close");
+  assert.equal(await guard.isViewing(ADMIN, "session-a", at + guard.VIEWING_MS + 1), false, "and closes on its own after 12 hours");
+  assert.equal(await guard.isViewing(ADMIN, "session-b", at + 1000), false, "on this session only");
   assert.ok(
     sqlite.prepare("SELECT COUNT(*) AS n FROM notifications WHERE user_id = ? AND data LIKE '%admin_elevated%'").get(ADMIN).n === 1,
     "The administrator is told every time a window opens",
   );
   // The same code cannot open a second session.
   await assert.rejects(() => guard.elevate(ADMIN, "session-b", codeAt(setup.secret, at), at + 2000), (e) => e.code === "TWO_FACTOR_INVALID", "A code is spent once");
+
+  // Both windows belong to the network the code was typed on: an IPv4 address,
+  // or the /64 an IPv6 home or phone keeps.
+  const home = at + 30_000;
+  const here = guard.networkOf("203.0.113.7");
+  const away = guard.networkOf("198.51.100.4");
+  await guard.elevate(ADMIN, "session-d", codeAt(setup.secret, home), home, here);
+  assert.equal(await guard.isElevated(ADMIN, "session-d", home + 1000, here), true);
+  assert.equal(await guard.isViewing(ADMIN, "session-d", home + 1000, here), true);
+  assert.equal(await guard.isElevated(ADMIN, "session-d", home + 1000, away), false, "A cookie carried to another network changes nothing");
+  assert.equal(await guard.isViewing(ADMIN, "session-d", home + 1000, away), false, "and reads nothing");
+  assert.equal(guard.networkOf("::ffff:203.0.113.7"), here, "An IPv4 address written as IPv6 is the same network");
+  assert.equal(guard.networkOf("2001:db8:1:2:aaaa::1"), guard.networkOf("2001:0db8:0001:0002:bbbb:cccc:dddd:eeee"), "Two addresses in one IPv6 /64 are one network");
+  assert.notEqual(guard.networkOf("2001:db8:1:2::1"), guard.networkOf("2001:db8:1:3::1"), "and the next /64 is another");
+  assert.ok(!JSON.stringify(sqlite.prepare("SELECT * FROM admin_elevations").all()).includes("203.0.113.7"), "No address is stored in clear");
 
   // Signing out everywhere closes every window at once.
   const later = at + 90_000;
@@ -65,6 +85,13 @@ try {
   await signOutEverywhere(ADMIN, later + 2000);
   forgetSessionCache();
   assert.equal(await guard.isElevated(ADMIN, "session-c", later + 3000), false, "Signing out everywhere ends sudo mode on every device");
+  assert.equal(await guard.isViewing(ADMIN, "session-d", later + 3000, here), false, "and shuts the admin on every device");
+  // Opening a window clears the shut ones, never one still open for reading.
+  const first = later + 60_000;
+  await guard.elevate(ADMIN, "session-e", codeAt(setup.secret, first), first);
+  const second = first + guard.ELEVATION_MS + 60_000;
+  await guard.elevate(ADMIN, "session-f", codeAt(setup.secret, second), second);
+  assert.equal(await guard.isViewing(ADMIN, "session-e", second + 1000), true, "An older session's admin stays open while its changes are shut");
 
   // --------------------------------------------------- 24-hour withdrawal cap
   const UID = "github:3";
@@ -100,7 +127,7 @@ try {
   }
 
   console.log(
-    "PASS: security hardening (administrator changes need a fresh 2FA code, bound to one session and one user, closing after 15 minutes and on sign-out everywhere, spent once, counted against the lock and announced to the owner; withdrawals capped per 24 hours with failed and older transfers not counted, configurable, and checked only once the balance is there; the sweep refusing every near-miss of its secret).",
+    "PASS: security hardening (administrator changes need a fresh 2FA code, bound to one session, one user and one network, closing after 15 minutes and on sign-out everywhere, the same code opening the admin for reading for 12 hours, spent once, counted against the lock and announced to the owner; withdrawals capped per 24 hours with failed and older transfers not counted, configurable, and checked only once the balance is there; the sweep refusing every near-miss of its secret).",
   );
 } finally {
   close();

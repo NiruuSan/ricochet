@@ -1,4 +1,4 @@
-import { administrator } from "@/lib/auth-user";
+import { adminReader } from "@/lib/admin-guard";
 import { json } from "@/lib/http";
 import { rankDistribution } from "@/lib/ranked";
 
@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 /** How this season's ranked players spread over the divisions. */
 export async function GET() {
-  if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
+  const { locked } = await adminReader();
+  if (locked) return locked;
   try {
     return json(await rankDistribution());
   } catch (e) {

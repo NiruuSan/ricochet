@@ -1,4 +1,4 @@
-import { elevationRequired } from "@/lib/admin-guard";
+import { adminReader, elevationRequired } from "@/lib/admin-guard";
 import { administrator } from "@/lib/auth-user";
 import { botConfig, bots, botWork, fillTournament, fundBots, MAX_BOTS, MAX_TOP_UP, MIN_TOP_UP, removeBots, setBotConfig, tickBots, type BotSkill } from "@/lib/bots";
 import { database } from "@/db/raw";
@@ -21,7 +21,8 @@ const LIMITS = { count: MAX_BOTS, minTopUp: MIN_TOP_UP, maxTopUp: MAX_TOP_UP };
 
 /** The house's practice opponents: who they are, how they are set, and what the treasury can give them. */
 export async function GET() {
-  if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
+  const { locked } = await adminReader();
+  if (locked) return locked;
   try {
     const [config, roster, work, held] = await Promise.all([botConfig(), bots(), botWork(), treasury()]);
     return json({ config, bots: roster, work, treasury: held, limits: LIMITS });

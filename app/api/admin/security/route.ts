@@ -1,3 +1,4 @@
+import { adminReader } from "@/lib/admin-guard";
 import { administrator, stepUpRequired } from "@/lib/auth-user";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { PaymentError } from "@/lib/payments/errors";
@@ -9,8 +10,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const user = await administrator();
-    if (!user) return json({ error: "Administrator access required." }, 403);
+    const { user, locked } = await adminReader();
+    if (locked) return locked;
     if (await rateLimited("walletRead", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
     return json(await adminTwoFactorLookup(new URL(req.url).searchParams.get("name") ?? ""));
   } catch (e) {

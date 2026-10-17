@@ -8,12 +8,23 @@ Object.assign(process.env, { RICOCHET_ADMIN_USER_ID: "github:admin", SOLANA_NETW
 const { sqlite, DB, close } = await createDatabase();
 // Only authentication is replaced: exercise real route guards, parsers, limits and SQL.
 globalThis.securityTestUser = null;
+// So is the session cookie behind the admin's reading window (lib/admin-guard.ts): open unless a test shuts it.
+globalThis.securityTestViewing = true;
 const hook = registerHooks({
   resolve(specifier, context, next) {
     if (specifier === "@/lib/auth-user") return { url: "test:security-auth", shortCircuit: true };
+    if (specifier === "@/lib/admin-guard") return { url: "test:security-guard", shortCircuit: true };
     return next(specifier, context);
   },
   load(url, context, next) {
+    if (url === "test:security-guard") return { format: "module", shortCircuit: true, source: `
+      export async function adminReader() {
+        const user = globalThis.securityTestUser;
+        if (user?.userId !== process.env.RICOCHET_ADMIN_USER_ID) return { user: null, locked: Response.json({ error: "Administrator access required." }, { status: 403 }) };
+        if (!globalThis.securityTestViewing) return { user: null, locked: Response.json({ error: "Enter a code.", code: "ADMIN_VIEW_REQUIRED" }, { status: 403 }) };
+        return { user, locked: null };
+      }
+    ` };
     if (url === "test:security-auth") return { format: "module", shortCircuit: true, source: `
       export { stepUpRequired } from ${JSON.stringify(new URL("../lib/step-up.ts", import.meta.url).href)};
       export async function currentUser() { return globalThis.securityTestUser; }
@@ -51,6 +62,9 @@ try {
   }
   await assert.rejects(() => security.adminResetTwoFactor(target, "PlayerOne", reason, player.recoveryCodes[0], now), /Administrator access/);
   globalThis.securityTestUser = { userId: admin, authTime: null };
+  globalThis.securityTestViewing = false;
+  assert.equal((await (await get()).json()).code, "ADMIN_VIEW_REQUIRED", "The administrator reads nothing until the admin is opened with a code");
+  globalThis.securityTestViewing = true;
   assert.equal((await (await post(body)).json()).code, "REAUTH_REQUIRED");
   globalThis.securityTestUser.authTime = now;
   assert.equal((await post(body, { origin: "https://evil.test" })).status, 403);

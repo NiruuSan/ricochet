@@ -1,4 +1,4 @@
-import { elevationRequired } from "@/lib/admin-guard";
+import { adminReader, elevationRequired } from "@/lib/admin-guard";
 import { administrator } from "@/lib/auth-user";
 import { listBugReports, updateBugReport } from "@/lib/bug-reports";
 import { json, readBody, sameOrigin } from "@/lib/http";
@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const user = await administrator();
-    if (!user) return json({ error: "Administrator access required." }, 403);
+    const { user, locked } = await adminReader();
+    if (locked) return locked;
     if (await rateLimited("gameRead", user.userId)) return json({ error: TOO_MANY_REQUESTS }, 429);
     return json(await listBugReports(Number(new URL(req.url).searchParams.get("offset") ?? 0)));
   } catch (e) {

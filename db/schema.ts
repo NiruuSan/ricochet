@@ -367,7 +367,11 @@ export const adminElevations = sqliteTable(
   {
     session: text("session").primaryKey(),
     userId: text("user_id").notNull(),
+    // Changes stay open until this; the admin stays open for reading until viewing_until.
     until: integer("until").notNull(),
+    viewingUntil: integer("viewing_until"),
+    // The network the code was typed on, hashed (lib/admin-guard.ts): elsewhere, both windows are shut.
+    network: text("network"),
     created: integer("created").notNull(),
   },
   (t) => [index("admin_elevation_user").on(t.userId)],

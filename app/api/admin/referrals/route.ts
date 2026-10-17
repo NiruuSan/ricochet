@@ -1,4 +1,4 @@
-import { elevationRequired } from "@/lib/admin-guard";
+import { adminReader, elevationRequired } from "@/lib/admin-guard";
 import { administrator } from "@/lib/auth-user";
 import { json, readBody, sameOrigin } from "@/lib/http";
 import { GameError } from "@/lib/matches";
@@ -8,7 +8,8 @@ import { rateLimited, TOO_MANY_REQUESTS } from "@/lib/rate-limit";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!(await administrator())) return json({ error: "Administrator access required." }, 403);
+  const { locked } = await adminReader();
+  if (locked) return locked;
   try {
     return json(await referralRoster());
   } catch (e) {

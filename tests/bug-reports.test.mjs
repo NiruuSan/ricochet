@@ -6,6 +6,8 @@ const { sqlite, close } = await createDatabase();
 globalThis.bugReportUser = null;
 // Administrator changes need a confirmed session (lib/admin-guard.ts); the test opens and shuts it.
 globalThis.bugReportElevated = true;
+// Reading the admin needs the admin opened with a code on this device; the test shuts it once.
+globalThis.bugReportViewing = true;
 const hook = registerHooks({
   resolve(specifier, context, next) {
     if (specifier === "@/lib/admin-guard") return { url: "test:bug-report-guard", shortCircuit: true };
@@ -15,6 +17,12 @@ const hook = registerHooks({
     if (url === "test:bug-report-guard") return { format: "module", shortCircuit: true, source: `
       export async function elevationRequired() {
         return globalThis.bugReportElevated ? null : Response.json({ error: "Confirm.", code: "ADMIN_ELEVATION_REQUIRED" }, { status: 403 });
+      }
+      export async function adminReader() {
+        const user = globalThis.bugReportUser;
+        if (user?.userId !== "admin") return { user: null, locked: Response.json({ error: "Administrator access required." }, { status: 403 }) };
+        if (!globalThis.bugReportViewing) return { user: null, locked: Response.json({ error: "Enter a code.", code: "ADMIN_VIEW_REQUIRED" }, { status: 403 }) };
+        return { user, locked: null };
       }
     ` };
     return url === "test:bug-report-auth" ? { format: "module", shortCircuit: true, source: `
@@ -65,6 +73,10 @@ try {
   assert.deepEqual((await listBugReports()).reports.find((r) => r.id === plain.id).links, [], "Text-only reports work");
 
   globalThis.bugReportUser = { userId: "admin" };
+  globalThis.bugReportViewing = false;
+  const shut = await get();
+  assert.deepEqual([shut.status, (await shut.json()).code], [403, "ADMIN_VIEW_REQUIRED"], "The administrator reads nothing until the admin is opened with a code");
+  globalThis.bugReportViewing = true;
   const inbox = await get();
   assert.equal(inbox.status, 200);
   assert.equal(inbox.headers.get("cache-control"), "no-store");

@@ -1,6 +1,7 @@
 import { get } from "@vercel/blob";
 import { adminId } from "@/db/raw";
 import { currentUser } from "@/lib/auth-user";
+import { isViewing, requestNetwork, sessionKey } from "@/lib/admin-guard";
 import { bugAttachmentForReader } from "@/lib/bug-attachments";
 import { json } from "@/lib/http";
 
@@ -10,7 +11,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const user = await currentUser();
     if (!user) return json({ error: "Sign in to view this attachment." }, 401);
-    const attachment = await bugAttachmentForReader((await params).id, user.userId, user.userId === adminId());
+    // The administrator reads anyone's attachment only with the admin open on this device.
+    const asAdmin = user.userId === adminId() && (await isViewing(user.userId, await sessionKey(), Date.now(), await requestNetwork()));
+    const attachment = await bugAttachmentForReader((await params).id, user.userId, asAdmin);
     if (!attachment) return json({ error: "Attachment not found." }, 404);
     const range = req.headers.get("range");
     if (range) {
