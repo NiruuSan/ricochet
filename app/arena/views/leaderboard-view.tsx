@@ -7,6 +7,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowRight, ArrowUpRight, ChevronLeft, ChevronRight, Crown, Flag, Gem, Info, Medal, RefreshCw, Search, Sparkles, Swords, Trophy, Wallet, X } from "lucide-react";
 import { RankBadge, rankDetail } from "../rank-badge";
+import { BadgeChip } from "../badge-insignia";
 import { Avatar } from "../avatar";
 import type { Asset, Leader } from "@/lib/api-types";
 import { request } from "../api";
@@ -139,7 +140,7 @@ export function LeaderboardView({ player }: { player: PlayerState }) {
             <thead><tr><th scope="col">Rank</th><th scope="col">Player</th><th scope="col" className={styles.matchesColumn}>Games</th><th scope="col">Net profit <ArrowDown size={12} aria-hidden /></th><th scope="col" className={styles.arrowColumn}><span className={styles.srOnly}>Profile</span></th></tr></thead>
             <tbody>{visible.map((p) => <tr key={p.name} className={p.name === me ? styles.myRow : undefined}>
               <td><span className={`${styles.rank} ${p.rank <= 3 ? styles[`rank${p.rank}`] : ""}`}>{p.rank === 1 ? <Crown size={16} aria-label="First place" /> : String(p.rank).padStart(2, "0")}</span></td>
-              <td><Link href={profileHref(p.name)} className={styles.playerLink}><Avatar name={p.name} src={p.avatar} size={36} /><span><b>{p.name}{p.ranked && <RankBadge rank={p.ranked} />}{p.name === me && <small className={styles.you}>YOU</small>}</b><small className={styles.mobileMatches}>{count(p.games)} {p.games === 1 ? "game" : "games"}</small></span></Link></td>
+              <td><Link href={profileHref(p.name)} className={styles.playerLink}><Avatar name={p.name} src={p.avatar} size={36} /><span><b>{p.name}{p.ranked && <RankBadge rank={p.ranked} />}{p.badges?.map((badge) => <BadgeChip key={badge} badge={badge} compact />)}{p.name === me && <small className={styles.you}>YOU</small>}</b><small className={styles.mobileMatches}>{count(p.games)} {p.games === 1 ? "game" : "games"}</small></span></Link></td>
               <td className={styles.matchesColumn}>{count(p.games)}</td>
               <td className={styles.profit}><strong className={p.pnl > 0 ? styles.positive : p.pnl < 0 ? styles.negative : styles.neutral}>{signedAmount(p.pnl, asset)}</strong><span>{currency(asset)}</span></td>
               <td className={styles.arrowColumn}><Link href={profileHref(p.name)} aria-label={`View ${p.name}'s profile`}><ArrowUpRight size={16} /></Link></td>

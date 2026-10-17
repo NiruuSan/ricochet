@@ -28,7 +28,8 @@ export type ThemeId =
   | "crystal"
   | "mainnet"
   | "aurora"
-  | "highroller";
+  | "highroller"
+  | "blueprint";
 
 /** Typefaces, loaded once in the layout and named here by their CSS variable. */
 export type FontKey = "system" | "orbitron" | "pixel" | "serif" | "mono" | "round";
@@ -79,7 +80,8 @@ export type Scene =
   | "cave"
   | "pulse"
   | "aurora"
-  | "felt";
+  | "felt"
+  | "blueprint";
 /** How a brick is built: flat paint, or something with depth. Same cell, same size, whichever. */
 export type BrickStyle =
   | "flat"
@@ -116,15 +118,21 @@ export type SoundKit =
   | "crystal"
   | "chain"
   | "aurora"
-  | "casino";
+  | "casino"
+  | "draft";
 
 export type Theme = {
   id: ThemeId;
   name: string;
   /** One line, in the store. */
   tagline: string;
-  /** Null for the theme everybody starts with. */
+  /** Null for the theme everybody starts with, and for one that is given rather than sold. */
   price: { asset: "gems"; amount: number } | { asset: "devnet"; amount: number } | null;
+  /**
+   * Not for sale at any price: owned by the players holding a badge (lib/badges.ts),
+   * as a thank-you, and by nobody else.
+   */
+  exclusive?: boolean;
   board: {
     /** Behind everything, top to bottom. */
     sky: [string, string];
@@ -169,10 +177,11 @@ export type Theme = {
 };
 
 /**
- * The catalogue. Eighteen looks that should never be mistaken for one another
- * at a glance — or by ear: from the free board to the gold-rimmed table, every
- * one has its own scene, its own bricks, its own break, bounce and clear, and
- * its own sound.
+ * The catalogue. Eighteen looks on sale that should never be mistaken for one
+ * another at a glance — or by ear: from the free board to the gold-rimmed
+ * table, every one has its own scene, its own bricks, its own break, bounce and
+ * clear, and its own sound. And one more that is not for sale: Blueprint, for
+ * the players who tested Bounce before it went live.
  */
 export const THEMES: Theme[] = [
   {
@@ -781,9 +790,44 @@ export const THEMES: Theme[] = [
     effects: { burst: "coins", bounce: "ring", trail: "none", clear: "jackpot", sound: "casino" },
     ui: { accent: "#e4c25a", ink: "#f6efd9", surface: "#0a2a20", font: "serif", display: "serif" },
   },
+  {
+    id: "blueprint",
+    name: "Blueprint",
+    tagline: "The board as it was drawn before anyone played it: chalk lines on blueprint blue. For the ones who tested it first.",
+    price: null,
+    exclusive: true,
+    board: {
+      sky: ["#0d2f5c", "#0a2448"],
+      floor: "#08203f",
+      line: "#a9d8ff",
+      dots: null,
+      bricks: [
+        ["#2870c2", "#1a4f90"],
+        ["#e8f4ff", "#9fc3e6"],
+        ["#1f63b3", "#123f78"],
+        ["#56b4ff", "#2e75b5"],
+        ["#ff7a6b", "#a8443a"],
+        ["#3f98e8", "#22609f"],
+      ],
+      label: "#ffffff",
+      labelAlt: "#0a2448",
+      font: "mono",
+      shine: null,
+      radius: 2,
+      stroke: "#eaf6ffd9",
+      ball: "#ffffff",
+      glow: "#a9d8ff",
+      aim: "190, 228, 255",
+      scene: "blueprint",
+    },
+    effects: { burst: "scraps", bounce: "ring", trail: "dots", clear: "rays", sound: "draft" },
+    ui: { accent: "#a9d8ff", ink: "#eaf6ff", surface: "#0b2343", font: "mono", display: "mono" },
+  },
 ];
 
 export const DEFAULT_THEME: ThemeId = "classic";
 export const themeById = (id: string | null | undefined): Theme => THEMES.find((t) => t.id === id) ?? THEMES[0];
 /** Every theme a player owns without buying it. */
-export const isFreeTheme = (id: string) => THEMES.some((t) => t.id === id && t.price === null);
+export const isFreeTheme = (id: string) => THEMES.some((t) => t.id === id && t.price === null && !t.exclusive);
+/** The themes nobody can buy: given to badge holders (lib/badges.ts). */
+export const EXCLUSIVE_THEMES = THEMES.filter((t) => t.exclusive).map((t) => t.id);

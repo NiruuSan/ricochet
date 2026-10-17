@@ -11,6 +11,7 @@ const PAGES: { path: string; changeFrequency: "hourly" | "daily" | "weekly" | "m
   { path: "/live", changeFrequency: "hourly", priority: 0.7 },
   { path: "/rules", changeFrequency: "monthly", priority: 0.6 },
   { path: "/terms", changeFrequency: "monthly", priority: 0.3 },
+  { path: "/whats-new", changeFrequency: "weekly", priority: 0.4 },
   { path: "/privacy", changeFrequency: "monthly", priority: 0.3 },
 ];
 

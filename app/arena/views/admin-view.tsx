@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Banknote, Bot, Bug, Flag, Gamepad2, Gauge, Handshake, Lock, Medal, ShieldAlert, ShieldCheck, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
+import { Banknote, Bot, Bug, Flag, Gamepad2, Gauge, Handshake, Lock, Medal, MessageSquareHeart, ShieldAlert, ShieldCheck, Trophy, Users, Zap, type LucideIcon } from "lucide-react";
 import type { AdminOverview } from "@/lib/api-types";
 import { request } from "../api";
 import { Avatar } from "../avatar";
@@ -14,13 +14,14 @@ import { AdminPeople } from "./admin-people";
 import { AdminReports } from "./admin-reports";
 import { AdminBots } from "./admin-bots";
 import { AdminBugReports } from "./admin-bug-reports";
+import { AdminFeedback } from "./admin-feedback";
 import { AdminRace } from "./admin-race";
 import { AdminRanked } from "./admin-ranked";
 import { AdminTournaments } from "./admin-tournaments";
 import { AdminSecurity } from "./admin-security";
 import { AdminVolume } from "./volume-chart";
 import { AdminGrowth } from "./admin-growth";
-import { AdminUnlock } from "../admin-confirm";
+import { AdminUnlock, unlockStatus, type UnlockStatus } from "../admin-confirm";
 import styles from "./admin.module.css";
 
 const REFRESH_MS = 15_000;
@@ -48,6 +49,12 @@ const SECTIONS = {
   security: { label: "Security", icon: ShieldCheck, title: "Account security", blurb: "Help a player who lost their authenticator and recovery codes. Verify who they are outside Bounce first." },
   players: { label: "Players", icon: Users, title: "Players", blurb: "Every profile on the site, newest first, and the development tools that reset or remove one." },
   partners: { label: "Partners", icon: Handshake, title: "Referrals & partners", blurb: "Who brings players in, what their code is worth to them, and what it leaves the house." },
+  feedback: {
+    label: "Feedback",
+    icon: MessageSquareHeart,
+    title: "Player feedback",
+    blurb: "The two beta questions players answer after their fifth game: how likely they are to recommend Bounce, and one thing to fix or add.",
+  },
   bugs: { label: "Bug reports", icon: Bug, title: "Bug reports", blurb: "Problems reported by players, newest first. Resolved reports stay in the inbox.", queue: "bugs" },
 } satisfies Record<string, Section>;
 type TabKey = keyof typeof SECTIONS;
@@ -56,7 +63,7 @@ const GROUPS: { name: string; tabs: TabKey[] }[] = [
   { name: "House", tabs: ["overview", "treasury", "bots"] },
   { name: "Play", tabs: ["games", "tournaments", "ranked", "race"] },
   { name: "Integrity", tabs: ["anti-cheat", "reports", "security"] },
-  { name: "People", tabs: ["players", "partners", "bugs"] },
+  { name: "People", tabs: ["players", "partners", "feedback", "bugs"] },
 ];
 
 export function AdminView({ player }: { player: PlayerState }) {
@@ -68,13 +75,22 @@ export function AdminView({ player }: { player: PlayerState }) {
   const tab: TabKey = chosenTab ?? (requestedReview ? "anti-cheat" : "overview");
   // The admin opens only with a code on this device and network (lib/admin-guard.ts).
   const [access, setAccess] = useState<"checking" | "locked" | "open">("checking");
+  const [unlock, setUnlock] = useState<UnlockStatus | null>(null);
 
   useEffect(() => {
     if (!data.isAdmin) return;
     let active = true;
-    request<{ viewingUntil: number | null }>("/api/admin/elevate").then(
-      (state) => active && setAccess(state.viewingUntil ? "open" : "locked"),
-      () => active && setAccess("locked"),
+    unlockStatus().then(
+      (state) => {
+        if (!active) return;
+        setUnlock({ passkeys: state.passkeys, passkeyOnly: state.passkeyOnly });
+        setAccess(state.viewingUntil ? "open" : "locked");
+      },
+      () => {
+        if (!active) return;
+        setUnlock({ passkeys: 0, passkeyOnly: false });
+        setAccess("locked");
+      },
     );
     return () => {
       active = false;
@@ -114,7 +130,7 @@ export function AdminView({ player }: { player: PlayerState }) {
   if (access !== "open") {
     return (
       <section className="subpage">
-        <AdminUnlock checking={access === "checking"} onOpen={() => setAccess("open")} />
+        <AdminUnlock status={access === "checking" ? null : unlock} onOpen={() => setAccess("open")} />
       </section>
     );
   }
@@ -183,6 +199,8 @@ export function AdminView({ player }: { player: PlayerState }) {
             <AdminPeople />
           ) : tab === "partners" ? (
             <AdminPartners />
+          ) : tab === "feedback" ? (
+            <AdminFeedback />
           ) : (
             <AdminBugReports />
           )}

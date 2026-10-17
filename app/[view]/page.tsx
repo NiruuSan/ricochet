@@ -23,6 +23,7 @@ const PAGES: Partial<Record<View, { title: string; description: string }>> = {
     description: "How Bounce works: the board, matches and entries, wins, draws and forfeits, time limits, tournaments, ranks, fair boards and SOL.",
   },
   privacy: { title: "Privacy Policy · Bounce", description: "What Bounce collects, why, who handles it, how long it is kept and how to use your GDPR rights." },
+  "whats-new": { title: "What's new · Bounce", description: "Every update to Bounce, newest first: what is new, what got better and what was fixed." },
   terms: { title: "Terms of Use · Bounce", description: "The rules of the house: who may play, entries and fees, deposits and withdrawals, fair play." },
   login: { title: "Sign in · Bounce", description: "Sign in with a Solana wallet, GitHub, Google or Discord." },
   signup: { title: "Sign up · Bounce", description: "Pick a player name and start with free gems." },

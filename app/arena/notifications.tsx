@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Equal, Gift, Medal, ShieldAlert, Trophy, X } from "lucide-react";
 import type { NotificationItem } from "@/lib/api-types";
+import { BADGES } from "@/lib/badges";
 import { request } from "./api";
 import { PushControl } from "./push-control";
 import { amount as money, currency, timeAgo, units } from "./format";
@@ -17,12 +18,21 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
     return { tone: "security", title: "Your two-factor authentication was reset", detail: `An administrator reset your authenticator. Withdrawals are paused until ${new Date(n.data.holdUntil).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" })}. Set up two-factor again in your wallet. If you did not request this, contact support.` };
   }
   if (n.kind === "security_alert") {
-    const { event, amount, to } = n.data;
+    const { event, amount, to, by, name } = n.data;
     if (event === "withdrawal_started") return { tone: "security", title: "A withdrawal was started", detail: `${money(amount ?? 0, "devnet")} to ${to ? `${to.slice(0, 6)}…${to.slice(-4)}` : "an external wallet"}. If this was not you, contact support now.` };
     if (event === "tip_sent") return { tone: "security", title: `You tipped ${to ?? "a player"}`, detail: `−${money(amount ?? 0, "devnet")} left your balance. If this was not you, contact support now.` };
     if (event === "two_factor_disabled") return { tone: "security", title: "Two-factor authentication was turned off", detail: "Withdrawals and larger tips are blocked until you turn it back on. If this was not you, sign out everywhere and contact support." };
     if (event === "two_factor_locked") return { tone: "security", title: "Wrong codes locked your two-factor", detail: "Five wrong authentication codes in a row. Codes are refused for a while, longer each time. If this was not you, sign out everywhere: someone may be using your session." };
-    if (event === "admin_elevated") return { tone: "security", title: "Administrator access confirmed", detail: "A second-factor code unlocked administrator changes for 15 minutes on one device. If this was not you, sign out everywhere now." };
+    if (event === "admin_elevated")
+      return {
+        tone: "security",
+        title: "The admin was opened",
+        detail: `${by === "passkey" ? "Your passkey" : "A code from your authenticator"} opened the admin for 12 hours, and changes for 15 minutes, on one device and network. If this was not you, sign out everywhere now.`,
+      };
+    if (event === "admin_passkey_added") return { tone: "security", title: "A passkey was added", detail: `“${name ?? "A passkey"}” can now open the admin. If this was not you, remove it in Admin → Security and sign out everywhere.` };
+    if (event === "admin_passkey_removed") return { tone: "security", title: "A passkey was removed", detail: `“${name ?? "A passkey"}” no longer opens the admin.` };
+    if (event === "admin_passkey_only_on") return { tone: "security", title: "Passkey only is on", detail: "A code from your authenticator no longer opens the admin. Your passkeys and recovery codes still do." };
+    if (event === "admin_passkey_only_off") return { tone: "security", title: "Passkey only is off", detail: "A code from your authenticator opens the admin again." };
     if (event === "signed_out_everywhere") return { tone: "security", title: "You signed out everywhere", detail: "Every other session was ended. Sign in again on your other devices." };
     return { tone: "security", title: "Your recovery codes were replaced", detail: "The previous codes no longer work. If this was not you, sign out everywhere and contact support." };
   }
@@ -63,6 +73,10 @@ function describe(n: NotificationItem): { tone: "win" | "loss" | "draw" | "tip" 
     return n.data.level >= 2
       ? { tone: "win", title: "You are a Bounce partner", detail: "Players who sign up with your code get a week of reduced fees, and you earn a share of the house fee on every match they play." }
       : { tone: "security", title: "Your partnership ended", detail: "Your code still gives new players their first day at a reduced fee." };
+  }
+  if (n.kind === "badge_granted") {
+    const badge = BADGES[n.data.badge] ?? BADGES.beta;
+    return { tone: "win", title: `You are a ${badge.name}`, detail: "Thank you for being here early. The badge is on your profile, and the Blueprint theme is yours: wear it from Themes." };
   }
   if (n.kind === "friend_request") {
     return { tone: "tip", title: `${n.data.name} wants to be friends`, detail: "Answer from your friends page to play and talk." };
@@ -173,6 +187,7 @@ export function Notifications({ items, unread, onOpenMatch, onRead, viewingMatch
     else if (n.kind === "tournament_result") router.push(`/tournaments/${n.data.tournamentId}`);
     else if (n.kind === "race_result") router.push("/leaderboard?board=race");
     else if (n.kind === "friend_request" || n.kind === "friend_accepted") router.push("/friends");
+    else if (n.kind === "badge_granted") router.push("/themes");
     else router.push("/wallet");
   };
 

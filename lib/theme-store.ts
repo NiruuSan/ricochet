@@ -3,7 +3,7 @@ import { isLockedOut, suspensionMessage } from "./anti-cheat";
 import { GameError } from "./matches";
 import { cashAccountId, ensureCashAccount, HOUSE, settings } from "./payments/accounts";
 import { requireDevnet } from "./payments/policy";
-import { DEFAULT_THEME, THEMES, themeById, type ThemeId } from "./themes";
+import { DEFAULT_THEME, EXCLUSIVE_THEMES, THEMES, themeById, type ThemeId } from "./themes";
 
 // Buying and wearing a skin (lib/themes.ts holds the looks themselves).
 //
@@ -19,15 +19,18 @@ export type ThemeInventory = {
   owned: ThemeId[];
 };
 
-const FREE = THEMES.filter((t) => t.price === null).map((t) => t.id);
+const FREE = THEMES.filter((t) => t.price === null && !t.exclusive).map((t) => t.id);
 
 export async function themeInventory(uid: string): Promise<ThemeInventory> {
   const db = database();
-  const [player, bought] = await Promise.all([
+  const [player, bought, badge] = await Promise.all([
     db.prepare("SELECT theme FROM players WHERE id = ?").bind(uid).first<{ theme: string | null }>(),
     db.prepare("SELECT theme FROM theme_purchases WHERE user_id = ?").bind(uid).all<{ theme: string }>(),
+    // Any badge opens the exclusive themes: they are the thank-you for being there.
+    db.prepare("SELECT 1 AS yes FROM player_badges WHERE user_id = ? LIMIT 1").bind(uid).first<{ yes: number }>(),
   ]);
-  const owned = [...FREE, ...bought.results.map((row) => row.theme as ThemeId)].filter((id) => THEMES.some((t) => t.id === id));
+  const given = badge ? EXCLUSIVE_THEMES : [];
+  const owned = [...FREE, ...given, ...bought.results.map((row) => row.theme as ThemeId)].filter((id) => THEMES.some((t) => t.id === id));
   const equipped = (player?.theme as ThemeId | null) ?? DEFAULT_THEME;
   return { equipped: owned.includes(equipped) ? equipped : DEFAULT_THEME, owned };
 }
@@ -51,6 +54,7 @@ function themeOrFail(input: unknown) {
  */
 export async function buyTheme(uid: string, input: unknown, now = Date.now()): Promise<ThemeInventory> {
   const theme = themeOrFail(input);
+  if (theme.exclusive) throw new GameError("This theme is not for sale: it is a thank-you to the players who tested Bounce.", 403);
   if (!theme.price) throw new GameError("This theme is already yours.", 409);
   // A locked-out account buys nothing; a case under review may still spend
   // gems, but never real money (lib/anti-cheat.ts).

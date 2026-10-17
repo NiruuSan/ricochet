@@ -1895,6 +1895,33 @@ input[type="checkbox"][aria-invalid="true"] { outline: 2px solid #ff91a0; outlin
   margin: 10px 0 18px;
   line-height: 1.6;
 }
+/* Opening it with a passkey, or a code below. */
+.unlock-passkey {
+  width: 100%;
+  justify-content: center;
+  gap: 8px;
+}
+.unlock-or {
+  margin: 18px 0 2px;
+  color: #8e9cb1;
+}
+.unlock-lost {
+  margin-top: 14px;
+  align-items: center;
+}
+.text-button {
+  border: 0;
+  padding: 6px 0;
+  background: none;
+  color: #a9b7ca;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.text-button:hover {
+  color: #c6f564;
+}
 .online-list {
   display: flex;
   flex-wrap: wrap;

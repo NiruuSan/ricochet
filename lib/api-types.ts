@@ -4,6 +4,7 @@ import type { Game } from "./engine";
 import type { Fairness } from "./fairness";
 import type { AccountLevel, PlayerRank } from "./levels";
 import type { RankLimits } from "./rank-limits";
+import type { BadgeId } from "./badges";
 
 export type { AccountLevel, PlayerRank, RankTier } from "./levels";
 
@@ -94,7 +95,7 @@ export type MatchSummary = {
   net: number;
 };
 
-export type Leader = { name: string; avatar: string | null; is_you: number; pnl: number; games: number; ranked: PlayerRank };
+export type Leader = { name: string; avatar: string | null; is_you: number; pnl: number; games: number; ranked: PlayerRank; badges: BadgeId[] };
 
 export type LaunchStatus = { mode: string; configured: boolean; mainnetEnabled: boolean; message: string };
 
@@ -118,6 +119,8 @@ export type PublicPlayerProfile = {
   /** Level from devnet SOL wagered, and this season's ranked rank; both public. */
   level: AccountLevel;
   ranked: PlayerRank;
+  /** Badges the administrator gave (lib/badges.ts), rarest first. */
+  badges: BadgeId[];
   stats: Record<Asset, { pnl: number; games: number; wins: number }>;
   /** Where the viewer stands with this player; null when nobody is signed in. */
   friendship: Friendship | null;
@@ -198,7 +201,7 @@ export type RatingChange = {
 };
 
 /** The season's ranked table (lib/ranked.ts seasonStandings). */
-export type SeasonStanding = { name: string; avatar: string | null; rank: PlayerRank; games: number; wins: number; isYou: boolean };
+export type SeasonStanding = { name: string; avatar: string | null; rank: PlayerRank; games: number; wins: number; isYou: boolean; badges: BadgeId[] };
 export type SeasonBoard = {
   season: number;
   startsAt: number;
@@ -289,6 +292,7 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
   | { kind: "referral_joined"; data: { name: string; level: number } }
   | { kind: "referral_partner"; data: { level: number } }
   | { kind: "friend_request"; data: { name: string } }
+  | { kind: "badge_granted"; data: { badge: BadgeId } }
   | { kind: "friend_accepted"; data: { name: string } }
 );
 
@@ -297,11 +301,26 @@ export type NotificationItem = { id: string; created: number; read: boolean } & 
  * are the events a player must see even when they did not cause them.
  */
 export type SecurityAlertNotification = {
-  event: "two_factor_disabled" | "recovery_codes_replaced" | "withdrawal_started" | "tip_sent" | "signed_out_everywhere" | "two_factor_locked" | "admin_elevated";
+  event:
+    | "two_factor_disabled"
+    | "recovery_codes_replaced"
+    | "withdrawal_started"
+    | "tip_sent"
+    | "signed_out_everywhere"
+    | "two_factor_locked"
+    | "admin_elevated"
+    | "admin_passkey_added"
+    | "admin_passkey_removed"
+    | "admin_passkey_only_on"
+    | "admin_passkey_only_off";
   /** Lamports, for the events that moved money. */
   amount?: number;
   /** The player or address the money went to. */
   to?: string;
+  /** How the admin was opened: a code from the authenticator, or a passkey. */
+  by?: "code" | "passkey";
+  /** The passkey added or removed. */
+  name?: string;
 };
 
 /** What a report is about. */
@@ -406,6 +425,8 @@ export type Snapshot = {
   theme: ThemeId;
   /** Cashback periods waiting to be claimed (lib/rewards.ts). */
   rewardsReady: number;
+  /** The beta survey, once the player has finished enough games to answer it (lib/survey.ts). */
+  survey: { id: string } | null;
 };
 
 export type QuestScope = "daily" | "weekly";

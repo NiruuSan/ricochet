@@ -9,6 +9,7 @@ import { request } from "../api";
 import { Avatar } from "../avatar";
 import { amount, assetName, fullSol, timeAgo } from "../format";
 import styles from "./admin.module.css";
+import { AdminBadges } from "./admin-badges";
 import { toast } from "../feedback";
 
 const REFRESH_MS = 30_000;
@@ -87,6 +88,7 @@ Balances, wallets and the ledger are untouched. Write the reason; it is recorded
 
   return (
     <section className={styles.section}>
+      <AdminBadges />
       {error && (
         <div className="error" role="alert">
           <span>{error}</span>

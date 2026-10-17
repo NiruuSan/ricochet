@@ -9,6 +9,7 @@ import { signInWith, type SignInProvider } from "../../auth-actions";
 import { request, RequestError } from "../api";
 import { CodeInput } from "../two-factor-panel";
 import styles from "./admin.module.css";
+import { AdminPasskeys } from "./admin-passkeys";
 import { toast } from "../feedback";
 
 const date = (value: number | null) => (value === null ? "None" : new Date(value).toLocaleString("en", { dateStyle: "medium", timeStyle: "short" }));
@@ -41,6 +42,7 @@ export function AdminSecurity() {
 
   return (
     <section className={styles.section}>
+      <AdminPasskeys />
       {error && (
         <p className="error" role="alert">
           {error}

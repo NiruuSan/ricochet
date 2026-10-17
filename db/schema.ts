@@ -608,6 +608,64 @@ export const bugReports = sqliteTable(
   (t) => [index("bug_report_user").on(t.userId), index("bug_report_created").on(t.created, t.id), check("bug_report_status", sql`${t.status} IN ('open', 'resolved')`)],
 );
 
+// The administrator's passkeys (lib/admin-passkeys.ts): the public key, bound to the site it was made on.
+export const adminPasskeys = sqliteTable(
+  "admin_passkeys",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    rpId: text("rp_id").notNull(),
+    publicKey: text("public_key").notNull(),
+    // Rises with every signature; one that goes back means a copied key.
+    counter: integer("counter").notNull().default(0),
+    transports: text("transports"),
+    name: text("name").notNull(),
+    created: integer("created").notNull(),
+    lastUsed: integer("last_used"),
+  },
+  (t) => [index("admin_passkey_user").on(t.userId)],
+);
+
+// One open passkey challenge per session and ceremony, good once, for five minutes.
+export const adminPasskeyChallenges = sqliteTable(
+  "admin_passkey_challenges",
+  {
+    session: text("session").notNull(),
+    kind: text("kind").notNull(),
+    userId: text("user_id").notNull(),
+    challenge: text("challenge").notNull(),
+    expires: integer("expires").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.session, t.kind] })],
+);
+
+// Badges an administrator gives (lib/badges.ts): Beta tester, Founding player.
+export const playerBadges = sqliteTable(
+  "player_badges",
+  {
+    userId: text("user_id").notNull(),
+    badge: text("badge").notNull(),
+    grantedBy: text("granted_by").notNull(),
+    granted: integer("granted").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.badge] })],
+);
+
+// One answer per player per survey (lib/survey.ts): a 0–10 score and a few words.
+export const surveyResponses = sqliteTable(
+  "survey_responses",
+  {
+    userId: text("user_id").notNull(),
+    survey: text("survey").notNull(),
+    score: integer("score").notNull(),
+    answer: text("answer"),
+    // Games the player had finished when they answered.
+    games: integer("games").notNull(),
+    created: integer("created").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.survey] }), index("survey_by_time").on(t.survey, t.created)],
+);
+
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

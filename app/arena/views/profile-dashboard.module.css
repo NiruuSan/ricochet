@@ -10,6 +10,7 @@
 .nameBlock { min-width: 0; }
 .nameBlock h1 { font-size: clamp(32px, 4.4vw, 58px); letter-spacing: -2.4px; line-height: 1.06; overflow-wrap: anywhere; margin-bottom: 12px; }
 .nameBlock p { color: #8e9cb1; font-size: 12px; line-height: 1.6; }
+.badges { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 10px; }
 .heroDescription { font-size: 14px; color: #a5b0c5; line-height: 1.7; margin-top: 22px; }
 .profileActions { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin-top: 23px; }
 .profileActions > a, .shareButton { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: #a9b7ca; min-height: 38px; }

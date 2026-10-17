@@ -1,0 +1,35 @@
+.insignia {
+  display: block;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 0 #0007);
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--badge-line);
+  background: var(--badge-wash);
+  color: var(--badge-ink);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: default;
+}
+.compact {
+  padding: 1px;
+  border: 0;
+  background: none;
+}
+.beta {
+  --badge-line: #6fb8ff55;
+  --badge-wash: #6fb8ff14;
+  --badge-ink: #b9dcff;
+}
+.founder {
+  --badge-line: #f5c54255;
+  --badge-wash: #f5c54214;
+  --badge-ink: #ffe08a;
+}

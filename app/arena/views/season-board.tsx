@@ -9,6 +9,7 @@ import { RANKED } from "@/lib/ranked-rules";
 import { request } from "../api";
 import { Avatar } from "../avatar";
 import { RankBadge, RankProgress } from "../rank-badge";
+import { BadgeChip } from "../badge-insignia";
 import styles from "./leaderboard.module.css";
 import race from "./weekly-race.module.css";
 import season from "./season-board.module.css";
@@ -203,6 +204,7 @@ export function SeasonBoardView({ me, mine }: { me: string | undefined; mine: Pl
                             <b>
                               {s.name}
                               <RankBadge rank={s.rank} />
+                              {s.badges?.map((badge) => <BadgeChip key={badge} badge={badge} compact />)}
                               {s.name === me && <small className={styles.you}>YOU</small>}
                             </b>
                             <small className={styles.mobileMatches}>{record(s.games, s.wins)}</small>

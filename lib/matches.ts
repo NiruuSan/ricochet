@@ -2,6 +2,8 @@ import { adminId, database, type Statement } from "@/db/raw";
 import { wageredSql } from "./experience";
 import { accountLevelFor, experienceFromWagered } from "./levels";
 import { applyRankedResult, eligibleSeat, ranksFor, ratingChangeFor } from "./ranked";
+import { badgesFor } from "./player-badges";
+import { surveyDue } from "./survey";
 import { initial, isSupportedRuleset, RULESET, ShotError, simulateShot, SUPPORTED_RULESETS, validAngle, type Game } from "./engine";
 import { inspectShot, reportMessage, type AimTrail, type Finding, type ShotProof } from "./anti-cheat-rules";
 import { shotKeyFor, validSignature } from "./shot-key";
@@ -349,16 +351,16 @@ export async function leaderboard(viewer: string | null, asset: Asset): Promise<
          JOIN games g ON g.id = l.reference
          WHERE p.deleted IS NULL
          GROUP BY p.id ORDER BY pnl DESC, p.name ASC LIMIT 50`;
-  const { results } = await database().prepare(sql).bind(asset, asset, viewer).all<Omit<Leader, "ranked"> & { uid: string }>();
-  const ranks = await ranksFor(results.map((l) => l.uid));
-  // The id only finds the rank: it never leaves the server.
-  return results.map(({ uid, ...l }) => ({ ...l, avatar: avatarUrl(l.avatar), ranked: ranks.get(uid)! }));
+  const { results } = await database().prepare(sql).bind(asset, asset, viewer).all<Omit<Leader, "ranked" | "badges"> & { uid: string }>();
+  const [ranks, badges] = await Promise.all([ranksFor(results.map((l) => l.uid)), badgesFor(results.map((l) => l.uid))]);
+  // The id only finds the rank and the badges: it never leaves the server.
+  return results.map(({ uid, ...l }) => ({ ...l, avatar: avatarUrl(l.avatar), ranked: ranks.get(uid)!, badges: badges.get(uid) ?? [] }));
 }
 
 export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapshot> {
   const db = database();
   await settleFinishedMatches(uid);
-  const [player, history, active, cash, inbox, tournaments, daily, friends, quests, cashback, ranks] = await Promise.all([
+  const [player, history, active, cash, inbox, tournaments, daily, friends, quests, cashback, ranks, survey] = await Promise.all([
     db
       .prepare(
         `SELECT public_id AS publicId, name, balance, avatar, created, ${wageredSql("players.id")} AS wagered,
@@ -403,6 +405,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     questsReady(uid),
     rewardsReady(uid),
     ranksFor([uid]),
+    surveyDue(uid),
   ]);
   const admin = adminId();
   return {
@@ -424,6 +427,7 @@ export async function playerSnapshot(uid: string, asset: Asset): Promise<Snapsho
     discountUntil: player?.discount_until && player.discount_until > Date.now() ? player.discount_until : null,
     questsReady: quests,
     rewardsReady: cashback,
+    survey,
     matches: history.results.map(({ fee, ...m }) => ({ ...m, opponent_avatar: avatarUrl(m.opponent_avatar), net: netResult(m.result, m.stake, fee) })),
     active,
     isAdmin: !!admin && uid === admin,

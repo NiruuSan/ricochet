@@ -34,6 +34,7 @@ const MOVING: Record<Scene, boolean> = {
   pulse: true,
   aurora: true,
   felt: true,
+  blueprint: true,
 };
 export const isAnimated = (theme: Theme) => !!theme.board.scene && MOVING[theme.board.scene];
 
@@ -212,6 +213,8 @@ export function paintSceneBack(ctx: CanvasRenderingContext2D, theme: Theme) {
       return auroraBack(ctx, theme);
     case "felt":
       return feltBack(ctx, theme);
+    case "blueprint":
+      return blueprintBack(ctx, theme);
   }
 }
 
@@ -246,6 +249,8 @@ export function paintSceneLive(ctx: CanvasRenderingContext2D, theme: Theme, t: n
       return auroraLive(ctx, t);
     case "felt":
       return feltLive(ctx, t);
+    case "blueprint":
+      return blueprintLive(ctx, t);
   }
 }
 
@@ -1270,6 +1275,165 @@ function feltLive(ctx: CanvasRenderingContext2D, t: number) {
   ctx.strokeStyle = rail;
   ctx.lineWidth = 3;
   ctx.strokeRect(1.5, 1.5, W - 3, H - 3);
+}
+
+// --- Blueprint: the board as it was drawn before anyone played it — a drafting
+// sheet ruled to the board's own cells, a protractor round the launch point,
+// the dimensions down the side, a title block in the corner, and the plotter
+// still crossing the sheet.
+
+const DRAFT = "ui-monospace, monospace";
+
+/** A dimension line: the extent between two ticks, with its figure in a gap at the middle. */
+function dimension(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, label: string) {
+  const vertical = x1 === x2;
+  const mid = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+  const gap = label.length * 3.6 + 8;
+  ctx.beginPath();
+  if (vertical) {
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1, mid.y - gap);
+    ctx.moveTo(x1, mid.y + gap);
+    ctx.lineTo(x1, y2);
+    for (const y of [y1, y2]) {
+      ctx.moveTo(x1 - 4, y);
+      ctx.lineTo(x1 + 4, y);
+    }
+  } else {
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(mid.x - gap, y1);
+    ctx.moveTo(mid.x + gap, y1);
+    ctx.lineTo(x2, y1);
+    for (const x of [x1, x2]) {
+      ctx.moveTo(x, y1 - 4);
+      ctx.lineTo(x, y1 + 4);
+    }
+  }
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(mid.x, mid.y);
+  if (vertical) ctx.rotate(-Math.PI / 2);
+  ctx.fillText(label, 0, 0);
+  ctx.restore();
+}
+
+function blueprintBack(ctx: CanvasRenderingContext2D, theme: Theme) {
+  // The sheet, lit in the middle and darker at its edges.
+  const light = ctx.createRadialGradient(W / 2, H * 0.38, 30, W / 2, H * 0.38, H * 0.82);
+  light.addColorStop(0, "rgba(140,195,255,0.10)");
+  light.addColorStop(1, "rgba(0,8,24,0.42)");
+  ctx.fillStyle = light;
+  ctx.fillRect(0, 0, W, H);
+  // Fine squares, then the board's own cells ruled over them.
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(170,215,255,0.045)";
+  ctx.beginPath();
+  for (let x = CW / 4; x < W; x += CW / 4) {
+    ctx.moveTo(Math.round(x) + 0.5, 0);
+    ctx.lineTo(Math.round(x) + 0.5, GROUND);
+  }
+  for (let y = RH / 4; y < GROUND; y += RH / 4) {
+    ctx.moveTo(0, Math.round(y) + 0.5);
+    ctx.lineTo(W, Math.round(y) + 0.5);
+  }
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(170,215,255,0.11)";
+  ctx.beginPath();
+  for (let x = CW; x < W - 1; x += CW) {
+    ctx.moveTo(Math.round(x) + 0.5, 0);
+    ctx.lineTo(Math.round(x) + 0.5, GROUND);
+  }
+  for (let y = RH; y < GROUND; y += RH) {
+    ctx.moveTo(0, Math.round(y) + 0.5);
+    ctx.lineTo(W, Math.round(y) + 0.5);
+  }
+  ctx.stroke();
+  // A protractor round the launch point: the angles the game is played with.
+  ctx.save();
+  ctx.translate(W / 2, GROUND);
+  ctx.strokeStyle = "rgba(190,228,255,0.12)";
+  ctx.setLineDash([3, 5]);
+  for (const r of [150, 236]) {
+    ctx.beginPath();
+    ctx.arc(0, 0, r, Math.PI, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(190,228,255,0.26)";
+  ctx.font = `9px ${DRAFT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.beginPath();
+  for (let deg = 10; deg < 180; deg += 10) {
+    const a = Math.PI + (deg * Math.PI) / 180;
+    const long = deg % 30 === 0;
+    ctx.moveTo(Math.cos(a) * 150, Math.sin(a) * 150);
+    ctx.lineTo(Math.cos(a) * (long ? 162 : 156), Math.sin(a) * (long ? 162 : 156));
+    if (long) ctx.fillText(`${deg}°`, Math.cos(a) * 174, Math.sin(a) * 174);
+  }
+  ctx.stroke();
+  ctx.restore();
+  // The board's dimensions, as a drafter would mark them.
+  ctx.strokeStyle = "rgba(190,228,255,0.22)";
+  ctx.fillStyle = "rgba(190,228,255,0.34)";
+  ctx.font = `9px ${DRAFT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  dimension(ctx, 12, 12, W - 12, 12, `${W}`);
+  dimension(ctx, W - 12, 26, W - 12, GROUND - 8, `${Math.round(GROUND)}`);
+  // The title block, in the corner of the floor.
+  const bw = 170;
+  const bh = 46;
+  const bx = W - bw - 10;
+  const by = GROUND + (H - GROUND - bh) / 2;
+  ctx.strokeStyle = "rgba(190,228,255,0.30)";
+  ctx.strokeRect(bx + 0.5, by + 0.5, bw, bh);
+  ctx.beginPath();
+  ctx.moveTo(bx, by + 18.5);
+  ctx.lineTo(bx + bw, by + 18.5);
+  ctx.moveTo(bx + 112.5, by + 18);
+  ctx.lineTo(bx + 112.5, by + bh);
+  ctx.stroke();
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(220,240,255,0.55)";
+  ctx.font = `bold 10px ${DRAFT}`;
+  ctx.fillText("BOUNCE · BOARD 01", bx + 7, by + 10);
+  ctx.font = `8px ${DRAFT}`;
+  ctx.fillStyle = "rgba(190,228,255,0.4)";
+  ctx.fillText("DRAWN BY THE FIRST", bx + 7, by + 27);
+  ctx.fillText("PLAYERS", bx + 7, by + 38);
+  ctx.fillText("REV. BETA", bx + 119, by + 27);
+  ctx.fillText(`${COLS_LABEL} × ${ROWS_LABEL}`, bx + 119, by + 38);
+  ctx.textBaseline = "alphabetic";
+  // The sheet's border.
+  ctx.strokeStyle = fade(theme.board.line, 0.3);
+  ctx.strokeRect(4.5, 4.5, W - 9, H - 9);
+}
+const COLS_LABEL = Math.round(W / CW);
+const ROWS_LABEL = Math.round(GROUND / RH);
+
+function blueprintLive(ctx: CanvasRenderingContext2D, t: number) {
+  // The plotter head crossing the sheet, its line and its crosshair.
+  const run = (t * 0.07) % 1.25;
+  if (run > 1) return;
+  const x = run * W;
+  const y = GROUND * (0.18 + 0.64 * (0.5 + 0.5 * Math.sin(t * 0.9)));
+  const beam = ctx.createLinearGradient(x - 26, 0, x + 2, 0);
+  beam.addColorStop(0, "rgba(190,228,255,0)");
+  beam.addColorStop(1, "rgba(190,228,255,0.12)");
+  ctx.fillStyle = beam;
+  ctx.fillRect(x - 26, 0, 28, GROUND);
+  ctx.strokeStyle = "rgba(220,240,255,0.45)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x + 0.5, 0);
+  ctx.lineTo(x + 0.5, GROUND);
+  ctx.moveTo(x - 7, y);
+  ctx.lineTo(x + 8, y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x + 0.5, y, 3.5, 0, Math.PI * 2);
+  ctx.stroke();
 }
 
 // ------------------------------------------------------------------ bricks

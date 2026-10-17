@@ -587,4 +587,43 @@ export const KITS: Record<SoundKit, Kit> = {
     },
     lose: () => run(293.66, [4, 0], 0.3, (f, at) => bell(at, f, 0.9, 0.07)),
   },
+
+  // Blueprint: a drafting table — a technical pen ticking along the ruler, the
+  // plotter's stepper motor, and the approval stamp coming down on a clear.
+  draft: {
+    bright: 4_200,
+    root: 293.66,
+    ladder: MAJOR,
+    launch() {
+      hiss({ type: "bandpass", from: 2600, to: 5200, q: 2.2, length: 0.09, gain: 0.08 });
+      fm({ from: 880, ratio: 2, index: 1.4, length: 0.07, gain: 0.05 });
+    },
+    hit(p, at) {
+      tone({ at, from: p * 2, length: 0.05, gain: 0.07, shape: "triangle" });
+      hiss({ at, type: "highpass", from: 5200, length: 0.012, gain: 0.06 });
+    },
+    break(at) {
+      clack(at, 0.16);
+      hiss({ at: at + 0.02, type: "bandpass", from: 1300, to: 3000, q: 1.5, length: 0.09, gain: 0.12 });
+    },
+    land() {
+      tone({ from: 160, to: 110, length: 0.08, gain: 0.15 });
+      hiss({ from: 900, length: 0.05, gain: 0.07 });
+    },
+    clear() {
+      // The stamp, then the plotter running up the scale.
+      tone({ from: 140, to: 58, length: 0.2, gain: 0.32 });
+      hiss({ type: "lowpass", from: 1800, to: 200, length: 0.12, gain: 0.2 });
+      run(587.33, [0, 4, 7, 12, 16], 0.07, (f, at) => fm({ at: at + 0.14, from: f, ratio: 1, index: 0.8, length: 0.12, gain: 0.07 }));
+    },
+    over() {
+      run(392, [7, 4, 0, -5], 0.12, (f, at) => tone({ at, from: f, length: 0.14, gain: 0.08, shape: "triangle" }));
+      hiss({ at: 0.45, from: 600, length: 0.2, gain: 0.08 });
+    },
+    win() {
+      tone({ from: 140, to: 58, length: 0.2, gain: 0.28 });
+      run(587.33, [0, 4, 7, 12, 16, 19], 0.08, (f, at) => fm({ at: at + 0.12, from: f, ratio: 2, index: 0.6, length: 0.22, gain: 0.07 }));
+    },
+    lose: () => run(392, [7, 3, 0], 0.18, (f, at) => tone({ at, from: f, length: 0.3, gain: 0.08, shape: "triangle" })),
+  },
 };

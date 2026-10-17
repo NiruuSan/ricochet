@@ -132,10 +132,10 @@ function Showcase({ theme }: { theme: Theme }) {
 }
 
 const priceOf = (theme: Theme) =>
-  theme.price === null ? "Free" : theme.price.asset === "gems" ? `${units(theme.price.amount, "gems")} gems` : `${amount(theme.price.amount, "devnet")}`;
+  theme.exclusive ? "Beta testers" : theme.price === null ? "Free" : theme.price.asset === "gems" ? `${units(theme.price.amount, "gems")} gems` : `${amount(theme.price.amount, "devnet")}`;
 
-/** Free first, then gems from cheapest, then SOL from cheapest. */
-const rank = (theme: Theme) => (theme.price === null ? 0 : theme.price.asset === "gems" ? 1 + theme.price.amount / 1e6 : 10 + theme.price.amount / 1e9);
+/** Free first, then gems from cheapest, then SOL from cheapest; the one nobody can buy last. */
+const rank = (theme: Theme) => (theme.exclusive ? 100 : theme.price === null ? 0 : theme.price.asset === "gems" ? 1 + theme.price.amount / 1e6 : 10 + theme.price.amount / 1e9);
 
 /** What sets a theme apart, in a few words. */
 function traits(theme: Theme) {
@@ -207,6 +207,12 @@ export function ThemesView({ player }: { player: PlayerState }) {
           {busy === theme.id ? "Changing…" : "Wear this"}
         </button>
       );
+    if (theme.exclusive)
+      return (
+        <button className="btn" disabled>
+          <Lock size={13} /> For beta testers only
+        </button>
+      );
     return (
       <button className="btn btn-primary" disabled={busy === theme.id || !affordable} onClick={() => void act(theme, "buy")}>
         {busy === theme.id ? (
@@ -229,7 +235,7 @@ export function ThemesView({ player }: { player: PlayerState }) {
           <div className="tag lime">THE SAME BOARD, YOUR WAY</div>
           <h1>Themes.</h1>
           <p>
-            Eighteen looks for the arena, each with its own sound: a scene behind the board, bricks of glass, gold, gems or light, what a brick does when it
+            Eighteen looks for the arena — and one more for those who tested it — each with its own sound: a scene behind the board, bricks of glass, gold, gems or light, what a brick does when it
             breaks, and the type on the board. A theme is paint and sound and nothing else — the board, the physics and every angle stay exactly as they are,
             whichever one you wear.
           </p>
@@ -325,7 +331,13 @@ export function ThemesView({ player }: { player: PlayerState }) {
                   ))}
                 </ul>
                 <p className={styles.showcasePrice}>
-                  {store?.owned.includes(showing.id) ? "In your collection" : showing.price === null ? "Free for everyone" : priceOf(showing)}
+                  {store?.owned.includes(showing.id)
+                    ? "In your collection"
+                    : showing.exclusive
+                      ? "Not for sale: a thank-you to the players who tested Bounce"
+                      : showing.price === null
+                        ? "Free for everyone"
+                        : priceOf(showing)}
                 </p>
                 {action(showing)}
               </div>
@@ -374,6 +386,7 @@ const SCENES: Record<NonNullable<Theme["board"]["scene"]>, string> = {
   snow: "Falling snow",
   cave: "Glowing cavern",
   felt: "Gold-railed table",
+  blueprint: "Drafting sheet",
   pulse: "Block beams",
   candy: "Sugar bokeh",
 };
@@ -433,4 +446,5 @@ const SOUNDS: Record<Theme["effects"]["sound"], string> = {
   chain: "Digital chirps",
   aurora: "Ambient sound",
   casino: "Chips and slot-machine sound",
+  draft: "Drafting-table sound",
 };

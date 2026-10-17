@@ -30,10 +30,13 @@ const count = (sql, ...args) => sqlite.prepare(sql).get(...args).n;
 
 try {
   // --- The catalogue --------------------------------------------------------
-  assert.equal(THEMES.length, 18, "Eighteen themes");
-  assert.equal(new Set(THEMES.map((t) => t.id)).size, 18, "No two share an id");
-  assert.equal(new Set(THEMES.map((t) => t.name)).size, 18, "Nor a name");
-  assert.deepEqual(THEMES.filter((t) => t.price === null).map((t) => t.id), [DEFAULT_THEME], "One free theme, and it is the default");
+  assert.equal(THEMES.length, 19, "Eighteen themes on sale or free, and one given to testers");
+  assert.equal(new Set(THEMES.map((t) => t.id)).size, 19, "No two share an id");
+  assert.equal(new Set(THEMES.map((t) => t.name)).size, 19, "Nor a name");
+  assert.deepEqual(THEMES.filter((t) => t.price === null && !t.exclusive).map((t) => t.id), [DEFAULT_THEME], "One free theme, and it is the default");
+  assert.deepEqual(THEMES.filter((t) => t.exclusive).map((t) => t.id), ["blueprint"], "One theme nobody can buy");
+  assert.ok(THEMES.filter((t) => t.exclusive).every((t) => t.price === null && t.board.scene), "It has no price, and a scene of its own");
+  assert.ok(!THEMES.some((t) => !t.exclusive && t.board.scene === "blueprint"), "Its scene is its alone");
   for (const theme of THEMES) {
     assert.ok(theme.board.bricks.length >= 4, `${theme.id} has a palette`);
     assert.ok(theme.board.radius >= 0 && theme.board.radius <= 20, `${theme.id} has a sane brick corner`);
@@ -48,7 +51,7 @@ try {
   assert.equal(paid.filter((t) => t.price.asset === "gems").length, 11, "Eleven bought with gems");
   assert.equal(paid.filter((t) => t.price.asset === "devnet").length, 6, "Six bought with devnet SOL");
   // A scene or a brick style is paint too: only names the painter knows.
-  const SCENES = ["skyline", "papercraft", "arcade", "sea", "rain", "blossom", "marble", "flare", "nebula", "candy", "snow", "ink", "outrun", "cave", "pulse", "aurora", "felt"];
+  const SCENES = ["skyline", "papercraft", "arcade", "sea", "rain", "blossom", "marble", "flare", "nebula", "candy", "snow", "ink", "outrun", "cave", "pulse", "aurora", "felt", "blueprint"];
   const STYLES = ["flat", "paper", "pixel", "pearl", "crt", "petal", "metal", "magma", "glass", "glossy", "ink", "neon", "gem", "gradient", "chip"];
   for (const theme of THEMES) {
     if (theme.board.scene) assert.ok(SCENES.includes(theme.board.scene), `${theme.id} has a known scene`);
@@ -156,13 +159,23 @@ try {
 
   // --- The store as the page sees it ---------------------------------------
   const page = await store.themeStore(ANA);
-  assert.equal(page.themes.length, 18);
+  assert.equal(page.themes.length, 19);
   assert.deepEqual(page.owned.sort(), [DEFAULT_THEME, "neon", "obsidian", "paper"].sort());
   const visitor = await store.themeStore(null);
   assert.deepEqual(visitor.owned, [DEFAULT_THEME], "A visitor owns the free one");
 
+  // --- The theme nobody can buy --------------------------------------------
+  await assert.rejects(() => store.buyTheme(ANA, "blueprint"), (e) => e.status === 403 && /not for sale/.test(e.message), "Blueprint is not for sale");
+  await assert.rejects(() => store.equipTheme(ANA, "blueprint"), (e) => e.status === 403, "nor worn without a badge");
+  sqlite.prepare("INSERT INTO player_badges(user_id, badge, granted_by, granted) VALUES(?, 'beta', 'github:admin', 0)").run(ANA);
+  assert.ok((await store.themeInventory(ANA)).owned.includes("blueprint"), "A badge holder owns it");
+  assert.equal((await store.equipTheme(ANA, "blueprint")).equipped, "blueprint", "and wears it");
+  assert.ok(!(await store.themeInventory(BEN)).owned.includes("blueprint"), "Nobody else does");
+  sqlite.prepare("DELETE FROM player_badges WHERE user_id = ?").run(ANA);
+  assert.equal(await store.equippedTheme(ANA), DEFAULT_THEME, "A badge taken back takes the theme with it");
+
   console.log(
-    "PASS: themes (catalogue of eighteen with one free and nothing the engine reads, gem purchase through the ledger, the receipt as the lock, a second tap free, an empty wallet refused, devnet SOL to the house, wearing only what is owned, a skin the player lost falling back, the snapshot, and the shop under an open case).",
+    "PASS: themes (catalogue of eighteen on sale or free and one given to badge holders, nothing the engine reads, gem purchase through the ledger, the receipt as the lock, a second tap free, an empty wallet refused, devnet SOL to the house, wearing only what is owned, a skin the player lost falling back, the snapshot, and the shop under an open case).",
   );
 } finally {
   close();

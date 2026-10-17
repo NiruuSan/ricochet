@@ -28,7 +28,7 @@ const RECOVERY_CODES = 10;
 const ISSUER = "Bounce";
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 
-export type TwoFactorErrorCode = "TWO_FACTOR_REQUIRED" | "TWO_FACTOR_INVALID" | "TWO_FACTOR_LOCKED" | "TWO_FACTOR_STATE";
+export type TwoFactorErrorCode = "TWO_FACTOR_REQUIRED" | "TWO_FACTOR_INVALID" | "TWO_FACTOR_LOCKED" | "TWO_FACTOR_STATE" | "PASSKEY_REQUIRED";
 
 export class TwoFactorError extends PaymentError {
   readonly code: TwoFactorErrorCode;

@@ -44,6 +44,8 @@ const SECTIONS: { name: string; sql: string; by: "user" | "account" }[] = [
   { name: "notifications", sql: "SELECT id, kind, data, created, read_at FROM notifications WHERE user_id = ? ORDER BY created", by: "user" },
   { name: "pushDevices", sql: "SELECT endpoint, created FROM push_subscriptions WHERE user_id = ? ORDER BY created", by: "user" },
   { name: "twoFactor", sql: "SELECT enabled, enabled_at FROM two_factor WHERE user_id = ?", by: "user" },
+  { name: "badges", sql: "SELECT badge, granted FROM player_badges WHERE user_id = ? ORDER BY granted", by: "user" },
+  { name: "surveyAnswers", sql: "SELECT survey, score, answer, games, created FROM survey_responses WHERE user_id = ? ORDER BY created", by: "user" },
   { name: "suspensions", sql: "SELECT status, source, reason, created, reviewed_at FROM player_suspensions WHERE user_id = ? ORDER BY created", by: "user" },
   { name: "depositAddresses", sql: "SELECT address, network, created FROM custody_wallets WHERE owner = ? ORDER BY created", by: "user" },
   { name: "transfers", sql: "SELECT id, kind, amount, fee, destination, signature, status, error, created, updated FROM cash_transfers WHERE user_id = ? ORDER BY created", by: "user" },
@@ -127,6 +129,8 @@ export async function deleteAccount(uid: string, now = Date.now()) {
     db.prepare("DELETE FROM two_factor WHERE user_id = ?").bind(uid),
     db.prepare("DELETE FROM two_factor_recovery WHERE user_id = ?").bind(uid),
     db.prepare("DELETE FROM daily_claims WHERE user_id = ?").bind(uid),
+    db.prepare("DELETE FROM player_badges WHERE user_id = ?").bind(uid),
+    db.prepare("DELETE FROM survey_responses WHERE user_id = ?").bind(uid),
   ]);
   return { deleted: true as const, at: now };
 }

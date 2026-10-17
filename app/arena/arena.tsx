@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight, Bug, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Palette, Radio, Target, Trophy, UserRound, Users, Wallet, X } from "lucide-react";
+import { ArrowUpRight, Bug, Gamepad2, HelpCircle, Landmark, LogOut, Medal, Palette, Radio, Sparkles, Target, Trophy, UserRound, Users, Wallet, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Menu } from "@/components/ui/menu";
 import { signOutToLogin } from "../auth-actions";
@@ -21,6 +21,7 @@ import { CookieBanner } from "./cookie-banner";
 import { rememberReferral } from "./referral-link";
 import { useGameSession } from "./use-game-session";
 import type { View } from "./views";
+import { useUnreadNews } from "./news";
 import { usePlayerData } from "./use-player-data";
 import { themeById } from "./theme";
 // Each page only downloads the view it shows; the others load when you navigate to them.
@@ -42,6 +43,8 @@ const QuestsView = dynamic(() => import("./views/quests-view").then((m) => m.Que
 const ThemesView = dynamic(() => import("./views/themes-view").then((m) => m.ThemesView));
 const PublicProfileView = dynamic(() => import("./views/public-profile-view").then((m) => m.PublicProfileView));
 const RulesView = dynamic(() => import("./views/rules-view").then((m) => m.RulesView));
+const WhatsNewView = dynamic(() => import("./views/whats-new-view").then((m) => m.WhatsNewView));
+const SurveyCard = dynamic(() => import("./survey-card").then((m) => m.SurveyCard));
 const TournamentDetailView = dynamic(() => import("./views/tournament-detail-view").then((m) => m.TournamentDetailView));
 const TournamentsView = dynamic(() => import("./views/tournaments-view").then((m) => m.TournamentsView));
 const WatchView = dynamic(() => import("./views/watch-view").then((m) => m.WatchView));
@@ -102,6 +105,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
   // A shared replay or score carries its sharer's referral code: keep it for sign-up, whatever page it opened.
   useEffect(() => rememberReferral(new URLSearchParams(window.location.search).get("ref")), []);
   const { asset, setAsset, data, error, setError, refresh } = player;
+  const unreadNews = useUnreadNews();
   const onSaved = useCallback(() => void refresh(), [refresh]);
   // The skin the player wears follows them onto the board and its screens.
   const theme = themeById(data.theme);
@@ -250,6 +254,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
                   { label: friendAlerts ? `Friends · ${friendAlerts}` : "Friends", href: "/friends", icon: <Users /> },
                   { label: questsReady ? `Quests · ${questsReady}` : "Quests", href: "/quests", icon: <Target /> },
                   { label: "Themes", href: "/themes", icon: <Palette /> },
+                  { label: unreadNews ? `What's new · ${unreadNews}` : "What's new", href: "/whats-new", icon: <Sparkles /> },
                   { label: "Wallet", href: "/wallet", icon: <Wallet /> },
                   { label: "Report a bug", onSelect: () => setReportBug(true), icon: <Bug /> },
                   { label: "Sign out", onSelect: () => void signOutToLogin(), icon: <LogOut />, danger: true, separated: true },
@@ -298,6 +303,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
         {view === "profile" && (profileName ? <PublicProfileView key={profileName} name={profileName} player={player} /> : <ProfileView player={player} />)}
         {(view === "login" || view === "signup") && <AuthView player={player} signup={view === "signup"} />}
         {view === "rules" && <RulesView />}
+        {view === "whats-new" && <WhatsNewView />}
         {view === "privacy" && <PrivacyView />}
         {view === "terms" && <TermsView />}
         {view === "friends" && <FriendsView player={player} />}
@@ -308,6 +314,7 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
           <span>© {new Date().getFullYear()} Bounce · A good angle changes everything.</span>
           <div className="links" style={{ alignItems: "center", flexWrap: "wrap" }}>
             <Link href="/rules">Game rules</Link>
+            <Link href="/whats-new">What&apos;s new</Link>
             <Link href="/terms">Terms</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/privacy#cookies">Cookies</Link>
@@ -319,6 +326,8 @@ export default function Arena({ view, profileName, adminCaseName, initialMatchId
       <FeedbackHost />
       <CookieBanner />
       {data.isAdmin && <AdminConfirm />}
+      {/* Two questions after the fifth game: never over a board being played, nor over the admin. */}
+      {data.player && data.survey && !playing && view !== "admin" && <SurveyCard survey={data.survey} onDone={() => void refresh()} />}
       <BugReportDialog open={reportBug} onOpenChange={setReportBug} signedIn={!!data.authenticated} hasProfile={!!data.player} />
       <Dialog open={confirmForfeit} onOpenChange={setConfirmForfeit}>
         <DialogContent className="dialog-dark">

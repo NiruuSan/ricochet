@@ -617,3 +617,110 @@
 .rankSelect > button[data-state="open"] {
   border-color: #c6f56466;
 }
+
+/* The administrator's passkeys. */
+.passkeys {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 6px;
+  padding: 0;
+  list-style: none;
+}
+.passkeys li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid #222c3c;
+  border-radius: 12px;
+  background: #0f1620;
+}
+.passkeys li > svg {
+  flex-shrink: 0;
+  color: #c6f564;
+}
+.passkeys li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.passkeys li span {
+  color: #8e9cb2;
+  font-size: 12px;
+}
+.passkeyAdd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+}
+.passkeyAdd :global(.field) {
+  flex: 1 1 220px;
+  margin: 10px 0 0;
+}
+.passkeyAdd > button {
+  margin-bottom: 1px;
+  min-height: 50px;
+}
+
+/* Badges: give one, take one back, or give one to everyone. */
+.badgeCounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.badgeCounts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.badgeForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 18px;
+  margin-top: 6px;
+}
+.badgeForm :global(.field) {
+  margin: 10px 0;
+}
+.badgeForm :global(.field) button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.badgeActions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.badgeRecent {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.badgeRecent li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 5px;
+  border: 1px solid #222c3c;
+  border-radius: 999px;
+  background: #0f1620;
+  font-size: 12px;
+}
+.badgeRecent span {
+  color: #7f8da3;
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .badgeForm {
+    grid-template-columns: 1fr;
+  }
+}

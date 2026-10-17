@@ -1,0 +1,101 @@
+/* The beta survey's answers (app/arena/views/admin-feedback.tsx). */
+.chart {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  align-items: end;
+  gap: 6px;
+  height: 180px;
+  padding-top: 16px;
+}
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+.value {
+  min-height: 16px;
+  color: #b9c5d6;
+  font-size: 11px;
+  font-weight: 700;
+}
+.bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 4px 4px 1px 1px;
+}
+.score {
+  margin-top: 6px;
+  color: #8e9cb2;
+  font-size: 11px;
+  font-weight: 700;
+}
+.promoter {
+  background: #c6f564;
+  color: #152008;
+}
+.passive {
+  background: #8e9cb2;
+  color: #10161f;
+}
+.detractor {
+  background: #ff8a8a;
+  color: #2a0a0a;
+}
+.low {
+  color: #ff9aa9;
+}
+.filters {
+  display: flex;
+  gap: 6px;
+}
+.filters button[aria-pressed="true"] {
+  border-color: #c6f564;
+  color: #c6f564;
+}
+.comments {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.comments li {
+  display: flex;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #222c3c;
+  border-radius: 14px;
+  background: #121a26;
+}
+.comments li > div {
+  min-width: 0;
+}
+.comments p {
+  color: #e2e8f1;
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.meta {
+  display: block;
+  margin-top: 6px;
+  color: #7f8da3;
+  font-size: 12px;
+}
+.meta a {
+  color: #b9c5d6;
+}
+.badge {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 900;
+}
+

@@ -2,7 +2,8 @@ import { createHash } from "node:crypto";
 import { database } from "@/db/raw";
 import { json } from "./http";
 import { notificationInsert } from "./notifications";
-import { verifySecondFactor } from "./two-factor";
+import { TwoFactorError, verifySecondFactor } from "./two-factor";
+import { passkeyOnly, verifyPasskey } from "./admin-passkeys";
 import type { SignedInUser } from "./auth-user";
 
 // Sudo mode for the administrator.
@@ -109,11 +110,27 @@ export async function elevatedUntil(uid: string, session: string | null, now = D
 /**
  * Opens the window, after a valid authenticator or recovery code. The code goes
  * through the same counted, locking check as a withdrawal, and the owner is
- * told — if it was not them, they know at once.
+ * told — if it was not them, they know at once. Once the administrator has
+ * chosen "passkey only" (lib/admin-passkeys.ts), an app code is refused before
+ * it is even checked; a recovery code still opens it, as the way back in.
  */
 export async function elevate(uid: string, session: string | null, code: unknown, now = Date.now(), network: string | null = null) {
   if (!session) throw new Error("No session to confirm.");
+  if (/^\d{3}\s?\d{3}$/.test(typeof code === "string" ? code.trim() : "") && (await passkeyOnly())) {
+    throw new TwoFactorError("The admin opens with your passkey only. Use it, or one of your recovery codes.", "PASSKEY_REQUIRED");
+  }
   await verifySecondFactor(uid, code, now);
+  return openWindows(uid, session, now, network, "code");
+}
+
+/** Opens the window with one of the administrator's passkeys, answering this session's challenge. */
+export async function elevateWithPasskey(uid: string, session: string | null, origin: string, response: unknown, now = Date.now(), network: string | null = null) {
+  if (!session) throw new Error("No session to confirm.");
+  await verifyPasskey(uid, session, origin, response, now);
+  return openWindows(uid, session, now, network, "passkey");
+}
+
+async function openWindows(uid: string, session: string, now: number, network: string | null, by: "code" | "passkey") {
   const until = now + ELEVATION_MS;
   const viewingUntil = now + VIEWING_MS;
   const db = database();
@@ -126,7 +143,7 @@ export async function elevate(uid: string, session: string | null, code: unknown
            network = excluded.network, created = excluded.created`,
       )
       .bind(session, uid, until, viewingUntil, network, now),
-    notificationInsert(db, `security:admin_elevated:${now}`, uid, "security_alert", { event: "admin_elevated", until }, now),
+    notificationInsert(db, `security:admin_elevated:${now}`, uid, "security_alert", { event: "admin_elevated", until, by }, now),
   ]);
   return { until, viewingUntil };
 }

@@ -1,6 +1,7 @@
 import { database, type Statement } from "@/db/raw";
 import type { RatingChange, SeasonBoard } from "./api-types";
 import { BOUNCER_FLOOR, divisionIndex, rankFor, tierIndex, type PlayerRank } from "./levels";
+import { badgesFor } from "./player-badges";
 import { RANKED, ratingChange, seasonAt, seasonEnd, seasonStart, softReset, tierReach, withShield } from "./ranked-rules";
 
 // Ranked play: every public SOL match moves both players' rating
@@ -275,8 +276,9 @@ export async function seasonStandings(viewer: string | null, now = Date.now(), l
     )
     .bind(season, limit)
     .all<{ user_id: string; games: number; wins: number; name: string; avatar: string | null }>();
-  const ranks = await ranksFor([...results.map((r) => r.user_id), ...(viewer ? [viewer] : [])], now);
-  const standings = results.map((row) => ({ name: row.name, avatar: avatarUrl(row.avatar), rank: ranks.get(row.user_id)!, games: row.games, wins: row.wins, isYou: row.user_id === viewer }));
+  const everyone = [...results.map((r) => r.user_id), ...(viewer ? [viewer] : [])];
+  const [ranks, badges] = await Promise.all([ranksFor(everyone, now), badgesFor(everyone)]);
+  const standings = results.map((row) => ({ name: row.name, avatar: avatarUrl(row.avatar), rank: ranks.get(row.user_id)!, games: row.games, wins: row.wins, isYou: row.user_id === viewer, badges: badges.get(row.user_id) ?? [] }));
   let you: SeasonBoard["you"] = null;
   if (viewer) {
     const [row, player] = await Promise.all([
@@ -284,7 +286,7 @@ export async function seasonStandings(viewer: string | null, now = Date.now(), l
       database().prepare("SELECT name, avatar FROM players WHERE id = ?").bind(viewer).first<{ name: string; avatar: string | null }>(),
     ]);
     const rank = ranks.get(viewer)!;
-    if (player) you = { name: player.name, avatar: avatarUrl(player.avatar), rank, games: row?.games ?? 0, wins: row?.wins ?? 0, isYou: true, peak: row?.peak ?? rank.rating, placementsLeft: rank.placementsLeft };
+    if (player) you = { name: player.name, avatar: avatarUrl(player.avatar), rank, games: row?.games ?? 0, wins: row?.wins ?? 0, isYou: true, badges: badges.get(viewer) ?? [], peak: row?.peak ?? rank.rating, placementsLeft: rank.placementsLeft };
   }
   return { season, startsAt: seasonStart(season), endsAt: seasonEnd(season), standings, you };
 }

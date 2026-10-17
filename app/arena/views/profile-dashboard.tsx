@@ -10,6 +10,7 @@ import type { Asset, PnlRange, ProfileMatch, ProfilePerformance, ProfileStats, P
 import type { PlayerState } from "../arena";
 import { request } from "../api";
 import { LevelBadge, RankEmblem, RankProgress } from "../rank-badge";
+import { BadgeChip } from "../badge-insignia";
 import { Avatar } from "../avatar";
 import { assetName, currency, fullSol, shortId } from "../format";
 import { ordinal } from "../tournament-format";
@@ -218,7 +219,7 @@ export function ProfileDashboard({
         <div className={styles.eyebrow}><UserRound size={15} />{own ? "YOUR PLAYER PROFILE" : "PLAYER PROFILE"}</div>
         <div className={styles.identity}>
           <div className={styles.avatar}><Avatar name={profile.name} src={own ? player.data.player?.avatar : profile.avatar} size={88} /><LevelBadge level={profile.level} own={!!profile.isYou} className={styles.avatarLevel} /></div>
-          <div className={styles.nameBlock}><h1>{profile.name}</h1><p>In the arena since {new Date(profile.created).toLocaleDateString("en", { month: "short", year: "numeric" })}</p></div>
+          <div className={styles.nameBlock}><h1>{profile.name}</h1>{profile.badges.length > 0 && <div className={styles.badges}>{profile.badges.map((badge) => <BadgeChip key={badge} badge={badge} />)}</div>}<p>In the arena since {new Date(profile.created).toLocaleDateString("en", { month: "short", year: "numeric" })}</p></div>
         </div>
         <p className={styles.heroDescription}>{own ? "Your best runs, closest matches, and next milestone." : "The runs, results, and ranks behind the player."}</p>
         <div className={styles.profileActions}>

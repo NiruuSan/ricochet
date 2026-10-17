@@ -274,6 +274,20 @@
       "when": 1792410000000,
       "tag": "0038_admin_viewing",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1792420000000,
+      "tag": "0039_admin_passkeys",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1792430000000,
+      "tag": "0040_badges_survey",
+      "breakpoints": true
     }
   ]
 }

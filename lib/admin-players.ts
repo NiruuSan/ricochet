@@ -92,6 +92,8 @@ const PURGE = [
   "DELETE FROM shot_analysis WHERE user_id = ?",
   "DELETE FROM referral_codes WHERE user_id = ?",
   "DELETE FROM referrals WHERE user_id = ? OR referrer_id = ?",
+  "DELETE FROM player_badges WHERE user_id = ?",
+  "DELETE FROM survey_responses WHERE user_id = ?",
   "DELETE FROM players WHERE id = ?",
 ];
 
